@@ -198,9 +198,15 @@ export function createScene(canvas, overlay) {
     cyl(1.1, 8, 'y', [-14, 4, 6.5], COLORS.steel, 'repscrew', rep, { metal: true });
 
     // hammer
-    const hammer = n.hammer = new THREE.Group(); root.add(hammer);
-    hammer.position.set(G.H[0], G.H[1], 0);
+    // alignment: spacing shifts the whole hammer sideways, traveling tilts its swing about the shank line
+    const align = n.align = new THREE.Group(); root.add(align);
+    align.position.set(G.H[0], G.H[1], 0);
+    const hammer = n.hammer = new THREE.Group(); align.add(hammer);
     cyl(3.5, 124, 'x', [62, 0, 0], COLORS.wood, 'shank', hammer);
+    // a split along the shank: only there when the shank is damaged
+    n.crack = ext(rect(30, 2.2, 95, 3.6), 1.2, 3.4, COLORS.dark, 'shank', hammer, { noPick: true });
+    // the head twists about the shank's axis when the shank is out of square
+    const headG = n.headG = new THREE.Group(); hammer.add(headG);
     n.knuckle = cyl(G.knuckleR, 8, 'z', [G.knuckleC[0], G.knuckleC[1], 0], COLORS.buckskin, 'knuckle', hammer);
     cyl(G.coreR, 8.4, 'z', [G.knuckleC[0], G.knuckleC[1], 0], COLORS.core, 'knuckle', hammer);
     // molding: tapers toward the crown; below the shank it continues as the tail,
@@ -211,11 +217,11 @@ export function createScene(canvas, overlay) {
     mold.moveTo(118, -8); mold.lineTo(119.5, 14); mold.lineTo(121.5, 24); mold.lineTo(130.5, 24); mold.lineTo(132.5, 8);
     mold.lineTo(134, -2); mold.quadraticCurveTo(139.5, -7, 139.3, -18);
     mold.quadraticCurveTo(137.5, -25.5, 130, -26); mold.quadraticCurveTo(122, -25, 120, -16); mold.closePath();
-    ext(mold, 10, 0, COLORS.wood, 'hammer', hammer);
+    ext(mold, 10, 0, COLORS.wood, 'hammer', headG);
     ext(shapeFrom([[134.3, -2.6], [138.6, -7.6], [139.1, -18], [137, -23.4], [136, -22.8], [138, -18], [137.5, -8], [133.6, -3.2]]),
-      10.4, 0, COLORS.dark, 'tail', hammer); // scored check surface
+      10.4, 0, COLORS.dark, 'tail', headG); // scored check surface
     // felt wraps the top of the molding: underfelt band, then the top felt to the crown
-    n.feltG = new THREE.Group(); n.feltG.position.y = 4; hammer.add(n.feltG);
+    n.feltG = new THREE.Group(); n.feltG.position.y = 4; headG.add(n.feltG);
     const felt = new THREE.Shape();
     // grand hammer felt: wide where it is glued to the molding, near-straight sides, rounded crown
     felt.moveTo(110.5, 0); felt.lineTo(112, 18);
@@ -378,6 +384,13 @@ export function createScene(canvas, overlay) {
     const kb = hamPt(hammerOverride ?? sim.g, G.knuckleC)[1] - G.knuckleR;
     n.rep.rotation.z = -solveRho(L, Math.min(L.hornTop, kb));
     n.hammer.rotation.z = hammerOverride ?? sim.g;
+    // alignment: spacing, traveling (drift at the string = 47 mm of rise times the tilt), squaring
+    const tilt = -(a.hammerTravel || 0) / 44.5;           // crown rises about 44.5 mm to the strings
+    n.align.rotation.x = tilt;
+    n.align.position.z = (a.hammerSpace || 0) - 40 * Math.sin(tilt);   // keep the resting head where spacing puts it
+    const wob = a.wobble ? a.wobble * ((sim.strikes || 0) % 2 ? 1 : -1) : 0;   // a split shank wobbles blow to blow
+    n.headG.rotation.x = ((a.hammerSquare || 0) + wob) * Math.PI / 180;
+    n.crack.visible = a.damage === 'splitShank';
     // adjustable parts
     const cap = Math.max(0.5, a.capstan);
     n.capstan.scale.y = cap; n.capstan.position.y = G.keyThick + cap / 2; n.capDome.position.set(G.capstanLocal, G.keyThick + cap, 0);

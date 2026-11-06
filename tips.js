@@ -30,7 +30,7 @@ export const TIPS = {
     { text: 'Press each key down often while leveling, so the punchings settle onto the balance pin before you judge the height.', ...FRANCESCO('50 point guide to grand regulation, 2015', 'https://pianotuningmatters.blogspot.com/2015/11/50-point-guide-to-grand-regulation.html') },
     { text: 'Many tight front bushings and some time? Sized broaches on a temperature-controlled iron, or steam with bushing cauls left in overnight.', ...PT('Alan Eder RPT', 2021) },
   ],
-  travel: [
+  hammerTravel: [
     { text: 'Travel the shanks before hanging hammers: screw the stack to a dead-level bench and check each shank against a square.', ...PT('Dale Erwin RPT', 2001) },
     { text: 'Travel the two end shanks of a section perfectly, then clip a stick ruled with vertical lines to the end hammers. Lift the section and the wanderers show at once.', ...PT('Lance Lafargue RPT', 2001) },
     { text: 'Mark a spacing scale from the hammer wear marks before you start, so unspaced hammers have a real place to go back to.', ...BROWN },

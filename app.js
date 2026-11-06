@@ -1,5 +1,5 @@
-import { G, IN, ADJ, SPEC, DAMPER_SPECS, FACTORY, NEIGHBOR_H, Sim, measure, grade, hamPt, crownY, keyAngle, keyPt,
-         jackGeom, knuckleBottom, eff, repSupportZ } from './model.js';
+import { G, IN, ADJ, SPEC, DAMPER_SPECS, DAMAGE, FACTORY, NEIGHBOR_H, Sim, measure, grade, hamPt, crownY, keyAngle, keyPt,
+         jackGeom, knuckleBottom, eff, repSupportZ, gString as gStringNow } from './model.js';
 import { createScene, NOTE_Z } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 
@@ -31,6 +31,19 @@ function fmt(mm, signed = false) {
   return units === 'in' ? s + fracIn(mm) : s + fmm(mm).replace(/^-/, '−');
 }
 const fmtBoth = mm => units === 'in' ? `${fracIn(mm)} (${fmm(mm)})` : `${fmm(mm)} (${fracIn(mm)})`;
+
+// ---------- skill level ----------
+// Apprentice: readings live everywhere, looser tolerances, hints. Journeyman: readings only after
+// the test that measures them. RPT: exam-tight tolerances and damage faults in the mix.
+const LEVELS = {
+  apprentice: { name: 'Apprentice', tolK: 1.5, live: true, hints: true },
+  journeyman: { name: 'Journeyman', tolK: 1, live: false, hints: false },
+  rpt: { name: 'RPT', tolK: 0.75, live: false, hints: false, damage: true },
+};
+let LEVEL = LEVELS.journeyman;
+try { const v = localStorage.getItem('regsim-level'); if (v && Object.hasOwn(LEVELS, v)) LEVEL = LEVELS[v]; } catch {}
+const level = () => (mode === 'exam' && exam.started ? exam.level : LEVEL);
+const gradeL = (id, mm) => grade(id, mm, level().tolK);
 
 // ---------- state ----------
 // Three note slots (0 = middle, 1 = toward the bass, 2 = toward the treble). The one-note modes
@@ -88,9 +101,18 @@ const STEPS = [
   { info: true, id: 'keys', title: 'Square, space and ease the keys',
     what: 'Keys should sit square and evenly spaced, with slight side play at the bushings and none that binds.',
     how: 'Square a key by bending the balance rail pin to one side with a soft drift; space it by bending the front rail pin, the tool under the punching so the pin isn\'t marked.' },
-  { info: true, id: 'travel', title: 'Travel, space and square the action',
-    what: 'Hammers must rise straight, centered on their strings; wippens square to the knuckles and capstans; each jack centered in its repetition lever window.',
-    how: 'Travel hammers with paper strips under one side of the flange; space hammers to the strings; square the wippens the same way at their flanges.' },
+  { spec: 'hammerTravel', title: 'Travel the hammers', knobs: ['hammerTravel'], test: 'travelLift',
+    what: 'Lift the hammer slowly to the strings: it should rise straight, without drifting sideways. A hammer that travels off its path ends up striking a different spot than where it rests.',
+    how: 'Put a strip of paper under one side of the hammer flange to tilt its path. Travel before spacing, since traveling moves the hammer at the strings.',
+    note: 'Wippens and jacks are squared the same way at their flanges; the sim keeps those square.' },
+  { spec: 'hammerSpacing', title: 'Space the hammers to the strings', knobs: ['hammerSpace'], test: 'alignSight',
+    what: 'At the strings, the hammer should be centered on its unison so it strikes all three strings evenly (makers vary: some favor the treble side).',
+    how: 'Loosen the flange screw, shift the hammer sideways, retighten.',
+    note: '' },
+  { spec: 'hammerSquare', title: 'Square the hammer heads', knobs: ['hammerSquare'], test: 'alignSight',
+    what: 'The hammer head should stand square to the strings, so its crown meets all the strings of the unison at once.',
+    how: 'Burn the shank: warm it with a heat gun or alcohol lamp and twist it until the head is square, then let it cool.',
+    note: 'A head that won\'t stay square, or wobbles from blow to blow, is telling you about a damaged shank, not a regulation problem.' },
   { spec: 'keyHeight', title: 'Key height', knobs: ['balPunch'], test: 'straightedge',
     what: 'Every other measurement starts from the key, so level it first. Lay a straightedge across the neighboring keys: this key should just touch it.',
     how: 'Add or remove punchings under the key at the balance rail. The key rocks on the back rail, so the front moves about twice the punching thickness.',
@@ -181,6 +203,23 @@ const TESTS = {
   restRail: { label: 'Look at the rest rail', specs: ['restGap'], view: 'rails', run: async () => { await releaseKey(); } },
   damperSlow: { label: 'Press slowly: watch the damper', specs: ['damperTiming', 'damperStop'], view: 'dampers', damper: true,
     run: async () => { setPedal(false); await releaseKey(); sim.press(sim.dip, 6); await waitSim(2.2); await waitReal(1); } },
+  alignSight: { label: 'Sight the hammer on its strings', specs: ['hammerSpacing', 'hammerSquare'], view: 'hammerline',
+    run: async () => { await releaseKey(); hammerOverride = gStringNow() - 0.004; await waitReal(1.6); hammerOverride = null; } },
+  travelLift: { label: 'Lift the hammer slowly to the strings', specs: ['hammerTravel'], view: 'hammerline',
+    run: async () => {
+      await releaseKey();
+      const g0 = sim.g, g1 = gStringNow() - 0.004;
+      for (let i = 0; i <= 30; i++) { hammerOverride = g0 + (g1 - g0) * i / 30; await waitReal(0.04); }
+      await waitReal(0.8);
+      for (let i = 30; i >= 0; i--) { hammerOverride = g0 + (g1 - g0) * i / 30; await waitReal(0.02); }
+      hammerOverride = null;
+    } },
+  wiggle: { label: 'Wiggle the hammer, play it, and listen', specs: ['hammerSound'], view: 'hammer',
+    run: async () => {
+      await releaseKey(); sim.press(sim.dip, 250); await waitSim(0.3); sim.press(0, 60); await waitSim(0.3);
+      const d = DAMAGE[sim.a.damage];
+      toast(d ? `You notice ${d.signs}.` : 'Solid on its center, no play, and quiet.', d ? 'warn' : '');
+    } },
   pedalTest: { label: 'Pedal down, then let it go', specs: ['pedalLift', 'damperFall'], view: 'dampers', scale: 0.1, damper: true,
     run: async () => {
       await releaseKey();
@@ -236,7 +275,7 @@ async function runTest(id) {
 
 // ---------- visibility of readings ----------
 function revealed(id) {
-  if (mode === 'sandbox') return true;
+  if (mode === 'sandbox' || level().live) return true;
   if (mode === 'learn') return tested.has(id);
   if (mode === 'exam') return tested.has(id) || exam.done;
   return tested.has(id) || !!verdict;
@@ -261,7 +300,8 @@ function knobRow(id) {
   const coarse = d.steps[d.steps.length - 1], fine = d.steps[0];
   const two = d.steps.length > 1;
   const valTxt = mode === 'sandbox'
-    ? (d.unit === 'mm' ? `${(adj[id] - FACTORY[id] >= 0 ? '+' : '')}${(adj[id] - FACTORY[id]).toFixed(2)} mm from factory` : `${adj[id].toFixed(2)} × hammer weight`)
+    ? (d.unit === 'mm' || d.unit === '°' ? `${(adj[id] - FACTORY[id] >= 0 ? '+' : '')}${(adj[id] - FACTORY[id]).toFixed(2)}${d.unit === '°' ? '°' : ' mm'} from factory`
+      : id === 'damperDrag' ? `drag ${adj[id].toFixed(2)}` : `${adj[id].toFixed(2)} × hammer weight`)
     : '';
   return el('div', { class: 'knob' },
     el('div', { class: 'knob-head' },
@@ -277,7 +317,7 @@ function knobRow(id) {
 function viewFor(part) {
   return { balance: 'keyfront', frontpunch: 'keyfront', capstan: 'action', jackscrew: 'escapement', repscrew: 'escapement',
     restrail: 'rails', letoff: 'escapement', drop: 'escapement', repspring: 'escapement', backcheck: 'backcheck',
-    damper: 'dampers', damperstop: 'dampers', lifttray: 'dampers', damperwire: 'dampers' }[part] || 'action';
+    damper: 'dampers', damperstop: 'dampers', lifttray: 'dampers', damperwire: 'dampers', flange: 'hammerline', shank: 'hammerline' }[part] || 'action';
 }
 
 // ---------- measurement table ----------
@@ -288,14 +328,22 @@ function specTarget(id) {
   if (id === 'jackPos') return 'aligned';
   if (id === 'spring') return 'rises, no pop';
   if (id === 'damperTiming') return 'a third to half';
+  if (id === 'hammerSquare') return 'square';
+  if (id === 'hammerSound') return 'solid, quiet';
+  if (id === 'hammerSpacing') return 'centered';
+  if (id === 'hammerTravel') return 'straight';
   if (id === 'damperFall') return 'falls freely';
   return fmt(s.target);
 }
 function reading(id, mm = m) {
-  const r = grade(id, mm);
+  const r = gradeL(id, mm);
   let txt;
   if (id === 'spring') txt = r.note;
   else if (id === 'damperTiming' && r.v != null) txt = `at ${Math.round(r.v * 100)}% of hammer travel`;
+  else if (id === 'hammerSquare') txt = r.note ? r.note : Math.abs(r.v) < 0.25 ? 'square' : `${Math.abs(r.v).toFixed(1)}° out of square`;
+  else if (id === 'hammerSound') txt = r.note;
+  else if (id === 'hammerSpacing') txt = Math.abs(r.v) < 0.05 ? 'centered' : `${fmt(Math.abs(r.v))} toward the ${r.v > 0 ? 'bass' : 'treble'}`;
+  else if (id === 'hammerTravel') txt = Math.abs(r.v) < 0.05 ? 'straight' : `drifts ${fmt(Math.abs(r.v))} toward the ${r.v > 0 ? 'treble' : 'bass'}`;
   else if (id === 'damperFall') txt = `${r.note} (lands in ${Math.round(mm.fallMs)} ms)`;
   else if (r.v == null) txt = r.note || '—';
   else if (id === 'keyHeight') txt = Math.abs(r.v) < 0.05 ? 'level' : `${fmt(Math.abs(r.v))} ${r.v > 0 ? 'high' : 'low'}`;
@@ -335,6 +383,16 @@ const SCENARIOS = [
   { complaint: 'Notes ring on after I let go, and the sustain pedal leaves a little smear.', faults: { damperDrag: +0.5 }, answer: 'A damper wire binding in its guide rail bushing: that damper falls late.' },
   { complaint: 'The key feels heavier right at the top of the stroke than the ones next to it.', faults: { damperGap: -1.5 }, answer: 'The damper lifts too early: the key picks up the underlever before the hammer is a third of the way up. Lifting earlier also lifts it further, which eats the stop rail clearance and leaves the pedal short of the key lift: they come right once the timing is fixed.' },
   { complaint: 'There\'s a thump when I put the sustain pedal down.', faults: { pedalLift: +2 }, answer: 'Pedal lift too high: it drives the dampers into the stop rail.' },
+  { complaint: 'This note sounds thinner than its neighbors, and there\'s a little click. The hammer looks a bit crooked.', faults: { damage: 'splitShank' }, alone: true,
+    answer: 'A split hammer shank, not yet broken: it flexes on the blow (less power), clicks, and the head wobbles. Burning or traveling won\'t hold; replace the shank, then travel, space and square the new one.' },
+  { complaint: 'There\'s a click in this note, and it doesn\'t seem to hit in the same place every time.', faults: { damage: 'looseFlange' }, alone: true,
+    answer: 'A loose hammer flange screw: the hammer shifts sideways on its flange. Tighten it, then check the spacing.' },
+  { complaint: 'A tick when I play this note, and it sounds a little duller than the others.', faults: { damage: 'looseHead' }, alone: true,
+    answer: 'The hammer head is loose on its shank (a failed glue joint). Reglue it square.' },
+  { complaint: 'This note is sluggish. Fast repeated notes just don\'t come back.', faults: { damage: 'tightCenter' }, alone: true,
+    answer: 'A tight hammer flange center: the hammer swings stiffly and falls back slowly, so the repetition spring can\'t lift it. Ease the center; turning up the spring only covers it up.' },
+  { complaint: 'The note plays once and then won\'t play again until I let the key all the way up.', faults: { damage: 'brokenJackSpring' }, alone: true,
+    answer: 'A broken jack spring: nothing pushes the jack back under the knuckle until the key is fully up. Replace the spring.' },
   { complaint: 'It was regulated when we bought it eight years ago. Now there\'s a click at the top of the key, soft notes are hard to control, and it feels like it bottoms out.', faults: { wear: 0.8 }, alone: true,
     answer: 'Nothing was turned: eight years of playing packed down the felts and cloth. Blow grew, the hammer settled onto the rest rail (lost motion), and aftertouch disappeared. The fix is a touch-up of the whole sequence.' },
 ];
@@ -343,7 +401,7 @@ function newScenario() {
   const s = pool[0];
   scenario = { ...s, faults: { ...s.faults } };
   adj = { ...FACTORY };
-  for (const [k, v] of Object.entries(scenario.faults)) adj[k] = (adj[k] || 0) + v;
+  for (const [k, v] of Object.entries(scenario.faults)) adj[k] = typeof v === 'string' ? v : (adj[k] || 0) + v;
   // a second, quieter problem half the time
   if (!s.alone && Math.random() < 0.5) {
     const s2 = pool.find(p => !p.alone && !Object.keys(p.faults).some(k => k in s.faults));
@@ -362,6 +420,7 @@ function deregulated() {
   a.letoff += rnd(-1.0, 0.25);
   a.drop += pm(2.0); a.repSpring += rnd(-0.15, 0.25); a.backcheck += pm(2.5);
   a.damperGap += pm(1.5); a.damperStop += pm(1.2); a.pedalLift += pm(1.2);
+  a.hammerTravel = pm(0.6); a.hammerSpace = pm(0.8); a.hammerSquare = pm(2.5);
   a.damperDrag = Math.random() < 0.4 ? rnd(0.3, 0.6) : FACTORY.damperDrag;
   return a;
 }
@@ -390,12 +449,12 @@ function renderLearn(p) {
   const st = STEPS[stepIdx];
   const done = stepIdx >= STEPS.length;
   put(p, el('div', { class: 'steps' }, STEPS.map((s, i) =>
-    el('button', { class: 'pip' + (s.info ? ' info' : '') + (i === stepIdx ? ' cur' : '') + (!s.info && tested.has(s.spec) && grade(s.spec, m).ok ? ' ok' : ''), title: s.title,
+    el('button', { class: 'pip' + (s.info ? ' info' : '') + (i === stepIdx ? ' cur' : '') + (!s.info && tested.has(s.spec) && gradeL(s.spec, m).ok ? ' ok' : ''), title: s.title,
       onclick: () => { stepIdx = i; focusStep(); refresh(); } }, String(i + 1))),
     el('button', { class: 'pip' + (done ? ' cur' : ''), title: 'Final check', onclick: () => { stepIdx = STEPS.length; refresh(); } }, '✓')));
   if (done) {
     GRADED.forEach(s => tested.add(s.spec));
-    const bad = GRADED.filter(s => !grade(s.spec, m).ok);
+    const bad = GRADED.filter(s => !gradeL(s.spec, m).ok);
     put(p, el('h2', {}, 'Final check'),
       el('p', {}, bad.length ? 'Everything was re-measured. These are out of spec now (often because a later step moved them):' : 'Every measurement is in spec. That key is regulated.'),
       bad.length ? el('ul', {}, bad.map(s => el('li', {}, el('button', { class: 'linkish', onclick: () => { stepIdx = STEPS.indexOf(s); focusStep(); refresh(); } }, s.title)))) : null,
@@ -411,7 +470,7 @@ function renderLearn(p) {
     put(p, head, el('h2', {}, st.title), el('p', {}, st.what), el('p', { class: 'muted' }, st.how), benchTips(st.id), nav(true));
     return;
   }
-  const r = grade(st.spec, m);
+  const r = gradeL(st.spec, m);
   const earlier = STEPS.slice(0, stepIdx).filter(s => !s.info).map(s => s.spec);
   put(p, head,
     el('h2', {}, st.title),
@@ -457,10 +516,28 @@ function focusStep() {
   S.highlight(st.knobs.map(k => ADJ.find(a => a.id === k).part), cur);
   view(TESTS[st.test].view);
 }
+// repairs: a broken or loose part can only be fixed, not regulated around
+function repairs() {
+  return el('details', {}, el('summary', {}, 'Repairs'),
+    el('p', { class: 'muted small' }, 'For a part that is broken or loose. Regulation can\'t fix these.'),
+    el('div', { class: 'tests' }, Object.entries(DAMAGE).map(([key, d]) => el('button', { class: 'test', disabled: busy ? '' : false, onclick: () => {
+      if (adj.damage !== key) { if (mode === 'diagnose' || examActive()) testsUsed++; toast(`${d.repair}: nothing wrong there, so nothing changed.`); refresh(); return; }
+      adj.damage = null;
+      // a new shank arrives untraveled and unspaced
+      if (key === 'splitShank') {
+        Object.assign(adj, { hammerTravel: pm(0.6), hammerSpace: pm(0.6), hammerSquare: pm(2) });
+        ['hammerTravel', 'hammerSpacing', 'hammerSquare'].forEach(s => tested.delete(s));
+      }
+      toast(`${d.repair}: done.`);
+      sim.setAdj(adj); sim.reset(); m = measure(adj); store(); refresh();
+    } }, d.repair))));
+}
+const damageLabel = k => ({ splitShank: 'Split shank', looseFlange: 'Loose flange screw', looseHead: 'Loose hammer head',
+  tightCenter: 'Tight flange center', brokenJackSpring: 'Broken jack spring' })[k];
 function renderDiagnose(p) {
   if (!scenario) {
     put(p, el('h2', {}, 'Find the fault'),
-      el('p', {}, 'A customer describes a problem with one key. Readings stay hidden until you run the test that measures them. Find what is out, fix it, then have your work checked.'),
+      el('p', {}, `A customer describes a problem with one key. ${LEVEL.live ? 'At Apprentice level the readings are shown, and you can ask for a hint.' : 'Readings stay hidden until you run the test that measures them.'} Find what is out, fix it, then have your work checked.`),
       el('div', { class: 'row' }, el('button', { class: 'primary', onclick: newScenario }, 'Next customer')));
     return;
   }
@@ -468,10 +545,12 @@ function renderDiagnose(p) {
     el('h3', {}, 'Tests'), el('div', { class: 'tests' }, Object.keys(TESTS).filter(k => !TESTS[k].examOnly).map(testButton)),
     el('div', { class: 'muted small' }, `Tests run: ${testsUsed}`),
     measureTable(Object.keys(SPEC)),
-    el('details', { open: '' }, el('summary', {}, 'Adjustments'), el('div', { class: 'knobs' }, ADJ.map(a => knobRow(a.id)))));
-  if (!verdict) put(p, el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { verdict = true; refresh(); } }, 'Check my work')));
+    el('details', { open: '' }, el('summary', {}, 'Adjustments'), el('div', { class: 'knobs' }, ADJ.map(a => knobRow(a.id)))),
+    repairs());
+  if (!verdict) put(p, el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { verdict = true; refresh(); } }, 'Check my work'),
+    LEVEL.hints ? el('button', { onclick: e => { const bad = Object.keys(SPEC).filter(id => !gradeL(id, m).ok).map(id => SPEC[id].name); e.target.replaceWith(el('p', { class: 'note' }, 'Hint: look at ', bad.join('; ') || 'nothing: it looks regulated', '.')); } }, 'Hint') : null));
   else {
-    const bad = Object.keys(SPEC).filter(id => !grade(id, m).ok);
+    const bad = Object.keys(SPEC).filter(id => !gradeL(id, m).ok);
     put(p, el('div', { class: 'verdict ' + (bad.length ? 'bad' : 'ok') },
       el('h3', {}, bad.length ? `${bad.length} still out of spec` : 'Regulated. Nice work.'),
       el('p', {}, el('b', {}, 'What was wrong: '), scenario.answer, scenario.second ? ` Also: ${scenario.second.answer}` : ''),
@@ -499,7 +578,12 @@ function renderSandbox(p) {
     wearControl(),
     measureTable(Object.keys(SPEC)),
     el('h3', {}, 'Tests'), el('div', { class: 'tests' }, Object.keys(TESTS).filter(k => !TESTS[k].examOnly).map(testButton)),
-    el('h3', {}, 'Adjustments'), el('div', { class: 'knobs' }, ADJ.map(a => knobRow(a.id))));
+    el('h3', {}, 'Adjustments'), el('div', { class: 'knobs' }, ADJ.map(a => knobRow(a.id))),
+    el('label', { class: 'row small' }, 'Break something: ',
+      el('select', { onchange: e => { adj.damage = e.target.value || null; sim.setAdj(adj); sim.reset(); m = measure(adj); store(); refresh(); } },
+        el('option', { value: '' }, 'nothing'),
+        Object.keys(DAMAGE).map(k => el('option', { value: k, ...(adj.damage === k ? { selected: '' } : {}) }, damageLabel(k))))),
+    repairs());
 }
 
 // ---------- exam mode: the 3-note grand model ----------
@@ -521,7 +605,14 @@ function startExam() {
     if (!examDampers) for (const k of ['damperGap', 'damperStop', 'pedalLift', 'damperDrag']) a[k] = FACTORY[k];
     n.adj = a; n.sim.setAdj(a); n.sim.reset(); n.m = measure(a); n.tested = new Set();
   });
-  exam = { started: true, done: false, dampers: examDampers, endAt: Date.now() + EXAM_MINUTES * 60000, t0: Date.now() };
+  if (LEVEL.damage) {
+    const slot = EXAM_ORDER[Math.floor(Math.random() * 3)], keys = ['splitShank', 'looseFlange', 'looseHead', 'tightCenter'];
+    const n = NOTES[slot]; n.adj.damage = keys[Math.floor(Math.random() * keys.length)];
+    n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj);
+  }
+  exam = { started: true, done: false, dampers: examDampers, level: LEVEL, damaged: NOTES.map(n => n.adj.damage || null),
+    endAt: Date.now() + EXAM_MINUTES * 60000, t0: Date.now() };
+  $('#level').disabled = true;
   testsUsed = 0; generation++;
   cur = EXAM_ORDER[0]; ({ adj, sim, m, tested } = NOTES[cur]); lastClock = '';
   S.setNoteCount(3); S.setFocus(cur); S.clearCallouts();
@@ -529,9 +620,13 @@ function startExam() {
   view('angle');
 }
 function leaveExam() {
+  const wasExam = exam.started;
   exam = { started: false, done: false };
+  $('#level').disabled = false;
   if (sim.dTarget > 0) sim.press(0, 60);
-  store(); cur = 0; ({ adj, sim, m, tested } = NOTES[0]);
+  store(); cur = 0;
+  if (wasExam) NOTES.forEach(n => { n.adj = { ...FACTORY }; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); n.tested = new Set(); });
+  ({ adj, sim, m, tested } = NOTES[0]);
   S.setNoteCount(1); S.setFocus(null);
 }
 function handIn() {
@@ -554,26 +649,33 @@ function tickExam() {
   if (txt !== lastClock) { c.textContent = txt; c.hidden = false; c.classList.toggle('low', left < 5 * 60000); lastClock = txt; }
 }
 function examScore() {
-  const rows = examSpecs().map(id => ({ id, cells: EXAM_ORDER.map(i => ({ ...reading(id, NOTES[i].m), ok: grade(id, NOTES[i].m).ok })) }));
+  const anyDamage = exam.damaged.some(Boolean);
+  const rows = examSpecs().filter(id => id !== 'hammerSound' || anyDamage).map(id => ({ id, cells: EXAM_ORDER.map(i =>
+    id === 'hammerSound' && !exam.damaged[i] ? { txt: '—', ok: true, skip: true } : { ...reading(id, NOTES[i].m), ok: gradeL(id, NOTES[i].m).ok }) }));
   const even = EVEN.concat(exam.dampers ? ['damperTiming'] : []).map(id => {
-    const vals = EXAM_ORDER.map(i => grade(id, NOTES[i].m).v);
-    const ok = vals.every(v => v != null) && Math.max(...vals) - Math.min(...vals) <= SPEC[id].tol;
+    const vals = EXAM_ORDER.map(i => gradeL(id, NOTES[i].m).v);
+    const ok = vals.every(v => v != null) && Math.max(...vals) - Math.min(...vals) <= SPEC[id].tol * exam.level.tolK;
     return { id, ok, spread: vals.every(v => v != null) ? Math.max(...vals) - Math.min(...vals) : null };
   });
   if (exam.dampers) {
     const t = EXAM_ORDER.map(i => NOTES[i].m.fallMs), spread = Math.max(...t) - Math.min(...t);
     even.push({ id: 'damperFall', ok: spread <= 5, spread, ms: true });
   }
-  const items = rows.flatMap(r => r.cells.map(c => c.ok)).concat(even.map(e => e.ok));
-  return { rows, even, pct: Math.round(100 * items.filter(Boolean).length / items.length) };
+  const items = rows.flatMap(r => r.cells.filter(c => !c.skip).map(c => c.ok)).concat(even.map(e => e.ok));
+  let pct = Math.round(100 * items.filter(Boolean).length / items.length);
+  const missed = NOTES.some(n => n.adj.damage);
+  if (missed) pct = Math.min(pct, 79);   // a damaged part left in the action fails the exam
+  return { rows, even, pct, missed };
 }
 function renderExam(p) {
   if (!exam.started) {
     put(p, el('h2', {}, 'Exam practice: grand regulation'),
       el('p', {}, 'Like the grand section of PTG\'s Technical Exam: you get a 3-note grand action model that has been de-regulated, with the key height and dip given. Regulate all three notes evenly in 50 minutes.'),
       el('ul', { class: 'small' },
-        el('li', {}, 'Readings stay hidden until you run the test that measures them, on that note.'),
+        el('li', {}, LEVEL.live ? 'At Apprentice level readings show as you work; at Journeyman and RPT they stay hidden until you run the test that measures them.' : 'Readings stay hidden until you run the test that measures them, on that note.'),
         el('li', {}, 'Click a key, or the note buttons, to work on a note. The hammer rest rail is shared.'),
+        el('li', {}, 'Assembly is skipped, but aligning is in: travel, space and square each hammer.'),
+        LEVEL.damage ? el('li', {}, 'At RPT level one note may also have a damaged part to find and repair.') : null,
         el('li', {}, 'Scoring: each spec on each note, plus how even the three notes are. 80% passes.')),
       el('label', { class: 'row small' }, el('input', { type: 'checkbox', ...(examDampers ? { checked: '' } : {}), onchange: e => { examDampers = e.target.checked; } }),
         ' Include dampers and pedal (lift timing, stop rail, pedal lift, falling together). PTG\'s grand section may not include them.'),
@@ -591,6 +693,7 @@ function renderExam(p) {
     el('div', { class: 'muted small' }, `Tests run: ${testsUsed}`),
     measureTable(examSpecs()),
     el('details', { open: '' }, el('summary', {}, `Note ${n}: adjustments`), el('div', { class: 'knobs' }, ADJ.filter(a => exam.dampers || !SPEC_OF_KNOB_DAMPER.has(a.id)).map(a => knobRow(a.id)))),
+    repairs(),
     el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { if (confirm('Hand in your exam model now?')) handIn(); } }, 'Hand it in')));
 }
 function renderExamResult(p) {
@@ -598,7 +701,8 @@ function renderExamResult(p) {
   const cell = c => el('td', { class: c.ok ? 'okc' : 'badc' }, c.txt);
   put(p, el('div', { class: 'verdict ' + (pass ? 'ok' : 'bad') },
       el('h2', {}, `${sc.pct}%: ${pass ? 'pass' : 'not yet'}`),
-      el('p', { class: 'muted small' }, `Time used ${clock(exam.used)} of ${EXAM_MINUTES}:00 · ${testsUsed} tests run`)),
+      el('p', { class: 'muted small' }, `${exam.level.name} level · time used ${clock(exam.used)} of ${EXAM_MINUTES}:00 · ${testsUsed} tests run`),
+      sc.missed ? el('p', {}, 'A damaged part was left unrepaired. On the real thing that alone is a fail.') : null),
     el('table', { class: 'specs score' },
       el('thead', {}, el('tr', {}, el('th', {}, 'Check'), el('th', {}, 'Note 1'), el('th', {}, 'Note 2'), el('th', {}, 'Note 3'))),
       el('tbody', {}, sc.rows.map(r => el('tr', {}, el('td', {}, SPEC[r.id].name), r.cells.map(cell))))),
@@ -635,6 +739,7 @@ function handleEvents() {
     if (e.type === 'scrape') toast('The hammer tail scraped the backcheck', 'warn');
     if (e.type === 'jumpcheck') toast('The hammer jumped out of check', 'warn');
     if (e.type === 'damperbounce') toast('The damper bobbled on the strings', 'warn');
+    if (e.type === 'click') toast('A dry click on the blow', 'warn');
   }
   // the pedal test listens for every damper landing, on every note
   NOTES.forEach((n, slot) => { if (landed) for (const e of n.sim.events) if (e.type === 'seated' && !landed.has(slot)) landed.set(slot, e.t); n.sim.events = []; });
@@ -708,6 +813,8 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   else { adj = { ...FACTORY }; applyAdj(); }
 };
 $('#units').onclick = () => { units = units === 'in' ? 'mm' : 'in'; refresh(); };
+$('#level').value = Object.keys(LEVELS).find(k => LEVELS[k] === LEVEL);
+$('#level').onchange = e => { LEVEL = LEVELS[e.target.value]; try { localStorage.setItem('regsim-level', e.target.value); } catch {} e.target.blur(); refresh(); };
 $('#credits').onclick = e => { e.preventDefault(); showCredits = true; refresh(); $('aside').scrollTop = 0; };
 window.addEventListener('keydown', e => {
   if (e.code === 'Escape') letUp();

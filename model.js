@@ -68,6 +68,12 @@ export const ADJ = [
     steps: [0.02], stepLabel: ['bend'], how: 'How hard the repetition lever pushes up on the knuckle.' },
   { id: 'backcheck', name: 'Backcheck wire', part: 'backcheck', unit: 'mm', min: -4, max: 4,
     steps: [0.25], stepLabel: ['bend'], how: 'Bend the backcheck toward (+) or away from (−) the hammer tail.' },
+  { id: 'hammerTravel', name: 'Traveling paper under the hammer flange', part: 'flange', unit: 'mm', min: -3, max: 3,
+    steps: [0.1], stepLabel: ['paper'], how: 'A strip of paper under one side of the flange tilts the hammer\'s path. Sets how far the head drifts sideways on its way to the string.' },
+  { id: 'hammerSpace', name: 'Hammer spacing (shift on the flange)', part: 'flange', unit: 'mm', min: -4, max: 4,
+    steps: [0.1, 0.4], stepLabel: ['tap', 'shift'], how: 'Loosen the flange screw and shift the hammer sideways to center it on its unison.' },
+  { id: 'hammerSquare', name: 'Burn the shank (heat and twist)', part: 'shank', unit: '°', min: -8, max: 8,
+    steps: [0.5], stepLabel: ['twist'], how: 'Warm the shank and twist it so the hammer head stands square to the strings.' },
   { id: 'damperGap', name: 'Damper lift timing (head on its wire)', part: 'damper', unit: 'mm', min: 0, max: 10,
     steps: [0.1, 0.4], stepLabel: ['nudge', 'move'], how: 'Slides the damper head on its wire. + leaves more key travel before the key picks up the underlever (later lift).' },
   { id: 'damperStop', name: 'Damper stop rail', part: 'damperstop', unit: 'mm', min: 1, max: 20, shared: true,
@@ -92,6 +98,11 @@ export const SPEC = {
   aftertouch: { name: 'Aftertouch (key travel after let-off)', target: 1.0, tol: 0.4, unit: 'mm' },
   spring:     { name: 'Repetition spring', target: 0.55, tol: 0.25, unit: '' },
   check:      { name: 'Checking distance', target: IN * 5 / 8, tol: IN / 16, unit: 'mm' },
+  // alignment: done first on a real piano, and part of the PTG exam's "assemble, align and regulate"
+  hammerTravel: { name: 'Hammer travels straight (sideways drift at the string)', target: 0, tol: 0.3, unit: 'mm' },
+  hammerSpacing: { name: 'Hammer centered on its unison', target: 0, tol: 0.4, unit: 'mm' },
+  hammerSquare: { name: 'Hammer square to the strings', target: 0, tol: 1, unit: '°' },
+  hammerSound: { name: 'Hammer and shank solid and quiet (wiggle and listen)', target: 0, tol: 0, unit: '' },
   // dampers: textbook timing is the head starting to lift with the hammer a third to half of the way up
   damperTiming: { name: 'Damper starts lifting (share of hammer travel)', target: 0.45, tol: 0.1, unit: '%', damper: true },
   damperStop:   { name: 'Damper stop rail clearance, key down', target: IN / 32, tol: IN / 64, unit: 'mm', damper: true },
@@ -122,12 +133,34 @@ function solve(f, target, lo, hi, it = 40) {
 export const WEAR = { balPunch: -0.25, frontPunch: -0.3, backRail: -0.4, capstan: -0.15 /* wippen heel cushion */,
   knuckle: -0.15, crown: -1.0, letoff: +0.05 /* let-off button felt */, restRail: -0.3, backcheck: -0.6, repSpring: -0.12 };
 let wearNow = 0; // set by eff()/linkage(); read by the hammer helpers
+// ---------- damage: parts that are broken or loose, found from their symptoms ----------
+// Each changes what the action does; none can be regulated away, only repaired.
+export const DAMAGE = {
+  splitShank: { repair: 'Replace the shank', power: 0.75, clicky: true, wobble: 3, add: { hammerTravel: 0.6 },
+    signs: 'a dry click on the blow, and the head wobbles from blow to blow' },
+  looseFlange: { repair: 'Tighten the flange screw', clicky: true, add: { hammerSpace: 0.9 },
+    signs: 'a click, and the hammer shifts sideways on its flange' },
+  looseHead: { repair: 'Reglue the hammer head', power: 0.9, clicky: true, add: { hammerSquare: 2 },
+    signs: 'a tick on the blow, and the head moves on the shank' },
+  tightCenter: { repair: 'Ease the flange center', centerFriction: 0.45,
+    signs: 'the hammer swings stiffly on its center and falls back slowly' },
+  brokenJackSpring: { repair: 'Replace the jack spring', noJackSpring: true,
+    signs: 'the jack flops loose: it does not spring back under the knuckle' },
+};
 export function eff(a) {
   if (a._eff) { wearNow = a.wear; return a; }
   const w = a.wear || 0;
   wearNow = w;
-  const e = { ...a, _eff: true, wear: w };
+  const e = { ...a, _eff: true, wear: w, power: 1 };
   for (const k of ['balPunch', 'frontPunch', 'capstan', 'letoff', 'restRail', 'backcheck', 'repSpring']) e[k] = a[k] + WEAR[k] * w;
+  for (const k of ['hammerTravel', 'hammerSpace', 'hammerSquare']) e[k] = a[k] ?? 0;
+  const dmg = DAMAGE[a.damage];
+  if (dmg) {
+    for (const [k, v] of Object.entries(dmg.add || {})) e[k] += v;
+    if (dmg.power) e.power = dmg.power;
+    e.clicky = !!dmg.clicky; e.noJackSpring = !!dmg.noJackSpring; e.wobble = dmg.wobble || 0;
+    e.centerFriction = dmg.centerFriction || 0;
+  }
   return e;
 }
 
@@ -226,6 +259,7 @@ export function updateJack(a, L, st, g) {
   // escaped: the jack spring pushes it back as far as the button and knuckle allow
   const tgt = Math.max(L.psiRest, L.psiBtn);
   const jt = jackGeom(L, tgt);
+  if (a.noJackSpring && L.depth > 0.02) return Math.max(tgt, solve(s => jackGeom(L, s).backX, kb[0] - 0.4, tgt, tgt + 0.8));
   // the jack spring can push a rounded jack top back under a knuckle sitting a hair below it
   if (jt.topY < kb[1] + G.wedge) {
     if (jt.backX >= kb[0]) st.escaped = false;
@@ -317,7 +351,7 @@ export function measure(a) {
     // trip the jack at rest: the hammer settles onto the repetition lever. That small drop is the wink.
     // Negative means the lever is already holding the hammer off the jack.
     wink: (jg.topY - repSupportZ(a, L)) * crownPerKnuckle,
-    jackReturns: jg.topY - repSupportZ(a, L) < G.wedge,
+    jackReturns: jg.topY - repSupportZ(a, L) < G.wedge && !a.noJackSpring,
     hammerOnJack: Math.abs(kb[1] - jg.topY) < 0.02,
     blow: G.stringY - crownY(g),
     restGap: hamPt(g, G.shankRest)[1] - a.restRail,
@@ -328,11 +362,14 @@ export function measure(a) {
     drop: sp.letoff === null ? null : sp.dropFromString - sp.letoff,
     aftertouch: sp.aftertouch,
     spring: net,
-    springState: net > G.checkHold ? 'jumps' : net > G.popNet ? 'pop' : net < 0 ? 'none' : net < G.weakNet ? 'weak' : 'good',
+    // a tight center makes any spring look sluggish: the hammer rises and falls against the friction
+    springState: a.centerFriction ? 'weak' : net > G.checkHold ? 'jumps' : net > G.popNet ? 'pop' : net < 0 ? 'none' : net < G.weakNet ? 'weak' : 'good',
     check: G.stringY - crownY(gChk),
     scrapes: a.backcheck > G.bcScrapeLean,
     noCheck: net > G.checkHold,
     press: sp,
+    hammerTravel: a.hammerTravel, hammerSpacing: a.hammerSpace - a.hammerTravel, hammerSquare: a.hammerSquare,
+    hammerSound: a.damage ? 1 : 0, damage: a.damage || null,
     ...measureDampers(a),
   };
 }
@@ -367,9 +404,9 @@ export function measureDampers(a) {
   };
 }
 
-// pass/fail for one spec given a measurement set
-export function grade(id, m) {
-  const s = SPEC[id];
+// pass/fail for one spec given a measurement set; k scales the tolerance (skill level)
+export function grade(id, m, k = 1) {
+  const s = { ...SPEC[id], tol: SPEC[id].tol * k };
   let v = m[id];
   if (id === 'letoff' && m.blocked) return { ok: false, v: null, note: 'blocks: jack never lets off' };
   if (id === 'damperTiming' && v == null) return { ok: false, v: null, note: 'the key never lifts the damper' };
@@ -383,6 +420,8 @@ export function grade(id, m) {
   if (id === 'damperStop' && v <= 0.05) return { ok: false, v, note: 'dampers hit the stop rail before the key bottoms' };
   if (id === 'pedalLift' && m.pedalIntoStop) return { ok: false, v, note: 'the pedal drives the dampers into the stop rail' };
   if (id === 'pedalLift' && v < 0) return { ok: false, v, note: 'the pedal lifts the dampers less than the keys do' };
+  if (id === 'hammerSquare' && m.damage === 'splitShank') return { ok: false, v, note: 'the head wobbles from blow to blow' };
+  if (id === 'hammerSound') return m.damage ? { ok: false, v, note: DAMAGE[m.damage].signs } : { ok: true, v, note: 'solid and quiet' };
   if (id === 'damperFall') return { ok: v <= s.tol, v, note: v <= s.tol ? 'falls freely' : 'drags in its bushing: falls late' };
   if (id === 'spring') {
     const notes = { good: 'rises positively, no pop', weak: 'sluggish rise', none: 'hammer does not rise', pop: 'pops: bump felt in the key', jumps: 'jumps out of check' };
@@ -395,7 +434,8 @@ export function grade(id, m) {
 const bis = (a, id, f, target, lo, hi) => { a[id] = solve(x => { a[id] = x; return f(); }, target, lo, hi, 30); };
 export function factory() {
   const a = { balPunch: 1.5, jackScrew: 0, repStop: 0, capstan: 12, restRail: 112, frontPunch: 1.5,
-              letoff: 90, drop: 112, repSpring: 0.8, backcheck: 0, damperGap: 4, damperStop: 8, pedalLift: 8, damperDrag: 0.05 };
+              letoff: 90, drop: 112, repSpring: 0.8, backcheck: 0, damperGap: 4, damperStop: 8, pedalLift: 8, damperDrag: 0.05,
+              hammerTravel: 0, hammerSpace: 0, hammerSquare: 0 };
   for (let pass = 0; pass < 3; pass++) {
     bis(a, 'jackScrew', () => measure(a).jackPos, 0, -3, 3);
     bis(a, 'repStop', () => measure(a).wink, SPEC.wink.target, -2, 2);
@@ -476,9 +516,10 @@ export class Sim {
     const gHorn = gFromKnuckle(L.hornTop);
     const kz = knuckleBottom(this.g)[1];
     const onRep = kz <= L.hornTop + 1e-6;
-    let acc = -GA;
+    const fr = a.centerFriction || 0;   // a tight flange center drags on the swing both ways
+    let acc = -GA * (1 - fr);
     // the lever damps the hammer's rise; a falling hammer just compresses the spring
-    if (onRep) acc += GA * springF(a, L, kz) - (this.w > 0 ? DAMP * this.w : 0);
+    if (onRep) acc += GA * (springF(a, L, kz) - fr) - (this.w > 0 ? DAMP * (1 + 3 * fr) * this.w : 0);
     let w = this.w + acc * dt;
     let g = this.g + w * dt;
     const jackDriving = jackG >= this.g - 1e-6;
@@ -517,7 +558,9 @@ export class Sim {
         if (!this.blocked) this.emit('blocked'); this.blocked = true;
         L = linkage(a, this.d);
       } else {
-        this.emit('strike', { v: w * G.crown[0] / 1000 });
+        this.strikes = (this.strikes || 0) + 1;
+        this.emit('strike', { v: a.power * w * G.crown[0] / 1000 });
+        if (a.clicky) this.emit('click');
         g = gString(); w = -REST_E * Math.abs(w);
       }
     }
@@ -529,4 +572,4 @@ export class Sim {
 }
 
 // Factory regulation solved offline with factory() (node), so the page loads fast.
-export const FACTORY = {"balPunch":1.5,"jackScrew":0,"repStop":0.9008,"capstan":12.5,"restRail":112.825,"frontPunch":2.4804,"letoff":87.9002,"drop":111.2148,"repSpring":0.8,"backcheck":0.8957,"damperGap":3.4967,"damperStop":6.6222,"pedalLift":6.5722,"damperDrag":0.05};
+export const FACTORY = {"balPunch":1.5,"jackScrew":0,"repStop":0.9008,"capstan":12.5,"restRail":112.825,"frontPunch":2.4804,"letoff":87.9002,"drop":111.2148,"repSpring":0.8,"backcheck":0.8957,"damperGap":3.4967,"damperStop":6.6222,"pedalLift":6.5722,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0};
