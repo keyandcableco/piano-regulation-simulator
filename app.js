@@ -3,6 +3,7 @@ import { G, IN, ADJ, SPEC, DAMPER_SPECS, DAMAGE, FACTORY, NEIGHBOR_H, Sim, measu
 import { createScene, NOTE_Z } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
+import { TOOLBAG } from './toolbag.js';
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -440,6 +441,7 @@ function refresh() {
   else if (mode === 'diagnose') renderDiagnose(p);
   else if (mode === 'exam') renderExam(p);
   else if (mode === 'drills') renderDrills(p);
+  else if (mode === 'tools') renderTools(p);
   else renderSandbox(p);
   $('#units').textContent = units === 'in' ? 'inches' : 'mm';
 }
@@ -572,6 +574,38 @@ function wearControl() {
       onchange: e => { adj.wear = +e.target.value / 10; applyAdj(); } }),
     el('div', { class: 'muted small' }, 'Punchings, cloth, cushions, knuckles and hammer felt pack down. Watch blow, lost motion and aftertouch drift, then regulate it back.'));
 }
+// ---------- tool bag ----------
+// Real regulation tools, modeled from supply-house photos and listings, shown one at a time on the bench.
+let toolSel = null;
+const stepTitle = id => STEPS.find(s => s.spec === id || s.id === id)?.title;
+function renderTools(p) {
+  const t = TOOLBAG.find(x => x.id === toolSel);
+  put(p, el('h2', {}, 'Tool bag'),
+    el('p', { class: 'muted' }, 'Regulating tools and what they do. Pick one to see it on the bench; drag to turn it. Grid squares are 10 mm.'),
+    el('div', { class: 'toolgrid' }, TOOLBAG.map(x => el('button', { class: 'toolbtn' + (x.id === toolSel ? ' on' : ''), onclick: () => pickTool(x.id) }, x.name))),
+    t ? el('div', { class: 'toolcard' },
+      el('h3', {}, t.name),
+      el('p', {}, t.what),
+      t.how?.length ? el('ol', {}, t.how.map(h => el('li', {}, h))) : null,
+      t.dims ? el('p', { class: 'muted small' }, el('b', {}, 'Dimensions: '), t.dims) : null,
+      t.steps?.filter(stepTitle).length ? el('p', { class: 'small' }, 'Used in: ', t.steps.filter(stepTitle).map((id, i) => [i ? ', ' : '',
+        el('button', { class: 'linkish', onclick: () => { goLearn(id); } }, stepTitle(id))])) : null,
+      t.credit ? el('p', { class: 'credit' }, t.credit) : null) : null,
+    el('p', { class: 'muted small' }, 'Models of real regulation tools, added a few at a time.'));
+}
+async function pickTool(id) {
+  toolSel = id; refresh();
+  const t = TOOLBAG.find(x => x.id === id);
+  S.clearCallouts(); S.setLabels(false);
+  try { await S.showTool(t.build(), { upAxis: t.upAxis, lengthAxis: t.lengthAxis }); }
+  catch { toast('Could not load that model.', 'warn'); }
+}
+function goLearn(id) {
+  $('.tab[data-mode=learn]').click();
+  const i = STEPS.findIndex(s => s.spec === id || s.id === id);
+  if (i >= 0) { stepIdx = i; focusStep(); refresh(); }
+}
+
 // bench drills keep their own animation; mount them once per visit to the tab
 let drillsEl = null, drillsStop = null;
 function renderDrills(p) {
@@ -822,8 +856,9 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   leaveExam();
   showCredits = false;
   if (mode === 'drills') { drillsStop?.(); drillsEl = null; }
+  if (mode === 'tools') { S.hideTool(); toolSel = null; }
   mode = b.dataset.mode; tested = new Set(); verdict = null; S.clearCallouts();
-  if (mode === 'exam' || mode === 'drills') { exam = { started: false, done: false }; refresh(); return; }
+  if (mode === 'exam' || mode === 'drills' || mode === 'tools') { exam = { started: false, done: false }; refresh(); return; }
   if (mode === 'learn') { stepIdx = 0; messUp(); focusStep(); }
   else if (mode === 'diagnose') { scenario = null; adj = { ...FACTORY }; applyAdj(); }
   else { adj = { ...FACTORY }; applyAdj(); }
@@ -886,7 +921,7 @@ function frame(now) {
   handleEvents();
   NOTES.forEach((n, i) => { if (i === 0 || examActive()) S.update(i, n.sim, eff(n.adj), i === cur ? hammerOverride : null, i === cur ? jackOverride : null, i === cur); });
   tickExam();
-  updateCallouts();
+  if (mode !== 'tools') updateCallouts();
   if (autoUp && (sim.d >= sim.dip - 0.01 || sim.blocked)) { autoUp = false; setTimeout(() => sim.press(0, 60), 120); }
   const down = sim.d > 0.05 || sim.dTarget > 0.05;
   $('#keypos').textContent = `key ${fmt(sim.d)} down`;

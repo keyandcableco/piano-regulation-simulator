@@ -453,6 +453,7 @@ export function createScene(canvas, overlay) {
       camera.position.lerpVectors(viewAnim.fromP, viewAnim.toP, e);
       if (t >= 1) viewAnim = null;
     }
+    spinTool(1 / 60);
     controls.update();
     updateLabels();
     renderer.render(scene, camera);
@@ -464,7 +465,48 @@ export function createScene(canvas, overlay) {
     }
   }
 
+  // ---------- tool bag: one tool on the bench at a time, in place of the action ----------
+  const toolStage = new THREE.Group(); toolStage.visible = false; scene.add(toolStage);
+  const grid = new THREE.GridHelper(300, 30, 0x9a8f80, 0xc9c1b4);   // 10 mm squares
+  toolStage.add(grid);
+  const toolHolder = new THREE.Group(); toolStage.add(toolHolder);
+  const AX = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+  const axis = s => { const m = /([+-]?)\s*([xyz])/i.exec(s || ''); if (!m) return null; const v = new THREE.Vector3(...AX[m[2].toLowerCase()]); return m[1] === '-' ? v.negate() : v; };
+  let savedView = null, spin = true;
+  // obj: a THREE.Object3D built for the tool (models of real tools, added one at a time)
+  async function showTool(obj, opts = {}) {
+    if (!savedView) savedView = { p: camera.position.clone(), t: controls.target.clone() };
+    fixed.visible = false; notes.forEach(n => { n.root.visible = false; });
+    toolStage.visible = true;
+    toolHolder.clear();
+    const mesh = obj;
+    // turn the model so its length runs left-right and its natural up is up
+    const up = axis(opts.upAxis) || new THREE.Vector3(0, 0, 1);
+    let len = axis(opts.lengthAxis) || new THREE.Vector3(1, 0, 0);
+    if (Math.abs(len.dot(up)) > 0.9) len = Math.abs(up.x) > 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+    const n = new THREE.Vector3().crossVectors(len, up);
+    const m4 = new THREE.Matrix4().set(len.x, len.y, len.z, 0, up.x, up.y, up.z, 0, n.x, n.y, n.z, 0, 0, 0, 0, 1);
+    mesh.applyMatrix4(m4);
+    const box = new THREE.Box3().setFromObject(mesh), c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
+    mesh.position.sub(new THREE.Vector3(c.x, box.min.y, c.z));
+    toolHolder.add(mesh);
+    toolHolder.rotation.y = 0;
+    // frame the whole tool with room to turn: fit its longest side in a 30 degree view
+    const r = Math.max(size.x, size.z, size.y * 1.5, 30);
+    viewAnim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(),
+      toT: new THREE.Vector3(0, size.y / 2, 0), toP: new THREE.Vector3(r * 0.2, r * 0.9 + size.y, r * 1.9) };
+    spin = true;
+    return { size: { x: size.x, y: size.y, z: size.z } };
+  }
+  function hideTool() {
+    if (!toolStage.visible) return;
+    toolStage.visible = false; fixed.visible = true; setNoteCount(noteCount);
+    if (savedView) { viewAnim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(), toT: savedView.t, toP: savedView.p }; savedView = null; }
+  }
+  controls.addEventListener('start', () => { spin = false; });
+  function spinTool(dt) { if (toolStage.visible && spin) toolHolder.rotation.y += dt * 0.35; }
+
   setNoteCount(1);
-  return { render, update, setView, highlight, pick, setCallout, clearCallouts, setBackground, controls, setLabels,
+  return { render, update, setView, showTool, hideTool, spinTool, highlight, pick, setCallout, clearCallouts, setBackground, controls, setLabels,
            setNoteCount, setFocus, straightedge, PART_NAMES, VIEWS };
 }
