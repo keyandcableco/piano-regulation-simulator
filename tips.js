@@ -1,11 +1,11 @@
 // "From the bench": tips and tools from working technicians, credited to the people
 // who came up with them or taught them. Keyed by Learn step (a spec id, or an info step's id).
 // Tips are paraphrased, never quoted at length. Each: { text, who, src, url?, forum? }.
-// forum: true marks a post from PTG's Pianotech forum. Those posts are readable without a login,
-// but the posters wrote them for other members, so they are shown by forum and year only until
-// each poster has said they are happy to be named. Flip NAME_FORUM_POSTERS once they have.
+// forum: true marks a post from PTG's Pianotech forum (readable without a login). Greg's call
+// (2026-11-06): name them. Crediting technicians for their methods and tools is a trade
+// tradition worth carrying on. Set NAME_FORUM_POSTERS to false to show forum and year only.
 // Research notes and sources: research/bench-tips.md (not published).
-export const NAME_FORUM_POSTERS = false;
+export const NAME_FORUM_POSTERS = true;
 // forum posters who have said yes to being named (exactly as written in `who`)
 export const NAMED_OK = new Set([]);
 
