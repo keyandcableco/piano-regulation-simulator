@@ -20,8 +20,8 @@ const PART_NAMES = {
   repscrew: 'Repetition lever height screw', repspring: 'Repetition spring', shank: 'Hammer shank',
   knuckle: 'Knuckle', hammer: 'Hammer', flange: 'Hammer flange', flangerail: 'Hammer flange rail',
   drop: 'Drop screw', letoff: 'Let-off button', regrail: 'Regulating rail', restrail: 'Hammer rest rail',
-  string: 'Strings', backcheck: 'Backcheck', damper: 'Damper head', damperwire: 'Damper wire', underlever: 'Damper underlever',
-  damperstop: 'Damper stop rail', lifttray: 'Damper lift tray (pedal)', guiderail: 'Damper guide rail', ulrail: 'Underlever flange rail', tail: 'Hammer tail (check surface)', keybed: 'Keybed', straightedge: 'Straightedge',
+  string: 'Strings', backcheck: 'Backcheck (buckskin face)', damper: 'Damper head', damperwire: 'Damper wire', underlever: 'Damper underlever',
+  damperstop: 'Damper stop rail', lifttray: 'Damper lift tray (pedal)', guiderail: 'Damper guide rail', ulrail: 'Underlever flange rail', tail: 'Hammer tail (scored check surface)', keybed: 'Keybed', straightedge: 'Straightedge',
 };
 
 // note slots: 0 is the middle (the one normal modes use), 1 toward the bass, 2 toward the treble
@@ -160,11 +160,14 @@ export function createScene(canvas, overlay) {
     // hammer tail. The face passes through the point where the model catches the tail.
     const bc = n.bc = new THREE.Group(); bc.position.set(G.backcheckLocal, G.keyThick, 0); key.add(bc);
     {
-      const P = [-3.1, 78.2], u = [-0.342, 0.94], d = [0.94, 0.342]; // contact point, face direction, into the head
+      // contact point at the top of the face, the face leaning toward the hammer, and the head behind it:
+      // buckskin (its nap grips the scored tail), a felt underlay, then the wooden head
+      const P = [G.bcHead[0] - G.backcheckLocal, G.bcHead[1] - G.keyThick], u = [-0.574, 0.819], d = [0.819, 0.574]; // face 35° off vertical
       const at = (t, s) => [P[0] + u[0] * t + d[0] * s, P[1] + u[1] * t + d[1] * s];
-      ext(shapeFrom([at(-15, 0), at(5, 0), at(5, 3), at(-15, 3)]), 13, 0, COLORS.buckskin, 'backcheck', bc);   // felt/leather face
-      ext(shapeFrom([at(-15, 3), at(5, 3), at(5, 15), at(-15, 15)]), 12, 0, COLORS.wood, 'backcheck', bc);     // head
-      const foot = at(-15, 9);
+      ext(shapeFrom([at(-20, 0), at(3, 0), at(3, 2.5), at(-20, 2.5)]), 13, 0, COLORS.buckskin, 'backcheck', bc);
+      ext(shapeFrom([at(-20, 2.5), at(3, 2.5), at(3, 4.5), at(-20, 4.5)]), 13, 0, COLORS.redfelt, 'backcheck', bc);
+      ext(shapeFrom([at(-20, 4.5), at(3.5, 4.5), at(2, 14), at(-20, 14)]), 12, 0, COLORS.wood, 'backcheck', bc);
+      const foot = at(-20, 9);
       tube([[2, 0, 0], [6, 30, 0], [foot[0], foot[1] + 1, 0]], 1.2, COLORS.steel, 'backcheck', bc);
       ext(rect(-3, -1, 9, 3), 10, 0, COLORS.dark, 'backcheck', bc);                                           // wire block on the key
     }
@@ -203,11 +206,14 @@ export function createScene(canvas, overlay) {
     // molding: tapers toward the crown; below the shank it continues as the tail,
     // whose back face is what the backcheck catches
     const mold = new THREE.Shape();
+    // the tail swells back toward the strings below the shank and curves under: its back face is
+    // the scored surface the backcheck's leather catches
     mold.moveTo(118, -8); mold.lineTo(119.5, 14); mold.lineTo(121.5, 24); mold.lineTo(130.5, 24); mold.lineTo(132.5, 8);
-    mold.lineTo(134, -4); mold.lineTo(G.tail[0] + 1, -18);
-    mold.quadraticCurveTo(G.tail[0] + 0.5, -22.5, 130, -22.5); mold.quadraticCurveTo(123, -22, 120.5, -16); mold.closePath();
+    mold.lineTo(134, -2); mold.quadraticCurveTo(139.5, -7, 139.3, -18);
+    mold.quadraticCurveTo(137.5, -25.5, 130, -26); mold.quadraticCurveTo(122, -25, 120, -16); mold.closePath();
     ext(mold, 10, 0, COLORS.wood, 'hammer', hammer);
-    ext(shapeFrom([[133.6, -5], [G.tail[0] + 0.95, -18], [G.tail[0] + 1.35, -18], [134, -5]]), 10.4, 0, COLORS.dark, 'tail', hammer); // roughened check surface
+    ext(shapeFrom([[134.3, -2.6], [138.6, -7.6], [139.1, -18], [137, -23.4], [136, -22.8], [138, -18], [137.5, -8], [133.6, -3.2]]),
+      10.4, 0, COLORS.dark, 'tail', hammer); // scored check surface
     // felt wraps the top of the molding: underfelt band, then the top felt to the crown
     n.feltG = new THREE.Group(); n.feltG.position.y = 4; hammer.add(n.feltG);
     const felt = new THREE.Shape();

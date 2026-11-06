@@ -15,6 +15,7 @@ export const G = {
   keyThick: 22, keyFrontLocal: -235, keyBackLocal: 235, keyTopCap: 2.5,
   capstanLocal: 115,                // capstan, behind the balance point
   backcheckLocal: 212,              // backcheck wire, near the key end
+  bcHead: [210.9, 88.5],            // top of the backcheck's leather face, key-local: where the tail is caught
   // wippen (pivot at its rear, on the wippen rail)
   W: [400, 72], heel: [-50, -8], jackPivotW: [-79.5, 6], repPivotW: [-30, 16],
   // jack (local to its centre pin)
@@ -23,7 +24,7 @@ export const G = {
   horn: [-45, 18], tip: [-72, 15],
   // hammer (local to the shank centre pin)
   H: [305, 120], knuckleC: [16, -8], knuckleR: 6, coreR: 3,
-  crown: [125, 40], tail: [135, -14], shankRest: [55, -4],
+  crown: [125, 40], tail: [136.5, -24], shankRest: [55, -4],   // tail: the point on its scored back face that checks
   // strings and rails
   stringY: 120 + 40 + 44.45,        // nominal: crown height at rest + 1 3/4"
   letoffX: 283.5, dropX: 298, restRailX: 360,
@@ -177,7 +178,7 @@ export function linkage(a, d) {
   const hornFree = repPt(rhoStop, G.horn)[1];
   const hornTop = repPt(Math.min(rhoStop, rhoDrop), G.horn)[1];
   // backcheck: catch height rises with the key; bending toward the hammer catches higher
-  const bcHead = keyPt(k.By, k.th, [G.backcheckLocal, G.keyThick + 78]);
+  const bcHead = keyPt(k.By, k.th, G.bcHead);
   const depth = d / Math.max(0.1, dipOf(a));
   const keyEndRise = keyPt(k.By, k.th, [G.dmpContactLocal, G.keyThick])[1] - keyPt(k.By, k.th0, [G.dmpContactLocal, G.keyThick])[1];
   return { keyEndRise, k, cap, phi, J, R, psiRest, psiBtn, jackPt, repPt, rhoStop, rhoDrop, hornFree, hornTop,
@@ -528,4 +529,4 @@ export class Sim {
 }
 
 // Factory regulation solved offline with factory() (node), so the page loads fast.
-export const FACTORY = {"balPunch":1.5,"jackScrew":0,"repStop":0.9008,"capstan":12.5,"restRail":112.825,"frontPunch":2.4804,"letoff":87.9002,"drop":111.2148,"repSpring":0.8,"backcheck":0.1696,"damperGap":3.4967,"damperStop":6.6222,"pedalLift":6.5722,"damperDrag":0.05};
+export const FACTORY = {"balPunch":1.5,"jackScrew":0,"repStop":0.9008,"capstan":12.5,"restRail":112.825,"frontPunch":2.4804,"letoff":87.9002,"drop":111.2148,"repSpring":0.8,"backcheck":0.8957,"damperGap":3.4967,"damperStop":6.6222,"pedalLift":6.5722,"damperDrag":0.05};
