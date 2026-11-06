@@ -76,6 +76,11 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -app
 table.score td { text-align: left; }
 td.okc { color: var(--ok); }
 td.badc { color: var(--bad); }
+.drillcanvas { width: 100%; max-width: 360px; background: var(--stage); border-radius: 8px; display: block; margin: 8px 0; }
+.countin { width: 80px; font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+.drill { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 4px; }
+.okc { color: var(--ok); }
+.badc { color: var(--bad); }
 .wear { margin: 12px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
 .wear input { width: 100%; }
 button { font: inherit; color: var(--btn-ink); background: var(--btn); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
@@ -91,7 +96,7 @@ header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 header h1 { font-size: 16px; margin: 0; flex: 1; }
 select { font: inherit; color: var(--btn-ink); background: var(--btn); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
 .tabs { display: flex; gap: 4px; margin-bottom: 12px; }
-.tab { flex: 1; }
+.tab { flex: 1; padding: 5px 4px; }
 h2 { font-size: 18px; margin: 6px 0 8px; }
 h3 { font-size: 14px; margin: 14px 0 6px; }
 p { margin: 6px 0; }
@@ -200,6 +205,7 @@ a { color: var(--accent); }
       <button class="tab" data-mode="diagnose">Find the fault</button>
       <button class="tab" data-mode="sandbox">Sandbox</button>
       <button class="tab" data-mode="exam">Exam</button>
+      <button class="tab" data-mode="drills">Drills</button>
     </div>
     <div id="mode"><p class="muted">Loading the action… If nothing appears, this simulator needs a current browser: Chrome, Edge, Firefox, or Safari 16.4 or newer.</p></div>
     <p class="muted small foot">Targets are generic textbook numbers, not one maker's specs. Hover a part to name it; press and hold on the key to strike it; drag to look around.</p>

@@ -2,6 +2,7 @@ import { G, IN, ADJ, SPEC, DAMPER_SPECS, DAMAGE, FACTORY, NEIGHBOR_H, Sim, measu
          jackGeom, knuckleBottom, eff, repSupportZ, gString as gStringNow } from './model.js';
 import { createScene, NOTE_Z } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
+import { mountSwingDrill } from './drills.js';
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -438,6 +439,7 @@ function refresh() {
   else if (mode === 'learn') renderLearn(p);
   else if (mode === 'diagnose') renderDiagnose(p);
   else if (mode === 'exam') renderExam(p);
+  else if (mode === 'drills') renderDrills(p);
   else renderSandbox(p);
   $('#units').textContent = units === 'in' ? 'inches' : 'mm';
 }
@@ -569,6 +571,19 @@ function wearControl() {
       oninput: e => { const y = +e.target.value; e.target.closest('.wear').querySelector('.muted').textContent = y ? `about ${y} year${y > 1 ? 's' : ''} of daily playing` : 'new felt'; },
       onchange: e => { adj.wear = +e.target.value / 10; applyAdj(); } }),
     el('div', { class: 'muted small' }, 'Punchings, cloth, cushions, knuckles and hammer felt pack down. Watch blow, lost motion and aftertouch drift, then regulate it back.'));
+}
+// bench drills keep their own animation; mount them once per visit to the tab
+let drillsEl = null, drillsStop = null;
+function renderDrills(p) {
+  if (!drillsEl) {
+    drillsEl = el('div');
+    put(drillsEl, el('h2', {}, 'Bench drills'),
+      el('p', { class: 'muted' }, 'Quick checks you do by eye and feel at the bench. More to come.'));
+    const swing = el('div', { class: 'drill' });
+    drillsStop = mountSwingDrill(swing, { el, toast });
+    drillsEl.append(swing);
+  }
+  p.append(drillsEl);
 }
 function renderSandbox(p) {
   put(p, el('h2', {}, 'Sandbox'),
@@ -806,8 +821,9 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   if (mode === 'exam' && exam.started && !exam.done && b.dataset.mode !== 'exam' && !confirm('Leave the exam? Your progress will be lost.')) return;
   leaveExam();
   showCredits = false;
+  if (mode === 'drills') { drillsStop?.(); drillsEl = null; }
   mode = b.dataset.mode; tested = new Set(); verdict = null; S.clearCallouts();
-  if (mode === 'exam') { exam = { started: false, done: false }; refresh(); return; }
+  if (mode === 'exam' || mode === 'drills') { exam = { started: false, done: false }; refresh(); return; }
   if (mode === 'learn') { stepIdx = 0; messUp(); focusStep(); }
   else if (mode === 'diagnose') { scenario = null; adj = { ...FACTORY }; applyAdj(); }
   else { adj = { ...FACTORY }; applyAdj(); }
