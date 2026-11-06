@@ -95,7 +95,7 @@ export const TIPS = {
     { text: 'The Yamaha trick: sight along the row of wippens afterwards to catch springs hung up on the lip of their groove.', ...PT('Joseph Alkana RPT, from LaRoy Edwards', 2000) },
     { text: 'Allow for the season: leave springs a little hoppy in winter; they slow down in summer as the centers tighten.', ...PT('Matt Wynne', 2002) },
   ],
-  dampers: [
+  damperFall: [
     { text: 'Ed Foote\'s Wire Wizard makes the awkward bends in grand damper wires a cinch.', ...PT('Jon Page', 2021) },
     { text: 'Install dampers from the top down: prove the top bends first and the rest becomes a straight sequence of moves.', ...PT('Jim Ialeggio', 2021) },
   ],

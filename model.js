@@ -36,6 +36,11 @@ export const G = {
   wedge: 0.2,                       // a tripped jack can wedge back under a knuckle this far below its top
   bcInPath: 0.6,                    // fraction of dip before the backcheck can catch
   bcScrapeLean: 1.6,                // bent this far toward the hammer, the tail scrapes
+  // damper: the key's back end lifts the underlever, the wire carries the head off the strings
+  dmpContactLocal: 231,             // where the key end meets the underlever's lift felt
+  dmpRatio: 1.0,                    // head lift per mm of underlever lift at the key
+  dmpGravity: 5000,                 // head falling under its own weight, mm/s^2
+  dmpBounceV: 350,                  // a head landing faster than this (mm/s) bobbles on the strings
 };
 
 // ---------- adjustments (the knobs a technician turns) ----------
@@ -62,6 +67,14 @@ export const ADJ = [
     steps: [0.02], stepLabel: ['bend'], how: 'How hard the repetition lever pushes up on the knuckle.' },
   { id: 'backcheck', name: 'Backcheck wire', part: 'backcheck', unit: 'mm', min: -4, max: 4,
     steps: [0.25], stepLabel: ['bend'], how: 'Bend the backcheck toward (+) or away from (−) the hammer tail.' },
+  { id: 'damperGap', name: 'Damper lift timing (head on its wire)', part: 'damper', unit: 'mm', min: 0, max: 10,
+    steps: [0.1, 0.4], stepLabel: ['nudge', 'move'], how: 'Slides the damper head on its wire. + leaves more key travel before the key picks up the underlever (later lift).' },
+  { id: 'damperStop', name: 'Damper stop rail', part: 'damperstop', unit: 'mm', min: 1, max: 20, shared: true,
+    steps: [0.1, 0.4], stepLabel: ['shim', 'shim ×4'], how: 'One rail over every underlever. + raises it: more room before the dampers hit it.' },
+  { id: 'pedalLift', name: 'Damper pedal lift', part: 'lifttray', unit: 'mm', min: 0, max: 20, shared: true,
+    steps: [0.1, 0.4], stepLabel: ['¼ turn', '1 turn'], how: 'How far the pedal\'s lift tray raises every damper. + lifts them higher.' },
+  { id: 'damperDrag', name: 'Damper wire in its guide bushing', part: 'damperwire', unit: '', min: 0, max: 0.9,
+    steps: [0.05], stepLabel: ['ease'], how: 'A wire bent off line drags in its bushing and the damper falls late. − straightens and eases it.' },
 ];
 
 // ---------- textbook specs ----------
@@ -78,7 +91,13 @@ export const SPEC = {
   aftertouch: { name: 'Aftertouch (key travel after let-off)', target: 1.0, tol: 0.4, unit: 'mm' },
   spring:     { name: 'Repetition spring', target: 0.55, tol: 0.25, unit: '' },
   check:      { name: 'Checking distance', target: IN * 5 / 8, tol: IN / 16, unit: 'mm' },
+  // dampers: textbook timing is the head starting to lift with the hammer a third to half of the way up
+  damperTiming: { name: 'Damper starts lifting (share of hammer travel)', target: 0.45, tol: 0.1, unit: '%', damper: true },
+  damperStop:   { name: 'Damper stop rail clearance, key down', target: IN / 32, tol: IN / 64, unit: 'mm', damper: true },
+  pedalLift:    { name: 'Pedal lift above key lift (to the stop rail)', target: IN / 32, tol: IN / 64, unit: 'mm', damper: true },
+  damperFall:   { name: 'Damper falls freely', target: 0, tol: 0.15, unit: '', damper: true },
 };
+export const DAMPER_SPECS = Object.keys(SPEC).filter(k => SPEC[k].damper);
 
 // ---------- small math ----------
 const rot = (p, a) => [p[0] * Math.cos(a) - p[1] * Math.sin(a), p[0] * Math.sin(a) + p[1] * Math.cos(a)];
@@ -160,7 +179,8 @@ export function linkage(a, d) {
   // backcheck: catch height rises with the key; bending toward the hammer catches higher
   const bcHead = keyPt(k.By, k.th, [G.backcheckLocal, G.keyThick + 78]);
   const depth = d / Math.max(0.1, dipOf(a));
-  return { k, cap, phi, J, R, psiRest, psiBtn, jackPt, repPt, rhoStop, rhoDrop, hornFree, hornTop,
+  const keyEndRise = keyPt(k.By, k.th, [G.dmpContactLocal, G.keyThick])[1] - keyPt(k.By, k.th0, [G.dmpContactLocal, G.keyThick])[1];
+  return { keyEndRise, k, cap, phi, J, R, psiRest, psiBtn, jackPt, repPt, rhoStop, rhoDrop, hornFree, hornTop,
            bcCatchY: bcHead[1] + 3 * a.backcheck, bcHead, depth };
 }
 
@@ -312,6 +332,37 @@ export function measure(a) {
     scrapes: a.backcheck > G.bcScrapeLean,
     noCheck: net > G.checkHold,
     press: sp,
+    ...measureDampers(a),
+  };
+}
+
+// ---------- dampers ----------
+// head lift the key gives at this key position (mm above the strings)
+export const damperKeyLift = (a, L) => Math.max(0, L.keyEndRise - a.damperGap) * G.dmpRatio;
+const damperFallTime = (a, h) => Math.sqrt(2 * Math.max(0, h) / (G.dmpGravity * (1 - Math.min(0.95, a.damperDrag))));
+export function measureDampers(a) {
+  a = eff(a);
+  const dip = dipOf(a);
+  const Lb = linkage(a, dip);
+  const keyLiftBottom = damperKeyLift(a, Lb);
+  // the key position where the key end first reaches the underlever, and how far the hammer has gone by then
+  let timing = null;
+  if (Lb.keyEndRise > a.damperGap) {
+    const d0 = solve(d => linkage(a, d).keyEndRise, a.damperGap, 0, dip);
+    const st = { escaped: false, checked: false };
+    let g = rest(a).g; const g0 = g;
+    for (let d = 0; d <= d0 + 1e-9; d += Math.max(0.02, d0 / 60)) g = staticHammer(a, linkage(a, d), st, g).g;
+    timing = (crownY(g) - crownY(g0)) / (G.stringY - crownY(g0));
+  }
+  const pedalH = Math.min(a.pedalLift, a.damperStop);
+  return {
+    damperTiming: timing,
+    damperStop: a.damperStop - keyLiftBottom,
+    pedalLift: a.pedalLift - keyLiftBottom,
+    pedalIntoStop: a.pedalLift > a.damperStop + 0.2,
+    damperFall: a.damperDrag,
+    fallMs: 1000 * damperFallTime(a, pedalH),
+    keyLiftBottom,
   };
 }
 
@@ -320,6 +371,7 @@ export function grade(id, m) {
   const s = SPEC[id];
   let v = m[id];
   if (id === 'letoff' && m.blocked) return { ok: false, v: null, note: 'blocks: jack never lets off' };
+  if (id === 'damperTiming' && v == null) return { ok: false, v: null, note: 'the key never lifts the damper' };
   if (v === null || v === undefined) return { ok: false, v: null, note: 'no let-off' };
   if (id === 'jackPos' && !m.jackUnder) return { ok: false, v, note: 'jack is not under the knuckle' };
   if (id === 'wink' && v < 0) return { ok: false, v, note: 'no wink: the lever holds the hammer off the jack' };
@@ -327,6 +379,10 @@ export function grade(id, m) {
   if (id === 'restGap' && m.onRail) return { ok: false, v, note: m.lostMotion > 0.05 ? 'hammer sits on the rail: lost motion' : 'hammer sits on the rail' };
   if (id === 'check' && m.scrapes) return { ok: false, v, note: 'tail scrapes the backcheck' };
   if (id === 'check' && m.noCheck) return { ok: false, v, note: 'hammer will not stay checked' };
+  if (id === 'damperStop' && v <= 0.05) return { ok: false, v, note: 'dampers hit the stop rail before the key bottoms' };
+  if (id === 'pedalLift' && m.pedalIntoStop) return { ok: false, v, note: 'the pedal drives the dampers into the stop rail' };
+  if (id === 'pedalLift' && v < 0) return { ok: false, v, note: 'the pedal lifts the dampers less than the keys do' };
+  if (id === 'damperFall') return { ok: v <= s.tol, v, note: v <= s.tol ? 'falls freely' : 'drags in its bushing: falls late' };
   if (id === 'spring') {
     const notes = { good: 'rises positively, no pop', weak: 'sluggish rise', none: 'hammer does not rise', pop: 'pops: bump felt in the key', jumps: 'jumps out of check' };
     return { ok: m.springState === 'good', v, note: notes[m.springState] };
@@ -338,7 +394,7 @@ export function grade(id, m) {
 const bis = (a, id, f, target, lo, hi) => { a[id] = solve(x => { a[id] = x; return f(); }, target, lo, hi, 30); };
 export function factory() {
   const a = { balPunch: 1.5, jackScrew: 0, repStop: 0, capstan: 12, restRail: 112, frontPunch: 1.5,
-              letoff: 90, drop: 112, repSpring: 0.8, backcheck: 0 };
+              letoff: 90, drop: 112, repSpring: 0.8, backcheck: 0, damperGap: 4, damperStop: 8, pedalLift: 8, damperDrag: 0.05 };
   for (let pass = 0; pass < 3; pass++) {
     bis(a, 'jackScrew', () => measure(a).jackPos, 0, -3, 3);
     bis(a, 'repStop', () => measure(a).wink, SPEC.wink.target, -2, 2);
@@ -348,6 +404,11 @@ export function factory() {
     bis(a, 'letoff', () => measure(a).letoff ?? 0, SPEC.letoff.target, 78, 100);
     bis(a, 'drop', () => measure(a).drop ?? 0, SPEC.drop.target, 100, 120);
     bis(a, 'backcheck', () => measure(a).check, SPEC.check.target, -4, 4);
+    bis(a, 'damperGap', () => measureDampers(a).damperTiming ?? 1, SPEC.damperTiming.target, 0, 9);
+    const kl = measureDampers(a).keyLiftBottom;
+    // the stop rail a hair above the key's lift, and the pedal taking the dampers just up to it
+    a.damperStop = kl + SPEC.damperStop.target;
+    a.pedalLift = a.damperStop - 0.05;
   }
   return a;
 }
@@ -368,6 +429,34 @@ export class Sim {
     let g = 0; for (let i = 0; i < 4; i++) g = staticHammer(this.a, L, this.st, g).g;
     this.g = g; this.w = 0; this.psi = L.psiRest; this.L = L; this.events = [];
     this.blocked = false; this.scraped = false;
+    this.t = 0; this.pedal = this.pedal ?? 0; this.pedalTarget = this.pedalTarget ?? 0;
+    this.yd = Math.min(this.pedal * this.a.pedalLift, this.a.damperStop); this.vd = 0;
+    this.up = this.yd > 0.05; this.hitStop = false; this.liftedAt = this.up ? 0 : null;
+  }
+  setPedal(down) { this.pedalTarget = down ? 1 : 0; }
+  // damper head: pushed up by the key's underlever or the pedal's lift tray, capped by the stop rail,
+  // and otherwise falling under its weight, slowed by any drag in its guide bushing
+  stepDamper(dt) {
+    const a = this.a;
+    this.t += dt;
+    // the foot presses the pedal over about a tenth of a second; let go, the tray drops away faster than the dampers fall
+    const rate = this.pedalTarget > this.pedal ? dt / 0.1 : dt / 0.02;
+    this.pedal += Math.sign(this.pedalTarget - this.pedal) * Math.min(Math.abs(this.pedalTarget - this.pedal), rate);
+    const push = Math.max(damperKeyLift(a, this.L), this.pedal * a.pedalLift);
+    // free flight first (rising after a hard blow, or falling); the underlever or tray takes over
+    // whenever it is at or above where the head would be
+    const gEff = G.dmpGravity * (this.vd > 0 ? 1 + a.damperDrag : 1 - Math.min(0.95, a.damperDrag));
+    let v = this.vd - gEff * dt, y = this.yd + v * dt;
+    if (push >= y) { v = (push - this.yd) / dt; y = push; if (push <= this.yd + 1e-9) v = 0; }
+    if (y > a.damperStop) { if (v > 40 && !this.hitStop) { this.emit('damperstop'); this.hitStop = true; } y = a.damperStop; v = Math.min(0, v); }
+    if (y > 0.05 && !this.up) { this.up = true; this.liftedAt = this.t; this.emit('damperup'); this.hitStop = false; }
+    if (y <= 0) {
+      // landing on the strings
+      if (this.up) { this.up = false; this.emit('seated', { t: this.t, airMs: this.liftedAt === null ? null : 1000 * (this.t - this.liftedAt), v: -v }); }
+      if (-v > G.dmpBounceV) { this.emit('damperbounce'); v = 0.3 * -v; y = 0.01; }
+      else { y = 0; v = 0; }
+    }
+    this.yd = y; this.vd = v;
   }
   emit(type, data = {}) { this.events.push({ type, d: this.d, g: this.g, ...data }); }
   press(target, speed) { this.dTarget = Math.max(0, Math.min(target, this.dip + 1)); this.keySpeed = speed; }
@@ -433,9 +522,10 @@ export class Sim {
     }
     if (this.d < 0.5) { this.blocked = false; this.scraped = false; this.popped = false; }
     this.g = g; this.w = w; this.L = L;
+    this.stepDamper(dt);
   }
   run(seconds, dt = 0.0002) { for (let t = 0; t < seconds; t += dt) this.step(dt); }
 }
 
 // Factory regulation solved offline with factory() (node), so the page loads fast.
-export const FACTORY = {"balPunch":1.5,"jackScrew":0,"repStop":0.9008,"capstan":12.5,"restRail":112.825,"frontPunch":2.4804,"letoff":87.9002,"drop":111.2148,"repSpring":0.8,"backcheck":0.1696};
+export const FACTORY = {"balPunch":1.5,"jackScrew":0,"repStop":0.9008,"capstan":12.5,"restRail":112.825,"frontPunch":2.4804,"letoff":87.9002,"drop":111.2148,"repSpring":0.8,"backcheck":0.1696,"damperGap":3.4967,"damperStop":6.6222,"pedalLift":6.5722,"damperDrag":0.05};

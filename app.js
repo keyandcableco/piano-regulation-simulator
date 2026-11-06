@@ -1,4 +1,4 @@
-import { G, IN, ADJ, SPEC, FACTORY, NEIGHBOR_H, Sim, measure, grade, hamPt, crownY, keyAngle, keyPt,
+import { G, IN, ADJ, SPEC, DAMPER_SPECS, FACTORY, NEIGHBOR_H, Sim, measure, grade, hamPt, crownY, keyAngle, keyPt,
          jackGeom, knuckleBottom, eff, repSupportZ } from './model.js';
 import { createScene, NOTE_Z } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
@@ -135,9 +135,25 @@ const STEPS = [
     what: 'Strike and hold so the hammer checks, then ease up a little. The hammer should rise steadily up to the drop screw: quick, but not snappy.',
     how: 'Adjust the spring. Too weak and it rises slowly or not at all; too strong and you feel a "pop" in the key, or it will not stay checked.',
     note: 'A stronger spring also lifts the hammer at rest. Recheck the wink.' },
-  { info: true, id: 'dampers', title: 'Dampers and pedals',
-    what: 'With the action regulated, the dampers are timed to the keys (each starting to lift partway through the stroke, roughly a third to half of the hammer travel), then the damper stop rail, damper pedal, sostenuto and una corda.',
-    how: 'Not in the sim yet. The order varies by maker; the damper lift must not interfere with let-off.' },
+  { spec: 'damperTiming', title: 'Damper lift timing', knobs: ['damperGap'], test: 'damperSlow',
+    what: 'Press the key slowly and watch the damper: it should start to lift when the hammer is a third to half of the way to the string.',
+    how: 'Move the damper head on its wire (set screw in the head block). That changes how much key travel happens before the key end picks up the underlever. Too early and you feel the dampers in the touch; too late and the note isn\'t fully undamped at soft levels.',
+    note: 'Lift timing is set key by key, so look for evenness across a section.' },
+  { spec: 'damperStop', title: 'Damper stop rail', knobs: ['damperStop'], test: 'damperSlow',
+    what: 'With the key held firmly down, the underlever should sit a hair (about 1/32") below the stop rail.',
+    how: 'Raise or lower the rail. It keeps dampers from flying up on hard staccato and bobbling on the way down. It is not the pedal\'s stop: the pedal has its own, set to about the same height.',
+    note: 'Simplified here: the damper falls by its own weight. Many bass dampers also have springs.' },
+  { spec: 'pedalLift', title: 'Damper pedal lift', knobs: ['pedalLift'], test: 'pedalTest',
+    what: 'The pedal should lift every damper just above where the keys take them, about level with the stop rail.',
+    how: 'Set the pedal\'s stop (or the rod length) so the lift tray takes the dampers just past the key lift. Too little and some notes stay damped; too much and the dampers slam into the stop rail and thump.',
+    note: 'On a real piano also leave a little free play in the pedal and rod before the tray moves. Not modelled yet.' },
+  { spec: 'damperFall', title: 'Dampers fall freely, together', knobs: ['damperDrag'], test: 'pedalTest',
+    what: 'Let the pedal go: every damper should drop and land at once. One that hangs or lands late leaves the note ringing.',
+    how: 'A late damper usually has a wire that isn\'t running straight through its guide rail bushing. Bend the wire so it passes through the bushing without touching its sides, or ease a tight bushing.',
+    note: 'On a real piano the bends also center the head on its unison and seat it flat. Bending is coming next.' },
+  { info: true, id: 'pedals', title: 'Sostenuto and una corda',
+    what: 'Last come the sostenuto (its rod catching only the tabs of the dampers held up) and the una corda shift (the hammers moving over to strike two strings of three).',
+    how: 'Not in the sim yet.' },
   { info: true, id: 'again', title: 'Go round again',
     what: 'Every adjustment moves something you already set. Technicians go through the sequence two or three times until nothing moves, then play-test for repetition and evenness.',
     how: 'The final check re-measures everything and shows what drifted.' },
@@ -163,6 +179,21 @@ const TESTS = {
     } },
   blowGauge: { label: 'Blow distance gauge', specs: ['blow'], view: 'hammer', run: async () => { await releaseKey(); } },
   restRail: { label: 'Look at the rest rail', specs: ['restGap'], view: 'rails', run: async () => { await releaseKey(); } },
+  damperSlow: { label: 'Press slowly: watch the damper', specs: ['damperTiming', 'damperStop'], view: 'dampers', damper: true,
+    run: async () => { setPedal(false); await releaseKey(); sim.press(sim.dip, 6); await waitSim(2.2); await waitReal(1); } },
+  pedalTest: { label: 'Pedal down, then let it go', specs: ['pedalLift', 'damperFall'], view: 'dampers', scale: 0.1, damper: true,
+    run: async () => {
+      await releaseKey();
+      setPedal(true); await waitSim(0.25);
+      const t0 = NOTES.map(n => n.sim.t);
+      landed = new Map();
+      setPedal(false); await waitSim(0.25); await waitReal(0.6);
+      // report landing times for the notes that are in play
+      const slots = examActive() ? EXAM_ORDER : [cur];
+      const ms = slots.map((slot, i) => landed.has(slot) ? Math.round(1000 * (landed.get(slot) - t0[slot])) : null);
+      toast(slots.length > 1 ? `Dampers landed after ${ms.map((v, i) => `note ${i + 1}: ${v ?? '—'} ms`).join(', ')}` : `Damper landed after ${ms[0] ?? '—'} ms`);
+      landed = null;
+    } },
   dipBlock: { label: 'Dip block at the key front', specs: ['dip'], view: 'keyfront',
     run: async () => { await releaseKey(); sim.press(sim.dip, 12); await waitSim(1.4); await waitReal(1.2); await releaseKey(); } },
   slowPress: { label: 'Press slowly to the bottom', specs: ['letoff', 'drop', 'aftertouch'], view: 'hammer',
@@ -176,6 +207,7 @@ const TESTS = {
       sim.press(sim.dip - 1.2, 10); await waitSim(0.6); await waitReal(1); } },
 };
 const waitReal = s => new Promise(r => setTimeout(r, s * 1000));
+let landed = null; // pedal test: when each note's damper seated
 async function releaseKey() {
   if (sim.d > 0.001 || sim.st.checked) { sim.press(0, 60); await waitSim(0.35); }
   sim.reset();
@@ -211,6 +243,8 @@ function revealed(id) {
 }
 
 // ---------- adjustments ----------
+// rails that serve every note: one setting for all three on the exam model
+const SHARED = new Set(['restRail', ...ADJ.filter(d => d.shared).map(d => d.id)]);
 function setAdj(id, v) {
   const d = ADJ.find(x => x.id === id);
   adj[id] = Math.max(d.min, Math.min(d.max, v));
@@ -218,7 +252,7 @@ function setAdj(id, v) {
   if (sim.d < 0.01 && !sim.st.checked) sim.reset();
   m = measure(adj);
   store();
-  if (id === 'restRail') NOTES.forEach((n, i) => { if (i !== cur) { n.adj.restRail = adj.restRail; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); } });
+  if (SHARED.has(id)) NOTES.forEach((n, i) => { if (i !== cur) { n.adj[id] = adj[id]; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); } });
   refresh();
 }
 function knobRow(id) {
@@ -232,7 +266,7 @@ function knobRow(id) {
   return el('div', { class: 'knob' },
     el('div', { class: 'knob-head' },
       el('button', { class: 'linkish', onclick: () => { S.highlight(d.part, cur); view(viewFor(d.part)); } }, d.name),
-      el('span', { class: 'muted small' }, examActive() && id === 'restRail' ? 'one rail for all three notes' : valTxt)),
+      el('span', { class: 'muted small' }, examActive() && SHARED.has(id) ? 'shared by all three notes' : valTxt)),
     el('div', { class: 'knob-btns' },
       two ? btn('−−', -coarse, `− ${d.stepLabel[1]}`) : null,
       btn('−', -fine, `− ${d.stepLabel[0]}`),
@@ -242,7 +276,8 @@ function knobRow(id) {
 }
 function viewFor(part) {
   return { balance: 'keyfront', frontpunch: 'keyfront', capstan: 'action', jackscrew: 'escapement', repscrew: 'escapement',
-    restrail: 'rails', letoff: 'escapement', drop: 'escapement', repspring: 'escapement', backcheck: 'backcheck' }[part] || 'action';
+    restrail: 'rails', letoff: 'escapement', drop: 'escapement', repspring: 'escapement', backcheck: 'backcheck',
+    damper: 'dampers', damperstop: 'dampers', lifttray: 'dampers', damperwire: 'dampers' }[part] || 'action';
 }
 
 // ---------- measurement table ----------
@@ -252,12 +287,16 @@ function specTarget(id) {
   if (id === 'dip' && mode === 'exam') return `given: ${fmt(SPEC.dip.target)}`;
   if (id === 'jackPos') return 'aligned';
   if (id === 'spring') return 'rises, no pop';
+  if (id === 'damperTiming') return 'a third to half';
+  if (id === 'damperFall') return 'falls freely';
   return fmt(s.target);
 }
 function reading(id, mm = m) {
   const r = grade(id, mm);
   let txt;
   if (id === 'spring') txt = r.note;
+  else if (id === 'damperTiming' && r.v != null) txt = `at ${Math.round(r.v * 100)}% of hammer travel`;
+  else if (id === 'damperFall') txt = `${r.note} (lands in ${Math.round(mm.fallMs)} ms)`;
   else if (r.v == null) txt = r.note || '—';
   else if (id === 'keyHeight') txt = Math.abs(r.v) < 0.05 ? 'level' : `${fmt(Math.abs(r.v))} ${r.v > 0 ? 'high' : 'low'}`;
   else if (id === 'jackPos') txt = Math.abs(r.v) < 0.05 ? 'aligned' : `${fmt(Math.abs(r.v))} ${r.v > 0 ? 'too far back' : 'too far forward'}`;
@@ -293,6 +332,9 @@ const SCENARIOS = [
   { complaint: 'When I hold the key down the hammer buzzes near the string.', faults: { drop: +2.0 }, answer: 'Drop screw too high: not enough drop.' },
   { complaint: 'Repetition is sluggish, I have to let the key all the way up.', faults: { repStop: -0.15 }, answer: 'Repetition lever too low: the hammer winks too far and the jack cannot get back under the knuckle.' },
   { complaint: 'The hammer on this key sits a little higher than its neighbors, and there\'s some play at the top of the key.', faults: { repStop: +0.25 }, answer: 'Repetition lever too high above the jack: it holds the hammer off the jack (no wink), so the hammer line is uneven.' },
+  { complaint: 'Notes ring on after I let go, and the sustain pedal leaves a little smear.', faults: { damperDrag: +0.5 }, answer: 'A damper wire binding in its guide rail bushing: that damper falls late.' },
+  { complaint: 'The key feels heavier right at the top of the stroke than the ones next to it.', faults: { damperGap: -1.5 }, answer: 'The damper lifts too early: the key picks up the underlever before the hammer is a third of the way up. Lifting earlier also lifts it further, which eats the stop rail clearance and leaves the pedal short of the key lift: they come right once the timing is fixed.' },
+  { complaint: 'There\'s a thump when I put the sustain pedal down.', faults: { pedalLift: +2 }, answer: 'Pedal lift too high: it drives the dampers into the stop rail.' },
   { complaint: 'It was regulated when we bought it eight years ago. Now there\'s a click at the top of the key, soft notes are hard to control, and it feels like it bottoms out.', faults: { wear: 0.8 }, alone: true,
     answer: 'Nothing was turned: eight years of playing packed down the felts and cloth. Blow grew, the hammer settled onto the rest rail (lost motion), and aftertouch disappeared. The fix is a touch-up of the whole sequence.' },
 ];
@@ -319,6 +361,8 @@ function deregulated() {
   // rough let-off stays on the early side so dip can be set without blocking
   a.letoff += rnd(-1.0, 0.25);
   a.drop += pm(2.0); a.repSpring += rnd(-0.15, 0.25); a.backcheck += pm(2.5);
+  a.damperGap += pm(1.5); a.damperStop += pm(1.2); a.pedalLift += pm(1.2);
+  a.damperDrag = Math.random() < 0.4 ? rnd(0.3, 0.6) : FACTORY.damperDrag;
   return a;
 }
 function messUp() { adj = deregulated(); applyAdj(); }
@@ -464,12 +508,20 @@ function renderSandbox(p) {
 const EXAM_MINUTES = 50;
 const EXAM_ORDER = [1, 0, 2];                 // note 1, 2, 3 from bass to treble
 const EVEN = ['keyHeight', 'dip', 'blow', 'letoff', 'drop', 'check'];
+let examDampers = false;
+const SPEC_OF_KNOB_DAMPER = new Set(['damperGap', 'damperStop', 'pedalLift', 'damperDrag']);   // include damper regulation in the exam
+const examSpecs = () => Object.keys(SPEC).filter(id => exam.dampers || !SPEC[id].damper);
 let exam = { started: false, done: false };
 const examActive = () => mode === 'exam' && exam.started;
 function startExam() {
   const restRail = deregulated().restRail;
-  NOTES.forEach(n => { n.adj = { ...deregulated(), restRail }; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); n.tested = new Set(); });
-  exam = { started: true, done: false, endAt: Date.now() + EXAM_MINUTES * 60000, t0: Date.now() };
+  const shared = deregulated();
+  NOTES.forEach(n => {
+    const a = { ...deregulated(), restRail, damperStop: shared.damperStop, pedalLift: shared.pedalLift };
+    if (!examDampers) for (const k of ['damperGap', 'damperStop', 'pedalLift', 'damperDrag']) a[k] = FACTORY[k];
+    n.adj = a; n.sim.setAdj(a); n.sim.reset(); n.m = measure(a); n.tested = new Set();
+  });
+  exam = { started: true, done: false, dampers: examDampers, endAt: Date.now() + EXAM_MINUTES * 60000, t0: Date.now() };
   testsUsed = 0; generation++;
   cur = EXAM_ORDER[0]; ({ adj, sim, m, tested } = NOTES[cur]); lastClock = '';
   S.setNoteCount(3); S.setFocus(cur); S.clearCallouts();
@@ -502,12 +554,16 @@ function tickExam() {
   if (txt !== lastClock) { c.textContent = txt; c.hidden = false; c.classList.toggle('low', left < 5 * 60000); lastClock = txt; }
 }
 function examScore() {
-  const rows = Object.keys(SPEC).map(id => ({ id, cells: EXAM_ORDER.map(i => ({ ...reading(id, NOTES[i].m), ok: grade(id, NOTES[i].m).ok })) }));
-  const even = EVEN.map(id => {
+  const rows = examSpecs().map(id => ({ id, cells: EXAM_ORDER.map(i => ({ ...reading(id, NOTES[i].m), ok: grade(id, NOTES[i].m).ok })) }));
+  const even = EVEN.concat(exam.dampers ? ['damperTiming'] : []).map(id => {
     const vals = EXAM_ORDER.map(i => grade(id, NOTES[i].m).v);
     const ok = vals.every(v => v != null) && Math.max(...vals) - Math.min(...vals) <= SPEC[id].tol;
     return { id, ok, spread: vals.every(v => v != null) ? Math.max(...vals) - Math.min(...vals) : null };
   });
+  if (exam.dampers) {
+    const t = EXAM_ORDER.map(i => NOTES[i].m.fallMs), spread = Math.max(...t) - Math.min(...t);
+    even.push({ id: 'damperFall', ok: spread <= 5, spread, ms: true });
+  }
   const items = rows.flatMap(r => r.cells.map(c => c.ok)).concat(even.map(e => e.ok));
   return { rows, even, pct: Math.round(100 * items.filter(Boolean).length / items.length) };
 }
@@ -519,6 +575,8 @@ function renderExam(p) {
         el('li', {}, 'Readings stay hidden until you run the test that measures them, on that note.'),
         el('li', {}, 'Click a key, or the note buttons, to work on a note. The hammer rest rail is shared.'),
         el('li', {}, 'Scoring: each spec on each note, plus how even the three notes are. 80% passes.')),
+      el('label', { class: 'row small' }, el('input', { type: 'checkbox', ...(examDampers ? { checked: '' } : {}), onchange: e => { examDampers = e.target.checked; } }),
+        ' Include dampers and pedal (lift timing, stop rail, pedal lift, falling together). PTG\'s grand section may not include them.'),
       el('p', { class: 'muted small' }, 'Practice scoring with textbook tolerances, not PTG\'s official score sheet. The real exam also has you assemble the model; this one starts assembled.'),
       el('div', { class: 'row' }, el('button', { class: 'primary', onclick: startExam }, 'Start the 50 minutes')));
     return;
@@ -529,10 +587,10 @@ function renderExam(p) {
       el('div', {}, `Key height: ${fmt(NEIGHBOR_H)} (straightedge set to it)`), el('div', {}, `Dip: ${fmt(SPEC.dip.target)}`)),
     el('div', { class: 'row notes' }, EXAM_ORDER.map((slot, i) =>
       el('button', { class: slot === cur ? 'on' : '', disabled: busy ? '' : false, onclick: () => { selectNote(slot); view('angle'); } }, `Note ${i + 1}`))),
-    el('h3', {}, `Note ${n}: tests`), el('div', { class: 'tests' }, Object.keys(TESTS).map(testButton)),
+    el('h3', {}, `Note ${n}: tests`), el('div', { class: 'tests' }, Object.keys(TESTS).filter(k => exam.dampers || !TESTS[k].damper).map(testButton)),
     el('div', { class: 'muted small' }, `Tests run: ${testsUsed}`),
-    measureTable(Object.keys(SPEC)),
-    el('details', { open: '' }, el('summary', {}, `Note ${n}: adjustments`), el('div', { class: 'knobs' }, ADJ.map(a => knobRow(a.id)))),
+    measureTable(examSpecs()),
+    el('details', { open: '' }, el('summary', {}, `Note ${n}: adjustments`), el('div', { class: 'knobs' }, ADJ.filter(a => exam.dampers || !SPEC_OF_KNOB_DAMPER.has(a.id)).map(a => knobRow(a.id)))),
     el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { if (confirm('Hand in your exam model now?')) handIn(); } }, 'Hand it in')));
 }
 function renderExamResult(p) {
@@ -546,7 +604,8 @@ function renderExamResult(p) {
       el('tbody', {}, sc.rows.map(r => el('tr', {}, el('td', {}, SPEC[r.id].name), r.cells.map(cell))))),
     el('h3', {}, 'Evenness across the three notes'),
     el('table', { class: 'specs score' }, el('tbody', {}, sc.even.map(e =>
-      el('tr', {}, el('td', {}, SPEC[e.id].name), el('td', { class: e.ok ? 'okc' : 'badc' }, e.spread == null ? 'not all working' : `spread ${fmt(e.spread)}`))))),
+      el('tr', {}, el('td', {}, e.ms ? 'Dampers land together' : SPEC[e.id].name), el('td', { class: e.ok ? 'okc' : 'badc' },
+        e.spread == null ? 'not all working' : e.ms ? `${Math.round(e.spread)} ms apart` : e.id === 'damperTiming' ? `spread ${Math.round(e.spread * 100)}%` : `spread ${fmt(e.spread)}`))))),
     el('p', { class: 'muted small' }, `Evenness passes when the three notes are within each spec's tolerance of each other. Practice scoring, not PTG's.`),
     el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { leaveExam(); refresh(); } }, 'New exam')));
 }
@@ -575,8 +634,10 @@ function handleEvents() {
     if (e.type === 'pop') toast('Pop: you would feel a bump in the key', 'warn');
     if (e.type === 'scrape') toast('The hammer tail scraped the backcheck', 'warn');
     if (e.type === 'jumpcheck') toast('The hammer jumped out of check', 'warn');
+    if (e.type === 'damperbounce') toast('The damper bobbled on the strings', 'warn');
   }
-  NOTES.forEach(n => { n.sim.events = []; });
+  // the pedal test listens for every damper landing, on every note
+  NOTES.forEach((n, slot) => { if (landed) for (const e of n.sim.events) if (e.type === 'seated' && !landed.has(slot)) landed.set(slot, e.t); n.sim.events = []; });
 }
 function updateCallouts() {
   const nz = NOTE_Z[cur], z = 9 + nz, L = sim.L, g = hammerOverride ?? sim.g;
@@ -625,6 +686,9 @@ $('#k-strike').onclick = () => { if (!busy) { autoUp = false; sim.press(sim.dip,
 $('#k-ease').onclick = () => { if (!busy) { autoUp = false; sim.press(Math.max(0, Math.min(sim.d, sim.dip) - 1.2), 10); } };
 const letUp = () => { if (!busy) { autoUp = false; sim.press(0, 60); } };
 $('#k-release').onclick = letUp;
+let pedalDown = false;
+const setPedal = down => { pedalDown = down; NOTES.forEach(n => n.sim.setPedal(down)); $('#k-pedal').classList.toggle('on', down); };
+$('#k-pedal').onclick = () => { if (!busy) setPedal(!pedalDown); };
 let labelsOn = false;
 $('#labels').onclick = () => { labelsOn = !labelsOn; S.setLabels(labelsOn); $('#labels').classList.toggle('on', labelsOn); };
 for (const b of document.querySelectorAll('[data-speed]')) b.onclick = () => {
@@ -647,6 +711,7 @@ $('#units').onclick = () => { units = units === 'in' ? 'mm' : 'in'; refresh(); }
 $('#credits').onclick = e => { e.preventDefault(); showCredits = true; refresh(); $('aside').scrollTop = 0; };
 window.addEventListener('keydown', e => {
   if (e.code === 'Escape') letUp();
+  if (e.code === 'KeyP' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !busy && e.target === document.body) setPedal(!pedalDown);
   if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); sim.press(sim.dip, 250); }
 });
 window.addEventListener('keyup', e => { if (e.code === 'Space' && !busy && e.target === document.body) sim.press(0, 60); });
@@ -689,13 +754,14 @@ function frame(now) {
   // frame (the action then runs a little slower than real time rather than stuttering)
   const h = 0.0002, dtSim = Math.min(dtReal * (forcedScale ?? timeScale), 120 * h);
   for (const n of NOTES) {
-    if (n.sim !== sim && n.sim.d === 0 && n.sim.dTarget === 0 && n.sim.w === 0) continue;
+    const s2 = n.sim;
+    if (s2 !== sim && s2.d === 0 && s2.dTarget === 0 && s2.w === 0 && s2.yd === 0 && s2.vd === 0 && s2.pedal === s2.pedalTarget) continue;
     for (let t = 0; t < dtSim; t += h) n.sim.step(Math.min(h, dtSim - t));
   }
   simTime += dtSim;
   for (let i = waits.length - 1; i >= 0; i--) if (simTime >= waits[i].at) { waits[i].r(); waits.splice(i, 1); }
   handleEvents();
-  NOTES.forEach((n, i) => { if (i === 0 || examActive()) S.update(i, n.sim, eff(n.adj), i === cur ? hammerOverride : null, i === cur ? jackOverride : null); });
+  NOTES.forEach((n, i) => { if (i === 0 || examActive()) S.update(i, n.sim, eff(n.adj), i === cur ? hammerOverride : null, i === cur ? jackOverride : null, i === cur); });
   tickExam();
   updateCallouts();
   if (autoUp && (sim.d >= sim.dip - 0.01 || sim.blocked)) { autoUp = false; setTimeout(() => sim.press(0, 60), 120); }

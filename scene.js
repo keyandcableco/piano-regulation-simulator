@@ -20,11 +20,16 @@ const PART_NAMES = {
   repscrew: 'Repetition lever height screw', repspring: 'Repetition spring', shank: 'Hammer shank',
   knuckle: 'Knuckle', hammer: 'Hammer', flange: 'Hammer flange', flangerail: 'Hammer flange rail',
   drop: 'Drop screw', letoff: 'Let-off button', regrail: 'Regulating rail', restrail: 'Hammer rest rail',
-  string: 'Strings', backcheck: 'Backcheck', tail: 'Hammer tail (check surface)', keybed: 'Keybed', straightedge: 'Straightedge',
+  string: 'Strings', backcheck: 'Backcheck', damper: 'Damper head', damperwire: 'Damper wire', underlever: 'Damper underlever',
+  damperstop: 'Damper stop rail', lifttray: 'Damper lift tray (pedal)', guiderail: 'Damper guide rail', ulrail: 'Underlever flange rail', tail: 'Hammer tail (check surface)', keybed: 'Keybed', straightedge: 'Straightedge',
 };
 
 // note slots: 0 is the middle (the one normal modes use), 1 toward the bass, 2 toward the treble
 export const NOTE_Z = [0, 23.5, -23.5];
+const UL_PIVOT = [604, 66];        // underlever centre pin
+const UL_FELT = [-135, -6];        // lift felt, over the key's end
+const UL_WIRE = [-128, 5];         // where the damper wire leaves the underlever
+const WIRE_Z = 8;                  // the wire rises beside the unison; the head reaches over it
 
 function shapeFrom(pts) {
   const s = new THREE.Shape();
@@ -109,6 +114,15 @@ export function createScene(canvas, overlay) {
     ext(rect(-235, G.keyThick, -85, G.keyThick + G.keyTopCap), 21, z, COLORS.ghost, 'neighbor', nk, { opacity: 0.5 });
     ghosts.add(nk);
   }
+  // damper rails, shared by every note: the guide rail the wires pass through, the underlever
+  // flange rail, the stop rail over the underlevers and the pedal's lift tray under them
+  ext(rect(452, 148, 500, 156), 80, 0, COLORS.rail, 'guiderail', fixed);
+  ext(rect(592, 34, 626, 58), 80, 0, COLORS.rail, 'ulrail', fixed);
+  const dStopRail = new THREE.Group(); fixed.add(dStopRail);
+  ext(rect(522, 0, 556, 10), 80, 0, COLORS.rail, 'damperstop', dStopRail);
+  ext(rect(522, 0, 556, 2), 80, 0, COLORS.felt, 'damperstop', dStopRail);
+  const liftTray = new THREE.Group(); fixed.add(liftTray);
+  ext(rect(562, -10, 588, 0), 80, 0, COLORS.dark, 'lifttray', liftTray);
   const straightedge = new THREE.Group(); fixed.add(straightedge);
   ext(rect(-6, NEIGHBOR_H, 30, NEIGHBOR_H + 3), 90, 0, COLORS.steel, 'straightedge', straightedge, { metal: true, noPick: true });
   straightedge.visible = false;
@@ -205,6 +219,15 @@ export function createScene(canvas, overlay) {
     ext(felt, 12, 0, COLORS.hammerfelt, 'hammer', n.feltG);
     ext(shapeFrom([[110.5, 0], [119.2, 2], [119.4, 4.5], [110.7, 3]]), 12.2, 0, COLORS.redfelt, 'hammer', n.feltG);
     ext(shapeFrom([[139.5, 0], [132.8, 2], [132.6, 4.5], [139.3, 3]]), 12.2, 0, COLORS.redfelt, 'hammer', n.feltG);
+    // damper: underlever pivoting on its flange behind the keys, lift felt over the key's end,
+    // wire up through the guide rail, head with its felt sitting on the unison
+    const ul = n.ul = new THREE.Group(); ul.position.set(...UL_PIVOT, 0); root.add(ul);
+    ext(rect(-142, -2, 6, 5), 9, 0, COLORS.wood, 'underlever', ul);
+    ext(rect(-142, -6, -128, -2), 10, 0, COLORS.redfelt, 'underlever', ul);
+    n.wire = cyl(1.1, 1, 'y', [UL_WIRE[0] + UL_PIVOT[0], 0, WIRE_Z], COLORS.steel, 'damperwire', root, { metal: true });
+    const head = n.dHead = new THREE.Group(); root.add(head);
+    ext(rect(462, 4, 490, 22), 16, 1, COLORS.wood, 'damper', head);
+    ext(rect(462, 0, 490, 4), 13, 0, COLORS.hammerfelt, 'damper', head);
     building = -1;
     return n;
   }
@@ -261,6 +284,8 @@ export function createScene(canvas, overlay) {
     [N0.hammer, [70, 4, 4], 'Shank'], [N0.hammer, [125, 30, 7], 'Hammer'], [N0.hammer, [133, -20, 6], 'Tail'],
     [N0.bc, [8, 70, 7], 'Backcheck'], [restRail, [G.restRailX, -8, 41], 'Rest rail'], [fixed, [275, 140, 41], 'Hammer flange rail'],
     [fixed, [280, 100, 41], 'Regulating rail'], [N0.root, [560, G.stringY + 3, 0], 'Strings'], [fixed, [410, 70, 41], 'Wippen rail'],
+    [N0.dHead, [476, 22, 9], 'Damper'], [N0.ul, [-60, 5, 6], 'Underlever'], [fixed, [474, 156, 41], 'Damper guide rail'],
+    [dStopRail, [539, 10, 41], 'Damper stop rail'], [liftTray, [575, -10, 41], 'Lift tray']
   ].map(([obj, p, text]) => {
     const e = document.createElement('div'); e.className = 'plabel'; e.textContent = text; e.hidden = true; overlay.appendChild(e);
     return { obj, p: new THREE.Vector3(...p), e };
@@ -290,6 +315,7 @@ export function createScene(canvas, overlay) {
     rails: { t: [320, 110, 0], p: [320, 115, 260] },
     // looking down the keys from the player's side at the hammer tops: sight the hammer line
     hammerline: { t: [430, 162, 0], p: [250, 245, 0] },
+    dampers: { t: [520, 130, 0], p: [520, 140, 420] },
   };
   let viewAnim = null, viewZ = 0;
   // pull the camera back on tall, narrow screens so the same width of the action fits
@@ -335,7 +361,7 @@ export function createScene(canvas, overlay) {
   let bg = null;
   function setBackground(hex) { if (hex !== bg) { scene.background = new THREE.Color(hex); bg = hex; } }
 
-  function update(slot, sim, a, hammerOverride = null, jackOverride = null) {
+  function update(slot, sim, a, hammerOverride = null, jackOverride = null, drawShared = slot === 0) {
     const n = notes[slot];
     const k = keyAngle(a, sim.d);
     n.key.position.set(G.balX, k.By, 0); n.key.rotation.z = k.th;
@@ -354,13 +380,36 @@ export function createScene(canvas, overlay) {
     n.letoffBtn.position.y = a.letoff;
     n.letoffStem.scale.y = 106 - (a.letoff + 3); n.letoffStem.position.y = (106 + a.letoff + 3) / 2;
     n.dropScrew.scale.y = 149 - a.drop; n.dropScrew.position.y = (149 + a.drop) / 2;
-    if (slot === 0) restRail.position.y = a.restRail;
+    if (drawShared) restRail.position.y = a.restRail;
     n.bc.rotation.z = (a.backcheck - (a.wear || 0) * WEAR.backcheck) / 80;
     // packed-down felts
     const w = a.wear || 0;
     n.knuckle.scale.set((G.knuckleR + WEAR.knuckle * w) / G.knuckleR, (G.knuckleR + WEAR.knuckle * w) / G.knuckleR, 1);
     n.feltG.scale.y = (G.crown[1] - 4 + WEAR.crown * w) / (G.crown[1] - 4);
     n.heelG.scale.y = (6 + WEAR.capstan * w) / 6;
+    // damper: the underlever's felt sits damperGap above the key end; the head rises with it
+    const keyTop = k.By + Math.sin(k.th0) * G.dmpContactLocal + G.keyThick * Math.cos(k.th0);
+    const feltY = keyTop + (a.damperGap ?? 3.5) + sim.yd / G.dmpRatio;
+    const th = solveUl(feltY);
+    n.ul.rotation.z = th;
+    const wb = [UL_PIVOT[0] + UL_WIRE[0] * Math.cos(th) - UL_WIRE[1] * Math.sin(th), UL_PIVOT[1] + UL_WIRE[0] * Math.sin(th) + UL_WIRE[1] * Math.cos(th)];
+    const headY = G.stringY + 1.1 + sim.yd;
+    n.dHead.position.y = headY;
+    n.wire.scale.y = Math.max(1, headY + 4 - wb[1]); n.wire.position.set(wb[0], (headY + 4 + wb[1]) / 2, WIRE_Z);
+    if (drawShared) {
+      // the stop rail sits where the underlever's top would be with the damper lifted damperStop;
+      // the lift tray's top touches the underlever's underside when the pedal lifts it
+      const feltRest = keyTop + (a.damperGap ?? 3.5);
+      const ulY = (th, lx, ly) => UL_PIVOT[1] + lx * Math.sin(th) + ly * Math.cos(th);
+      dStopRail.position.y = ulY(solveUl(feltRest + (a.damperStop ?? 7) / G.dmpRatio), 539 - UL_PIVOT[0], 5);
+      liftTray.position.y = ulY(solveUl(feltRest + (sim.pedal ?? 0) * (a.pedalLift ?? 7) / G.dmpRatio), 575 - UL_PIVOT[0], -2) - 0.3;
+    }
+  }
+  // underlever angle that puts its lift felt at height y
+  function solveUl(y) {
+    let lo = -0.5, hi = 0.5;
+    for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (UL_PIVOT[1] + UL_FELT[0] * Math.sin(m) + UL_FELT[1] * Math.cos(m) > y) lo = m; else hi = m; }
+    return (lo + hi) / 2;
   }
   // repetition lever angle that puts the horn at height y
   function solveRho(L, y) {
