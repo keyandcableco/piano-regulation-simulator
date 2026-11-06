@@ -1,0 +1,714 @@
+import { G, IN, ADJ, SPEC, FACTORY, NEIGHBOR_H, Sim, measure, grade, hamPt, crownY, keyAngle, keyPt,
+         jackGeom, knuckleBottom, eff, repSupportZ } from './model.js';
+import { createScene, NOTE_Z } from './scene.js';
+import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
+
+const $ = s => document.querySelector(s);
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) e.setAttribute(k, v);
+  }
+  for (const k of kids.flat()) if (k != null) e.append(k.nodeType ? k : document.createTextNode(k));
+  return e;
+};
+
+// ---------- units ----------
+let units = 'in';
+function fracIn(mm) {
+  const inch = mm / IN, sign = inch < 0 ? '−' : '';
+  let v = Math.abs(inch), whole = Math.floor(v), n = Math.round((v - whole) * 64), d = 64;
+  if (n === 64) { whole++; n = 0; }
+  while (n && n % 2 === 0) { n /= 2; d /= 2; }
+  if (!whole && !n) return v > 1e-4 ? (sign || '') + '<1/64"' : '0"';
+  return sign + (whole ? whole + (n ? ' ' : '') : '') + (n ? `${n}/${d}` : '') + '"';
+}
+const fmm = mm => `${mm.toFixed(mm < 10 ? 2 : 1)} mm`;
+function fmt(mm, signed = false) {
+  if (mm == null || Number.isNaN(mm)) return '—';
+  const s = signed && mm > 0 ? '+' : '';
+  return units === 'in' ? s + fracIn(mm) : s + fmm(mm).replace(/^-/, '−');
+}
+const fmtBoth = mm => units === 'in' ? `${fracIn(mm)} (${fmm(mm)})` : `${fmm(mm)} (${fracIn(mm)})`;
+
+// ---------- state ----------
+// Three note slots (0 = middle, 1 = toward the bass, 2 = toward the treble). The one-note modes
+// use slot 0; exam mode uses all three. adj, sim, m and tested always point at the current slot.
+const NOTES = [0, 1, 2].map(() => { const a = { ...FACTORY }; return { adj: a, sim: new Sim(a), m: measure(a), tested: new Set() }; });
+let cur = 0;
+let adj = NOTES[0].adj, sim = NOTES[0].sim, m = NOTES[0].m, tested = NOTES[0].tested;
+function store() { Object.assign(NOTES[cur], { adj, sim, m, tested }); }
+function selectNote(slot) {
+  if (slot === cur || busy) return;
+  if (sim.dTarget > 0) sim.press(0, 60);
+  store(); cur = slot;
+  ({ adj, sim, m, tested } = NOTES[slot]);
+  S.setFocus(examActive() ? slot : null);
+  S.clearCallouts(); letoffMark = checkMark = letoffD = null;
+  refresh();
+}
+let mode = 'learn';
+let timeScale = 0.1;
+let stepIdx = 0;
+let scenario = null, testsUsed = 0, verdict = null;
+let hammerOverride = null, jackOverride = null;
+let simTime = 0;
+const waits = [];
+const waitSim = s => new Promise(r => waits.push({ at: simTime + s, r }));
+let busy = 0;
+let forcedScale = null; // tests run at their own speed
+
+const canvas = $('#c'), overlay = $('#overlay');
+let S;
+try { S = createScene(canvas, overlay); }
+catch (err) {
+  $('#stage').replaceChildren(el('div', { class: 'fallback' },
+    el('h2', {}, 'This simulator needs 3D graphics (WebGL)'),
+    el('p', {}, 'Try a current Chrome, Firefox, Safari or Edge, and check that hardware acceleration is turned on in the browser settings.')));
+  $('#mode').replaceChildren();
+  throw err;
+}
+
+// side views follow the current note; sighting the hammer line shows all three at full strength
+const view = name => { S.setFocus(name !== 'hammerline' && examActive() && !exam.done ? cur : null); S.setView(name, NOTE_Z[cur]); };
+
+// ---------- learn steps (standard grand order) ----------
+// The order follows the published grand sequences (Randy Potter School checklist, Steinway and
+// Kawai service manuals): prepare, level the keys, jack and repetition lever, blow and hammer
+// line, let-off, drop, dip, aftertouch, backchecks, then the repetition springs, then dampers.
+// Cards marked info are steps the sim does not model, shown so the sequence reads complete.
+const STEPS = [
+  { info: true, id: 'prep', title: 'Before you regulate: prepare the action',
+    what: 'Regulating over loose screws, tight centers or sticky keys is wasted work. Tighten the action and keyframe screws, check that the centers swing freely but not loosely, ease any tight key bushings, and shape or file worn hammers.',
+    how: 'None of this is in the sim: its parts are clean, free and tight. On a real piano it comes first.' },
+  { info: true, id: 'bedding', title: 'Bed the keyframe',
+    what: 'The keyframe has to sit flat on the keybed at the front rail, balance rail and back rail. If it rocks, it knocks, and the key dip and height wander.',
+    how: 'Knock test with the action in: press on the rails and listen. Sand the front rail where it doesn\'t touch; set the balance rail glide bolts so they just touch, never lifting the rail.' },
+  { info: true, id: 'keys', title: 'Square, space and ease the keys',
+    what: 'Keys should sit square and evenly spaced, with slight side play at the bushings and none that binds.',
+    how: 'Square a key by bending the balance rail pin to one side with a soft drift; space it by bending the front rail pin, the tool under the punching so the pin isn\'t marked.' },
+  { info: true, id: 'travel', title: 'Travel, space and square the action',
+    what: 'Hammers must rise straight, centered on their strings; wippens square to the knuckles and capstans; each jack centered in its repetition lever window.',
+    how: 'Travel hammers with paper strips under one side of the flange; space hammers to the strings; square the wippens the same way at their flanges.' },
+  { spec: 'keyHeight', title: 'Key height', knobs: ['balPunch'], test: 'straightedge',
+    what: 'Every other measurement starts from the key, so level it first. Lay a straightedge across the neighboring keys: this key should just touch it.',
+    how: 'Add or remove punchings under the key at the balance rail. The key rocks on the back rail, so the front moves about twice the punching thickness.',
+    note: 'Key height also changes dip and aftertouch, which you set later.' },
+  { spec: 'jackPos', title: 'Jack position under the knuckle', knobs: ['jackScrew'], test: 'sightJack',
+    what: 'Line up the back of the jack with the back of the knuckle core (the wood inside the buckskin).',
+    how: 'Turn the jack regulating screw. Too far forward and the jack escapes early, with less power and control; too far back and it drags under the knuckle and repeats poorly.',
+    note: 'Jack position shifts let-off slightly.' },
+  { spec: 'wink', title: 'Repetition lever height', knobs: ['repStop'], test: 'wink',
+    what: 'Trip the jack with the key at rest: the hammer should "wink", dropping a hair (about 1/32") onto the repetition lever, and the jack should slip back under the knuckle when you let it go. Put another way, the jack top sits just below the top of the lever.',
+    how: 'Turn the repetition lever height screw. If the hammer doesn\'t move, the lever is too high: it holds the hammer off the jack (lost motion, uneven hammer line). If it drops and the jack can\'t get back under, the lever is too low and the note won\'t repeat.',
+    note: 'The repetition spring changes the wink too, so check it again after setting the springs.' },
+  { spec: 'blow', title: 'Blow distance and hammer line', knobs: ['capstan'], test: 'blowGauge',
+    what: 'The capstan lifts the wippen and sets the hammer\'s rest height. Textbook blow distance is 1 3/4"; makers range from about 44 to 48 mm. Across a section the hammers should form a straight line.',
+    how: 'Turn the capstan. Up raises the hammer and shortens the blow.',
+    note: 'Less blow means more aftertouch, so the capstan is one of the two real aftertouch adjustments.' },
+  { spec: 'restGap', title: 'Hammer rest rail', knobs: ['restRail'], test: 'restRail',
+    what: 'The rest rail sits a little below the shanks so the hammers ride on their wippens and capstans, never on the rail.',
+    how: 'Raise or lower the rail. If a shank sits on the rail, the hammer is not riding on the wippen: that is lost motion.',
+    note: '' },
+  { spec: 'letoff', title: 'Let-off', knobs: ['letoff'], test: 'slowPress',
+    what: 'Press the key slowly: the jack should trip with the hammer 1/16" from the string (closer in the treble, farther in the bass).',
+    how: 'Turn the let-off button. Lower trips earlier (farther from the string). Too close and soft notes block or buzz; too far and you lose pianissimo control and power.',
+    note: '' },
+  { spec: 'drop', title: 'Drop', knobs: ['drop'], test: 'slowPress',
+    what: 'After let-off the hammer falls back onto the repetition lever, about 1/16" below where it let off. It must never rise above the let-off point as the key goes down.',
+    how: 'Turn the drop screw. Down stops the lever sooner and gives more drop. Too little drop and the hammer can bobble against the string; too much makes repetition sluggish.',
+    note: 'Another way to set it: the lever reaches the drop screw just as the tender reaches the let-off button.' },
+  { spec: 'dip', title: 'Key dip', knobs: ['frontPunch'], test: 'dipBlock',
+    what: 'Dip is how far the key front travels. A common grand starting point is 3/8"; makers specify about 10 mm. On a real piano or the exam model you work to the given spec.',
+    how: 'Change the front rail punchings. Thicker punchings stop the key sooner and give less dip.',
+    note: 'If the hammer blocks before the key bottoms, let-off is too close: fix that first.' },
+  { spec: 'aftertouch', title: 'Aftertouch', knobs: ['frontPunch', 'capstan'], test: 'slowPress',
+    what: 'Aftertouch is the key travel left after let-off, about 1 mm. It is what makes sure the jack escapes on the softest blow.',
+    how: 'Set it with dip and blow distance, never with let-off or drop: more dip or less blow gives more aftertouch. Then recheck let-off and drop, which those changes move.',
+    note: 'Too little and soft notes block or bobble; too much and the jack is forced into its stop and can break.' },
+  { spec: 'check', title: 'Backcheck', knobs: ['backcheck'], test: 'strikeHold',
+    what: 'Strike firmly and hold: the backcheck should catch the hammer about 5/8" from the string (1/2" to 5/8").',
+    how: 'Bend the backcheck wire. Set it as high as you can without the hammer tail scraping on the way up. On a real piano also square it to the tail and set its angle.',
+    note: 'The checking distance sets how the repetition spring behaves, which is why the springs come next.' },
+  { spec: 'spring', title: 'Repetition spring', knobs: ['repSpring'], test: 'easeUp',
+    what: 'Strike and hold so the hammer checks, then ease up a little. The hammer should rise steadily up to the drop screw: quick, but not snappy.',
+    how: 'Adjust the spring. Too weak and it rises slowly or not at all; too strong and you feel a "pop" in the key, or it will not stay checked.',
+    note: 'A stronger spring also lifts the hammer at rest. Recheck the wink.' },
+  { info: true, id: 'dampers', title: 'Dampers and pedals',
+    what: 'With the action regulated, the dampers are timed to the keys (each starting to lift partway through the stroke, roughly a third to half of the hammer travel), then the damper stop rail, damper pedal, sostenuto and una corda.',
+    how: 'Not in the sim yet. The order varies by maker; the damper lift must not interfere with let-off.' },
+  { info: true, id: 'again', title: 'Go round again',
+    what: 'Every adjustment moves something you already set. Technicians go through the sequence two or three times until nothing moves, then play-test for repetition and evenness.',
+    how: 'The final check re-measures everything and shows what drifted.' },
+];
+
+// ---------- tests ----------
+const TESTS = {
+  straightedge: { label: 'Lay the straightedge', specs: ['keyHeight'], view: 'keyfront',
+    run: async () => { await releaseKey(); S.straightedge.visible = true; await waitReal(3); S.straightedge.visible = false; } },
+  sightJack: { label: 'Sight the jack under the knuckle', specs: ['jackPos'], view: 'escapement', run: async () => { await releaseKey(); } },
+  wink: { label: 'Trip the jack (wink test)', specs: ['wink'], view: 'escapement',
+    run: async () => {
+      // push the tender to trip the jack, watch the hammer settle onto the repetition lever, then let go
+      await releaseKey();
+      const g0 = sim.g, gRep = solveG(repSupportZ(sim.a, sim.L)), returns = m.jackReturns;
+      for (let i = 0; i < 2; i++) {
+        jackOverride = sim.L.psiRest + 0.16; hammerOverride = Math.min(g0, gRep); await waitReal(0.8);
+        if (returns) { jackOverride = null; hammerOverride = null; }
+        else { jackOverride = sim.L.psiRest + 0.07; toast('The jack can\'t get back under the knuckle', 'warn'); }
+        await waitReal(0.8);
+      }
+      jackOverride = null; hammerOverride = null;
+    } },
+  blowGauge: { label: 'Blow distance gauge', specs: ['blow'], view: 'hammer', run: async () => { await releaseKey(); } },
+  restRail: { label: 'Look at the rest rail', specs: ['restGap'], view: 'rails', run: async () => { await releaseKey(); } },
+  dipBlock: { label: 'Dip block at the key front', specs: ['dip'], view: 'keyfront',
+    run: async () => { await releaseKey(); sim.press(sim.dip, 12); await waitSim(1.4); await waitReal(1.2); await releaseKey(); } },
+  slowPress: { label: 'Press slowly to the bottom', specs: ['letoff', 'drop', 'aftertouch'], view: 'hammer',
+    run: async () => { await releaseKey(); sim.press(sim.dip, 6); await waitSim(2.2); await waitReal(1.2); } },
+  strikeHold: { label: 'Strike and hold', specs: ['check'], view: 'backcheck', scale: 0.12,
+    run: async () => { await releaseKey(); sim.press(sim.dip, 250); await waitSim(0.5); await waitReal(1); } },
+  hammerLine: { label: 'Sight the hammer line', specs: ['blow'], view: 'hammerline', examOnly: true,
+    run: async () => { await releaseKey(); await waitReal(1.5); } },
+  easeUp: { label: 'Strike, hold, then ease up', specs: ['spring'], view: 'hammer', scale: 0.25,
+    run: async () => { await releaseKey(); sim.press(sim.dip, 250); await waitSim(0.4); await waitReal(0.6);
+      sim.press(sim.dip - 1.2, 10); await waitSim(0.6); await waitReal(1); } },
+};
+const waitReal = s => new Promise(r => setTimeout(r, s * 1000));
+async function releaseKey() {
+  if (sim.d > 0.001 || sim.st.checked) { sim.press(0, 60); await waitSim(0.35); }
+  sim.reset();
+}
+function solveG(zKnuckle) {
+  let lo = -0.6, hi = 0.7;
+  for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (knuckleBottom(mid)[1] < zKnuckle) lo = mid; else hi = mid; }
+  return (lo + hi) / 2;
+}
+let generation = 0; // bumped when the key or scenario changes under a running test
+async function runTest(id) {
+  const t = TESTS[id];
+  if (busy) return;
+  const gen = generation;
+  busy++;
+  view(t.view);
+  if (mode === 'diagnose' || examActive()) testsUsed++;
+  forcedScale = t.scale ?? 1;
+  refresh();
+  try { await t.run(); } finally { busy--; forcedScale = null; }
+  // sighting the hammer line shows every hammer's height at once
+  if (gen === generation) (id === 'hammerLine' ? NOTES.map(n => n.tested) : [tested]).forEach(set => t.specs.forEach(s => set.add(s)));
+  store();
+  refresh();
+}
+
+// ---------- visibility of readings ----------
+function revealed(id) {
+  if (mode === 'sandbox') return true;
+  if (mode === 'learn') return tested.has(id);
+  if (mode === 'exam') return tested.has(id) || exam.done;
+  return tested.has(id) || !!verdict;
+}
+
+// ---------- adjustments ----------
+function setAdj(id, v) {
+  const d = ADJ.find(x => x.id === id);
+  adj[id] = Math.max(d.min, Math.min(d.max, v));
+  sim.setAdj(adj);
+  if (sim.d < 0.01 && !sim.st.checked) sim.reset();
+  m = measure(adj);
+  store();
+  if (id === 'restRail') NOTES.forEach((n, i) => { if (i !== cur) { n.adj.restRail = adj.restRail; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); } });
+  refresh();
+}
+function knobRow(id) {
+  const d = ADJ.find(x => x.id === id);
+  const btn = (txt, delta, title) => el('button', { class: 'nudge', title, onclick: () => { S.highlight(d.part, cur); setAdj(id, adj[id] + delta); } }, txt);
+  const coarse = d.steps[d.steps.length - 1], fine = d.steps[0];
+  const two = d.steps.length > 1;
+  const valTxt = mode === 'sandbox'
+    ? (d.unit === 'mm' ? `${(adj[id] - FACTORY[id] >= 0 ? '+' : '')}${(adj[id] - FACTORY[id]).toFixed(2)} mm from factory` : `${adj[id].toFixed(2)} × hammer weight`)
+    : '';
+  return el('div', { class: 'knob' },
+    el('div', { class: 'knob-head' },
+      el('button', { class: 'linkish', onclick: () => { S.highlight(d.part, cur); view(viewFor(d.part)); } }, d.name),
+      el('span', { class: 'muted small' }, examActive() && id === 'restRail' ? 'one rail for all three notes' : valTxt)),
+    el('div', { class: 'knob-btns' },
+      two ? btn('−−', -coarse, `− ${d.stepLabel[1]}`) : null,
+      btn('−', -fine, `− ${d.stepLabel[0]}`),
+      btn('+', +fine, `+ ${d.stepLabel[0]}`),
+      two ? btn('++', +coarse, `+ ${d.stepLabel[1]}`) : null),
+    el('div', { class: 'muted small' }, d.how));
+}
+function viewFor(part) {
+  return { balance: 'keyfront', frontpunch: 'keyfront', capstan: 'action', jackscrew: 'escapement', repscrew: 'escapement',
+    restrail: 'rails', letoff: 'escapement', drop: 'escapement', repspring: 'escapement', backcheck: 'backcheck' }[part] || 'action';
+}
+
+// ---------- measurement table ----------
+function specTarget(id) {
+  const s = SPEC[id];
+  if (id === 'keyHeight') return mode === 'exam' ? `given: ${fmt(NEIGHBOR_H)}` : 'level with neighbors';
+  if (id === 'dip' && mode === 'exam') return `given: ${fmt(SPEC.dip.target)}`;
+  if (id === 'jackPos') return 'aligned';
+  if (id === 'spring') return 'rises, no pop';
+  return fmt(s.target);
+}
+function reading(id, mm = m) {
+  const r = grade(id, mm);
+  let txt;
+  if (id === 'spring') txt = r.note;
+  else if (r.v == null) txt = r.note || '—';
+  else if (id === 'keyHeight') txt = Math.abs(r.v) < 0.05 ? 'level' : `${fmt(Math.abs(r.v))} ${r.v > 0 ? 'high' : 'low'}`;
+  else if (id === 'jackPos') txt = Math.abs(r.v) < 0.05 ? 'aligned' : `${fmt(Math.abs(r.v))} ${r.v > 0 ? 'too far back' : 'too far forward'}`;
+  else txt = fmt(r.v) + (r.note ? ` · ${r.note}` : '');
+  if (id !== 'spring' && r.note && (id === 'keyHeight' || id === 'jackPos')) txt += ` · ${r.note}`;
+  return { ok: r.ok, txt };
+}
+function measureTable(ids) {
+  return el('table', { class: 'specs' },
+    el('thead', {}, el('tr', {}, el('th', {}, 'Check'), el('th', {}, 'Target'), el('th', {}, 'Now'))),
+    el('tbody', {}, ids.map(id => {
+      const show = revealed(id), r = reading(id);
+      return el('tr', { class: show ? (r.ok ? 'ok' : 'bad') : '' },
+        el('td', {}, el('span', { class: 'dot' }), SPEC[id].name),
+        el('td', { class: 'muted' }, specTarget(id)),
+        el('td', {}, show ? r.txt : el('span', { class: 'muted' }, 'not measured')));
+    })));
+}
+
+// ---------- scenarios for diagnose mode ----------
+const SCENARIOS = [
+  { complaint: 'Soft notes choke: the hammer seems to stick against the string.', faults: { letoff: +0.9 }, answer: 'Let-off set too close: the jack trips too late (or never).' },
+  { complaint: 'I can\'t play this note quietly, it either thumps or misses.', faults: { letoff: -1.0 }, answer: 'Let-off too far from the string.' },
+  { complaint: 'The key feels shallow and sometimes the note doesn\'t speak.', faults: { frontPunch: +0.7 }, answer: 'Dip too shallow: no aftertouch, the jack barely escapes.' },
+  { complaint: 'The key feels deep and mushy at the bottom.', faults: { frontPunch: -0.8 }, answer: 'Dip too deep: too much aftertouch.' },
+  { complaint: 'Fast repeated notes and trills fail on this key.', faults: { repSpring: -0.6 }, answer: 'Repetition spring too weak.' },
+  { complaint: 'There\'s a little bump in the key when I let it up slowly, and loud notes bounce.', faults: { repSpring: +0.7 }, answer: 'Repetition spring too strong.' },
+  { complaint: 'Loud staccato notes bounce back and sometimes strike twice.', faults: { backcheck: -2.5 }, answer: 'Backcheck too far from the hammer: checking too low.' },
+  { complaint: 'There\'s free play at the top of the key and the tone is weak.', faults: { capstan: -1.1 }, answer: 'Capstan too low: lost motion, hammer resting on the rail, blow too long.' },
+  { complaint: 'The hammer sits high and the note won\'t repeat.', faults: { capstan: +1.3 }, answer: 'Capstan too high: blow too short, let-off and aftertouch thrown off.' },
+  { complaint: 'This key sits higher than the others.', faults: { balPunch: +0.5 }, answer: 'Too many balance rail punchings: key too high (and the dip changed with it).' },
+  { complaint: 'The note repeats badly and feels weak.', faults: { jackScrew: +1.4 }, answer: 'Jack too far forward under the knuckle.' },
+  { complaint: 'When I hold the key down the hammer buzzes near the string.', faults: { drop: +2.0 }, answer: 'Drop screw too high: not enough drop.' },
+  { complaint: 'Repetition is sluggish, I have to let the key all the way up.', faults: { repStop: -0.15 }, answer: 'Repetition lever too low: the hammer winks too far and the jack cannot get back under the knuckle.' },
+  { complaint: 'The hammer on this key sits a little higher than its neighbors, and there\'s some play at the top of the key.', faults: { repStop: +0.25 }, answer: 'Repetition lever too high above the jack: it holds the hammer off the jack (no wink), so the hammer line is uneven.' },
+  { complaint: 'It was regulated when we bought it eight years ago. Now there\'s a click at the top of the key, soft notes are hard to control, and it feels like it bottoms out.', faults: { wear: 0.8 }, alone: true,
+    answer: 'Nothing was turned: eight years of playing packed down the felts and cloth. Blow grew, the hammer settled onto the rest rail (lost motion), and aftertouch disappeared. The fix is a touch-up of the whole sequence.' },
+];
+function newScenario() {
+  const pool = [...SCENARIOS].sort(() => Math.random() - 0.5);
+  const s = pool[0];
+  scenario = { ...s, faults: { ...s.faults } };
+  adj = { ...FACTORY };
+  for (const [k, v] of Object.entries(scenario.faults)) adj[k] = (adj[k] || 0) + v;
+  // a second, quieter problem half the time
+  if (!s.alone && Math.random() < 0.5) {
+    const s2 = pool.find(p => !p.alone && !Object.keys(p.faults).some(k => k in s.faults));
+    for (const [k, v] of Object.entries(s2.faults)) adj[k] += v;
+    scenario.second = s2;
+  }
+  tested = new Set(); testsUsed = 0; verdict = null;
+  applyAdj();
+}
+const rnd = (lo, hi) => lo + Math.random() * (hi - lo), pm = x => rnd(-x, x);
+function deregulated() {
+  const a = { ...FACTORY };
+  a.balPunch += pm(0.4); a.jackScrew += pm(1.2); a.repStop += rnd(-0.12, 0.3); a.capstan += pm(1.2);
+  a.restRail += Math.random() < 0.5 ? rnd(-4, -2) : rnd(0.5, 2); a.frontPunch += pm(0.6);
+  // rough let-off stays on the early side so dip can be set without blocking
+  a.letoff += rnd(-1.0, 0.25);
+  a.drop += pm(2.0); a.repSpring += rnd(-0.15, 0.25); a.backcheck += pm(2.5);
+  return a;
+}
+function messUp() { adj = deregulated(); applyAdj(); }
+function applyAdj() { generation++; sim.setAdj(adj); sim.reset(); m = measure(adj); store(); S.clearCallouts(); refresh(); }
+
+// ---------- panel ----------
+// append children, skipping the nulls left by conditionals
+const put = (p, ...kids) => p.append(...kids.flat().filter(k => k != null));
+function refresh() {
+  for (const b of document.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.mode === mode);
+  const p = $('#mode');
+  p.replaceChildren();
+  if (showCredits) renderCredits(p);
+  else if (mode === 'learn') renderLearn(p);
+  else if (mode === 'diagnose') renderDiagnose(p);
+  else if (mode === 'exam') renderExam(p);
+  else renderSandbox(p);
+  $('#units').textContent = units === 'in' ? 'inches' : 'mm';
+}
+function testButton(id) {
+  return el('button', { class: 'test', disabled: busy ? '' : false, onclick: () => runTest(id) }, '▶ ', TESTS[id].label);
+}
+const GRADED = STEPS.filter(s => !s.info);
+function renderLearn(p) {
+  const st = STEPS[stepIdx];
+  const done = stepIdx >= STEPS.length;
+  put(p, el('div', { class: 'steps' }, STEPS.map((s, i) =>
+    el('button', { class: 'pip' + (s.info ? ' info' : '') + (i === stepIdx ? ' cur' : '') + (!s.info && tested.has(s.spec) && grade(s.spec, m).ok ? ' ok' : ''), title: s.title,
+      onclick: () => { stepIdx = i; focusStep(); refresh(); } }, String(i + 1))),
+    el('button', { class: 'pip' + (done ? ' cur' : ''), title: 'Final check', onclick: () => { stepIdx = STEPS.length; refresh(); } }, '✓')));
+  if (done) {
+    GRADED.forEach(s => tested.add(s.spec));
+    const bad = GRADED.filter(s => !grade(s.spec, m).ok);
+    put(p, el('h2', {}, 'Final check'),
+      el('p', {}, bad.length ? 'Everything was re-measured. These are out of spec now (often because a later step moved them):' : 'Every measurement is in spec. That key is regulated.'),
+      bad.length ? el('ul', {}, bad.map(s => el('li', {}, el('button', { class: 'linkish', onclick: () => { stepIdx = STEPS.indexOf(s); focusStep(); refresh(); } }, s.title)))) : null,
+      measureTable(Object.keys(SPEC)),
+      el('div', { class: 'row' }, el('button', { onclick: () => { stepIdx = 0; tested = new Set(); messUp(); focusStep(); } }, 'Start over with a new key')));
+    return;
+  }
+  const nav = (okToGo) => el('div', { class: 'row' },
+    el('button', { disabled: stepIdx === 0 ? '' : false, onclick: () => { stepIdx--; focusStep(); refresh(); } }, '← Back'),
+    el('button', { class: okToGo ? 'primary' : '', onclick: () => { stepIdx++; focusStep(); refresh(); } }, okToGo ? 'Next step →' : 'Skip →'));
+  const head = el('div', { class: 'muted small' }, `Step ${stepIdx + 1} of ${STEPS.length}${st.info ? ' · not in the sim' : ''}`);
+  if (st.info) {
+    put(p, head, el('h2', {}, st.title), el('p', {}, st.what), el('p', { class: 'muted' }, st.how), benchTips(st.id), nav(true));
+    return;
+  }
+  const r = grade(st.spec, m);
+  const earlier = STEPS.slice(0, stepIdx).filter(s => !s.info).map(s => s.spec);
+  put(p, head,
+    el('h2', {}, st.title),
+    el('p', {}, st.what), el('p', { class: 'muted' }, st.how),
+    st.note ? el('p', { class: 'note' }, st.note) : null,
+    el('div', { class: 'row' }, testButton(st.test)),
+    measureTable([st.spec]),
+    el('div', { class: 'knobs' }, st.knobs.map(knobRow)),
+    benchTips(st.spec),
+    nav(tested.has(st.spec) && r.ok),
+    earlier.length ? el('details', {}, el('summary', {}, 'Earlier steps'), measureTable(earlier)) : null,
+  );
+}
+// tips from working technicians for one step, each credited
+const named = t => !t.forum || NAME_FORUM_POSTERS || NAMED_OK.has(t.who);
+function tipLine(t) {
+  const label = named(t) ? `${t.who}, ${t.src}` : t.src;
+  return el('li', {}, t.text, ' ', el('span', { class: 'credit' }, '— ', t.url ? el('a', { href: t.url, target: '_blank', rel: 'noopener' }, label) : label));
+}
+function benchTips(key) {
+  const tips = TIPS[key];
+  if (!tips?.length) return null;
+  return el('details', { class: 'bench', open: '' }, el('summary', {}, 'From the bench'), el('ul', {}, tips.map(tipLine)));
+}
+function renderCredits(p) {
+  const all = Object.values(TIPS).flat();
+  const people = [...new Set(all.filter(named).map(t => t.who))].sort();
+  const forumCount = all.filter(t => !named(t)).length;
+  put(p, el('h2', {}, 'From the bench: credits'),
+    el('p', {}, 'Regulation is passed hand to hand. These tips and tools come from the technicians named here; thank you.'),
+    TOOLS.length ? el('h3', {}, 'Tools') : null,
+    TOOLS.length ? el('ul', {}, TOOLS.map(t => el('li', {}, el('b', {}, t.name), ` (${t.who}): ${t.what} `, t.url ? el('a', { href: t.url, target: '_blank', rel: 'noopener' }, 'link') : null))) : null,
+    people.length ? el('h3', {}, 'Technicians') : null,
+    people.length ? el('p', {}, people.join(' · ')) : null,
+    forumCount ? el('p', { class: 'muted' }, `And ${forumCount} tips from members of PTG's Pianotech forum, credited by year until each has said they'd like their name here.`) : null,
+    el('div', { class: 'row' }, el('button', { onclick: () => { showCredits = false; refresh(); } }, '← Back')));
+}
+let showCredits = false;
+function focusStep() {
+  const st = STEPS[stepIdx];
+  if (!st) return;
+  if (st.info) { S.highlight([]); view('angle'); return; }
+  S.highlight(st.knobs.map(k => ADJ.find(a => a.id === k).part), cur);
+  view(TESTS[st.test].view);
+}
+function renderDiagnose(p) {
+  if (!scenario) {
+    put(p, el('h2', {}, 'Find the fault'),
+      el('p', {}, 'A customer describes a problem with one key. Readings stay hidden until you run the test that measures them. Find what is out, fix it, then have your work checked.'),
+      el('div', { class: 'row' }, el('button', { class: 'primary', onclick: newScenario }, 'Next customer')));
+    return;
+  }
+  put(p, el('div', { class: 'complaint' }, el('div', { class: 'muted small' }, 'The customer says'), el('p', {}, `“${scenario.complaint}”`)),
+    el('h3', {}, 'Tests'), el('div', { class: 'tests' }, Object.keys(TESTS).filter(k => !TESTS[k].examOnly).map(testButton)),
+    el('div', { class: 'muted small' }, `Tests run: ${testsUsed}`),
+    measureTable(Object.keys(SPEC)),
+    el('details', { open: '' }, el('summary', {}, 'Adjustments'), el('div', { class: 'knobs' }, ADJ.map(a => knobRow(a.id)))));
+  if (!verdict) put(p, el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { verdict = true; refresh(); } }, 'Check my work')));
+  else {
+    const bad = Object.keys(SPEC).filter(id => !grade(id, m).ok);
+    put(p, el('div', { class: 'verdict ' + (bad.length ? 'bad' : 'ok') },
+      el('h3', {}, bad.length ? `${bad.length} still out of spec` : 'Regulated. Nice work.'),
+      el('p', {}, el('b', {}, 'What was wrong: '), scenario.answer, scenario.second ? ` Also: ${scenario.second.answer}` : ''),
+      el('p', { class: 'muted small' }, `You ran ${testsUsed} test${testsUsed === 1 ? '' : 's'}.`)),
+      el('div', { class: 'row' }, el('button', { class: 'primary', onclick: newScenario }, 'Next customer'),
+        bad.length ? el('button', { onclick: () => { verdict = null; refresh(); } }, 'Keep working') : null));
+  }
+}
+// felt and cloth packing down with playing: punchings, back rail cloth, wippen heel,
+// knuckle, hammer felt, button felts, backcheck felt, and a tiring repetition spring
+function wearControl() {
+  const yrs = Math.round((adj.wear || 0) * 10);
+  return el('div', { class: 'wear' },
+    el('div', { class: 'knob-head' }, el('b', {}, 'Felt & cloth wear'), el('span', { class: 'muted small' }, yrs ? `about ${yrs} year${yrs > 1 ? 's' : ''} of daily playing` : 'new felt')),
+    el('input', { type: 'range', min: 0, max: 10, step: 1, value: yrs,
+      oninput: e => { const y = +e.target.value; e.target.closest('.wear').querySelector('.muted').textContent = y ? `about ${y} year${y > 1 ? 's' : ''} of daily playing` : 'new felt'; },
+      onchange: e => { adj.wear = +e.target.value / 10; applyAdj(); } }),
+    el('div', { class: 'muted small' }, 'Punchings, cloth, cushions, knuckles and hammer felt pack down. Watch blow, lost motion and aftertouch drift, then regulate it back.'));
+}
+function renderSandbox(p) {
+  put(p, el('h2', {}, 'Sandbox'),
+    el('p', { class: 'muted' }, 'Every reading is live. Turn anything and watch what else moves.'),
+    el('div', { class: 'row' }, el('button', { onclick: () => { adj = { ...FACTORY, wear: adj.wear || 0 }; applyAdj(); } }, 'Factory regulation'),
+      el('button', { onclick: messUp }, 'Mess it all up')),
+    wearControl(),
+    measureTable(Object.keys(SPEC)),
+    el('h3', {}, 'Tests'), el('div', { class: 'tests' }, Object.keys(TESTS).filter(k => !TESTS[k].examOnly).map(testButton)),
+    el('h3', {}, 'Adjustments'), el('div', { class: 'knobs' }, ADJ.map(a => knobRow(a.id))));
+}
+
+// ---------- exam mode: the 3-note grand model ----------
+// PTG's technical exam hands you a de-regulated 3-note grand action model with the key height
+// and dip given, and 50 minutes. This is practice scoring, not PTG's score sheet.
+const EXAM_MINUTES = 50;
+const EXAM_ORDER = [1, 0, 2];                 // note 1, 2, 3 from bass to treble
+const EVEN = ['keyHeight', 'dip', 'blow', 'letoff', 'drop', 'check'];
+let exam = { started: false, done: false };
+const examActive = () => mode === 'exam' && exam.started;
+function startExam() {
+  const restRail = deregulated().restRail;
+  NOTES.forEach(n => { n.adj = { ...deregulated(), restRail }; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); n.tested = new Set(); });
+  exam = { started: true, done: false, endAt: Date.now() + EXAM_MINUTES * 60000, t0: Date.now() };
+  testsUsed = 0; generation++;
+  cur = EXAM_ORDER[0]; ({ adj, sim, m, tested } = NOTES[cur]); lastClock = '';
+  S.setNoteCount(3); S.setFocus(cur); S.clearCallouts();
+  refresh();
+  view('angle');
+}
+function leaveExam() {
+  exam = { started: false, done: false };
+  if (sim.dTarget > 0) sim.press(0, 60);
+  store(); cur = 0; ({ adj, sim, m, tested } = NOTES[0]);
+  S.setNoteCount(1); S.setFocus(null);
+}
+function handIn() {
+  if (exam.done) return;
+  exam.done = true; exam.used = Math.min(Date.now() - exam.t0, EXAM_MINUTES * 60000);
+  NOTES.forEach(n => n.sim.press(0, 60));
+  NOTES.forEach(n => { n.m = measure(n.adj); });
+  m = NOTES[cur].m;
+  S.setFocus(null); view('angle');
+  refresh();
+}
+const clock = ms => { const t = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+let lastClock = '';
+function tickExam() {
+  const c = $('#examclock');
+  if (!examActive() || exam.done) { if (!c.hidden) c.hidden = true; return; }
+  const left = exam.endAt - Date.now();
+  if (left <= 0) { toast('Time. Pencils down.', 'warn'); handIn(); return; }
+  const txt = clock(left);
+  if (txt !== lastClock) { c.textContent = txt; c.hidden = false; c.classList.toggle('low', left < 5 * 60000); lastClock = txt; }
+}
+function examScore() {
+  const rows = Object.keys(SPEC).map(id => ({ id, cells: EXAM_ORDER.map(i => ({ ...reading(id, NOTES[i].m), ok: grade(id, NOTES[i].m).ok })) }));
+  const even = EVEN.map(id => {
+    const vals = EXAM_ORDER.map(i => grade(id, NOTES[i].m).v);
+    const ok = vals.every(v => v != null) && Math.max(...vals) - Math.min(...vals) <= SPEC[id].tol;
+    return { id, ok, spread: vals.every(v => v != null) ? Math.max(...vals) - Math.min(...vals) : null };
+  });
+  const items = rows.flatMap(r => r.cells.map(c => c.ok)).concat(even.map(e => e.ok));
+  return { rows, even, pct: Math.round(100 * items.filter(Boolean).length / items.length) };
+}
+function renderExam(p) {
+  if (!exam.started) {
+    put(p, el('h2', {}, 'Exam practice: grand regulation'),
+      el('p', {}, 'Like the grand section of PTG\'s Technical Exam: you get a 3-note grand action model that has been de-regulated, with the key height and dip given. Regulate all three notes evenly in 50 minutes.'),
+      el('ul', { class: 'small' },
+        el('li', {}, 'Readings stay hidden until you run the test that measures them, on that note.'),
+        el('li', {}, 'Click a key, or the note buttons, to work on a note. The hammer rest rail is shared.'),
+        el('li', {}, 'Scoring: each spec on each note, plus how even the three notes are. 80% passes.')),
+      el('p', { class: 'muted small' }, 'Practice scoring with textbook tolerances, not PTG\'s official score sheet. The real exam also has you assemble the model; this one starts assembled.'),
+      el('div', { class: 'row' }, el('button', { class: 'primary', onclick: startExam }, 'Start the 50 minutes')));
+    return;
+  }
+  if (exam.done) return renderExamResult(p);
+  const n = EXAM_ORDER.indexOf(cur) + 1;
+  put(p, el('div', { class: 'sheet' }, el('div', { class: 'muted small' }, 'Examiner\'s sheet'),
+      el('div', {}, `Key height: ${fmt(NEIGHBOR_H)} (straightedge set to it)`), el('div', {}, `Dip: ${fmt(SPEC.dip.target)}`)),
+    el('div', { class: 'row notes' }, EXAM_ORDER.map((slot, i) =>
+      el('button', { class: slot === cur ? 'on' : '', disabled: busy ? '' : false, onclick: () => { selectNote(slot); view('angle'); } }, `Note ${i + 1}`))),
+    el('h3', {}, `Note ${n}: tests`), el('div', { class: 'tests' }, Object.keys(TESTS).map(testButton)),
+    el('div', { class: 'muted small' }, `Tests run: ${testsUsed}`),
+    measureTable(Object.keys(SPEC)),
+    el('details', { open: '' }, el('summary', {}, `Note ${n}: adjustments`), el('div', { class: 'knobs' }, ADJ.map(a => knobRow(a.id)))),
+    el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { if (confirm('Hand in your exam model now?')) handIn(); } }, 'Hand it in')));
+}
+function renderExamResult(p) {
+  const sc = examScore(), pass = sc.pct >= 80;
+  const cell = c => el('td', { class: c.ok ? 'okc' : 'badc' }, c.txt);
+  put(p, el('div', { class: 'verdict ' + (pass ? 'ok' : 'bad') },
+      el('h2', {}, `${sc.pct}%: ${pass ? 'pass' : 'not yet'}`),
+      el('p', { class: 'muted small' }, `Time used ${clock(exam.used)} of ${EXAM_MINUTES}:00 · ${testsUsed} tests run`)),
+    el('table', { class: 'specs score' },
+      el('thead', {}, el('tr', {}, el('th', {}, 'Check'), el('th', {}, 'Note 1'), el('th', {}, 'Note 2'), el('th', {}, 'Note 3'))),
+      el('tbody', {}, sc.rows.map(r => el('tr', {}, el('td', {}, SPEC[r.id].name), r.cells.map(cell))))),
+    el('h3', {}, 'Evenness across the three notes'),
+    el('table', { class: 'specs score' }, el('tbody', {}, sc.even.map(e =>
+      el('tr', {}, el('td', {}, SPEC[e.id].name), el('td', { class: e.ok ? 'okc' : 'badc' }, e.spread == null ? 'not all working' : `spread ${fmt(e.spread)}`))))),
+    el('p', { class: 'muted small' }, `Evenness passes when the three notes are within each spec's tolerance of each other. Practice scoring, not PTG's.`),
+    el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { leaveExam(); refresh(); } }, 'New exam')));
+}
+
+// ---------- events from the simulation ----------
+function toast(text, kind = '') {
+  const t = el('div', { class: 'toast ' + kind }, text);
+  $('#toasts').append(t);
+  setTimeout(() => t.classList.add('out'), 2600);
+  setTimeout(() => t.remove(), 3200);
+}
+let letoffMark = null, checkMark = null, letoffD = null;
+function handleEvents() {
+  for (const e of sim.events) {
+    const show = id => revealed(id);
+    if (e.type === 'letoff') {
+      // let-off is judged on a slow press; a hard blow trips at a slightly different point
+      const slow = sim.keySpeed <= 20;
+      if (slow) { letoffMark = e.g; letoffD = e.d; }
+      toast(show('letoff') && slow ? `Let-off ${fmt(e.dist)} from the string` : 'Jack let off');
+    }
+    if (e.type === 'strike') toast(`Hammer strikes (${e.v.toFixed(1)} m/s)`);
+    if (e.type === 'checked') { checkMark = e.g; toast(show('check') ? `Checked ${fmt(e.dist)} from the string` : 'Hammer checked'); }
+    if (e.type === 'reset') toast(`Jack back under the knuckle (key ${Math.round(100 * (1 - e.d / sim.dip))}% up)`);
+    if (e.type === 'blocked') toast('Blocked: the jack never let off and the hammer is jammed against the string', 'warn');
+    if (e.type === 'pop') toast('Pop: you would feel a bump in the key', 'warn');
+    if (e.type === 'scrape') toast('The hammer tail scraped the backcheck', 'warn');
+    if (e.type === 'jumpcheck') toast('The hammer jumped out of check', 'warn');
+  }
+  NOTES.forEach(n => { n.sim.events = []; });
+}
+function updateCallouts() {
+  const nz = NOTE_Z[cur], z = 9 + nz, L = sim.L, g = hammerOverride ?? sim.g;
+  const atRest = sim.d < 0.01;
+  const show = id => revealed(id);
+  const keep = [];
+  if (show('blow') && atRest) {
+    const c = hamPt(g, G.crown); S.setCallout('blow', [c[0], c[1], z], [c[0], G.stringY, z], `blow ${fmt(G.stringY - c[1])}`); keep.push('blow');
+  }
+  if (show('restGap') && atRest) {
+    const s = hamPt(g, G.shankRest), rr = eff(adj).restRail; S.setCallout('rest', [G.restRailX, rr, 12 + nz], [G.restRailX, s[1], 12 + nz], `rail gap ${fmt(Math.max(0, m.restGap))}`); keep.push('rest');
+  }
+  if (show('keyHeight') && atRest) {
+    const k = keyAngle(eff(adj), 0), f = keyPt(k.By, k.th, [G.keyFrontLocal + 8, G.keyThick + G.keyTopCap]);
+    S.setCallout('kh', [f[0], f[1], 12 + nz], [f[0], NEIGHBOR_H, 12 + nz], reading('keyHeight').txt); keep.push('kh');
+  }
+  if (show('dip')) {
+    const k = keyAngle(eff(adj), 0), f0 = keyPt(k.By, k.th0, [G.keyFrontLocal, G.keyThick + G.keyTopCap]);
+    const kk = keyAngle(eff(adj), sim.d), f1 = keyPt(kk.By, kk.th, [G.keyFrontLocal, G.keyThick + G.keyTopCap]);
+    if (sim.d > 0.05) { S.setCallout('dip', [f0[0] - 3, f0[1], 12 + nz], [f0[0] - 3, f1[1], 12 + nz], `${fmt(sim.d)}${sim.d >= sim.dip - 0.01 ? ' (dip)' : ''}`); keep.push('dip'); }
+  }
+  if (show('jackPos') && atRest) {
+    const jg = jackGeom(L, sim.psi), kc = hamPt(g, G.knuckleC);
+    S.setCallout('jack', [jg.backX, jg.topY, 8 + nz], [kc[0] + G.coreR, jg.topY, 8 + nz], reading('jackPos').txt); keep.push('jack');
+  }
+  if (letoffMark !== null && sim.d > 0.05 && show('letoff')) {
+    const c = hamPt(letoffMark, G.crown); S.setCallout('letoff', [c[0] + 8, c[1], z], [c[0] + 8, G.stringY, z], `let-off ${fmt(G.stringY - c[1])}`); keep.push('letoff');
+  }
+  if (letoffD !== null && sim.d > letoffD + 0.02 && show('aftertouch')) {
+    const E = eff(adj), ka = keyAngle(E, letoffD), kb = keyAngle(E, sim.d);
+    const pa = keyPt(ka.By, ka.th, [G.keyFrontLocal + 20, G.keyThick + G.keyTopCap]), pb = keyPt(kb.By, kb.th, [G.keyFrontLocal + 20, G.keyThick + G.keyTopCap]);
+    S.setCallout('after', [pa[0], pa[1], 12 + nz], [pb[0], pb[1], 12 + nz], `aftertouch ${fmt(sim.d - letoffD)}`); keep.push('after');
+  }
+  if (checkMark !== null && sim.st.checked && show('check')) {
+    const c = hamPt(checkMark, G.crown); S.setCallout('check', [c[0] - 8, c[1], z], [c[0] - 8, G.stringY, z], `check ${fmt(G.stringY - c[1])}`); keep.push('check');
+  }
+  if (sim.d < 0.01) { letoffMark = null; checkMark = null; letoffD = null; }
+  S.clearCallouts(keep);
+}
+
+// ---------- key controls ----------
+let autoUp = false; // Play: let the key up once it reaches the bottom
+$('#k-play').onclick = () => { if (!busy) { sim.press(sim.dip, 250); autoUp = true; } };
+$('#k-slow').onclick = () => { if (!busy) { autoUp = false; sim.press(sim.dip, 6); } };
+$('#k-strike').onclick = () => { if (!busy) { autoUp = false; sim.press(sim.dip, 250); } };
+$('#k-ease').onclick = () => { if (!busy) { autoUp = false; sim.press(Math.max(0, Math.min(sim.d, sim.dip) - 1.2), 10); } };
+const letUp = () => { if (!busy) { autoUp = false; sim.press(0, 60); } };
+$('#k-release').onclick = letUp;
+let labelsOn = false;
+$('#labels').onclick = () => { labelsOn = !labelsOn; S.setLabels(labelsOn); $('#labels').classList.toggle('on', labelsOn); };
+for (const b of document.querySelectorAll('[data-speed]')) b.onclick = () => {
+  timeScale = +b.dataset.speed;
+  document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b));
+};
+for (const b of document.querySelectorAll('[data-view]')) b.onclick = () => view(b.dataset.view);
+for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
+  if (b.dataset.mode === mode) return;
+  if (mode === 'exam' && exam.started && !exam.done && b.dataset.mode !== 'exam' && !confirm('Leave the exam? Your progress will be lost.')) return;
+  leaveExam();
+  showCredits = false;
+  mode = b.dataset.mode; tested = new Set(); verdict = null; S.clearCallouts();
+  if (mode === 'exam') { exam = { started: false, done: false }; refresh(); return; }
+  if (mode === 'learn') { stepIdx = 0; messUp(); focusStep(); }
+  else if (mode === 'diagnose') { scenario = null; adj = { ...FACTORY }; applyAdj(); }
+  else { adj = { ...FACTORY }; applyAdj(); }
+};
+$('#units').onclick = () => { units = units === 'in' ? 'mm' : 'in'; refresh(); };
+$('#credits').onclick = e => { e.preventDefault(); showCredits = true; refresh(); $('aside').scrollTop = 0; };
+window.addEventListener('keydown', e => {
+  if (e.code === 'Escape') letUp();
+  if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); sim.press(sim.dip, 250); }
+});
+window.addEventListener('keyup', e => { if (e.code === 'Space' && !busy && e.target === document.body) sim.press(0, 60); });
+
+// hover names, press the key by clicking it
+const tip = $('#tip');
+canvas.addEventListener('pointermove', e => {
+  const part = S.pick(e)?.part;
+  if (part) { tip.textContent = S.PART_NAMES[part] || part; tip.style.transform = `translate(${e.offsetX + 14}px, ${e.offsetY + 10}px)`; tip.hidden = false; }
+  else tip.hidden = true;
+});
+canvas.addEventListener('pointerleave', () => { tip.hidden = true; });
+let keyHeld = false;
+canvas.addEventListener('pointerdown', e => {
+  const hit = S.pick(e), part = hit?.part;
+  if (hit && hit.note >= 0 && hit.note !== cur && examActive() && !busy) { selectNote(hit.note); view('angle'); }
+  if (part === 'key' && !busy) { keyHeld = true; S.controls.enabled = false; sim.press(sim.dip, 250); }
+  else {
+    const knob = ADJ.find(a => a.part === part);
+    if (knob) S.highlight(knob.part, cur);
+  }
+});
+// a touch can end without pointerup (second finger, app switch, long-press menu): let the key up then too
+const endHold = () => { if (keyHeld) { keyHeld = false; S.controls.enabled = true; sim.press(0, 60); } };
+window.addEventListener('pointerup', endHold);
+window.addEventListener('pointercancel', endHold);
+window.addEventListener('blur', endHold);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// ---------- theme ----------
+const mq = matchMedia('(prefers-color-scheme: dark)');
+function applyTheme() { S.setBackground(getComputedStyle(document.documentElement).getPropertyValue('--stage').trim() || '#eef0f2'); }
+mq.addEventListener('change', applyTheme);
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now) {
+  const dtReal = Math.min(0.05, (now - last) / 1000); last = now;
+  // 0.2 ms steps keep the escapement timing stable; on a slow device cap the work per
+  // frame (the action then runs a little slower than real time rather than stuttering)
+  const h = 0.0002, dtSim = Math.min(dtReal * (forcedScale ?? timeScale), 120 * h);
+  for (const n of NOTES) {
+    if (n.sim !== sim && n.sim.d === 0 && n.sim.dTarget === 0 && n.sim.w === 0) continue;
+    for (let t = 0; t < dtSim; t += h) n.sim.step(Math.min(h, dtSim - t));
+  }
+  simTime += dtSim;
+  for (let i = waits.length - 1; i >= 0; i--) if (simTime >= waits[i].at) { waits[i].r(); waits.splice(i, 1); }
+  handleEvents();
+  NOTES.forEach((n, i) => { if (i === 0 || examActive()) S.update(i, n.sim, eff(n.adj), i === cur ? hammerOverride : null, i === cur ? jackOverride : null); });
+  tickExam();
+  updateCallouts();
+  if (autoUp && (sim.d >= sim.dip - 0.01 || sim.blocked)) { autoUp = false; setTimeout(() => sim.press(0, 60), 120); }
+  const down = sim.d > 0.05 || sim.dTarget > 0.05;
+  $('#keypos').textContent = `key ${fmt(sim.d)} down`;
+  $('#keystate').textContent = down ? (sim.dTarget > 0.05 ? 'Key held down' : 'Key coming up') : 'Key at rest';
+  $('#keystate').classList.toggle('down', down);
+  $('#k-release').classList.toggle('attn', sim.dTarget > 0.05 && !autoUp && !busy);
+  S.render();
+  requestAnimationFrame(frame);
+}
+applyTheme();
+messUp(); focusStep();
+// the exam clock keeps time even while the tab is in the background
+setInterval(tickExam, 1000);
+requestAnimationFrame(frame);
