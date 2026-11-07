@@ -8,6 +8,8 @@ One key of a grand action (key, capstan, wippen, jack, repetition lever, hammer 
 - **Find the fault**: a customer's complaint and an action with one or two things wrong. Readings stay hidden until you run the test that measures them.
 - **Sandbox**: every reading live, plus felt and cloth wear to watch a regulated action drift.
 - **Exam**: practice for the grand section of PTG's Technical Exam: a de-regulated 3-note model, key height and dip given, 50 minutes, scored per note and for evenness across the notes. Practice scoring, not PTG's score sheet.
+- **Drills**: bench checks done by eye and feel, starting with the hammer swing test for flange center friction.
+- **Tools**: 3D models of real regulating tools from the supply houses, with what each one adjusts and how to use it. Sizes the catalogs list are exact; the rest are estimated from catalog photos and say so.
 
 The targets are generic textbook numbers, not one maker's specs. They live in `SPEC` in `model.js`.
 
@@ -25,8 +27,10 @@ then open http://localhost:8812/.
 
 - `model.js`: the mechanism (geometry, adjustments, specs, measurements, the time-stepped key stroke, felt wear). Runs in Node too.
 - `scene.js`: the Three.js drawing.
-- `app.js`: the four modes, tests and controls.
-- `vendor/three/`: Three.js r160 and OrbitControls, from the `three@0.160.0` npm package.
+- `app.js`: the modes, tests and controls.
+- `drills.js`: the bench drills.
+- `toolbag.js` and `tools/`: the tool models, one file per tool, sharing the materials and shape helpers in `tools/kit.js`.
+- `vendor/three/`: Three.js r160, OrbitControls and RoomEnvironment, from the `three@0.160.0` npm package.
 
 ## License
 

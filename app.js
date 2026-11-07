@@ -434,6 +434,8 @@ function applyAdj() { generation++; sim.setAdj(adj); sim.reset(); m = measure(ad
 const put = (p, ...kids) => p.append(...kids.flat().filter(k => k != null));
 function refresh() {
   for (const b of document.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.mode === mode);
+  // the action's views and key buttons have nothing to work on while a tool is on the bench
+  $('#views').style.display = $('#keybar').style.display = mode === 'tools' ? 'none' : '';
   const p = $('#mode');
   p.replaceChildren();
   if (showCredits) renderCredits(p);

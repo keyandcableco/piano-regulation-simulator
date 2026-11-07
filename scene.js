@@ -4,6 +4,7 @@
 // exam mode shows all three like the 3-note exam model.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { G, NEIGHBOR_H, WEAR, keyAngle, hamPt } from './model.js';
 
 const COLORS = {
@@ -48,7 +49,8 @@ export function createScene(canvas, overlay) {
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x554433, 1.6));
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x554433, 1.6);
+  scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffffff, 1.6);
   sun.position.set(200, 500, 600);
   scene.add(sun);
@@ -472,12 +474,16 @@ export function createScene(canvas, overlay) {
   const toolHolder = new THREE.Group(); toolStage.add(toolHolder);
   const AX = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
   const axis = s => { const m = /([+-]?)\s*([xyz])/i.exec(s || ''); if (!m) return null; const v = new THREE.Vector3(...AX[m[2].toLowerCase()]); return m[1] === '-' ? v.negate() : v; };
-  let savedView = null, spin = true;
+  let savedView = null, spin = true, roomEnv = null;
   // obj: a THREE.Object3D built for the tool (models of real tools, added one at a time)
   async function showTool(obj, opts = {}) {
     if (!savedView) savedView = { p: camera.position.clone(), t: controls.target.clone() };
     fixed.visible = false; notes.forEach(n => { n.root.visible = false; });
     toolStage.visible = true;
+    // polished steel and brass need something to reflect: a soft room, only while a tool is out
+    if (!roomEnv) { const pm = new THREE.PMREMGenerator(renderer); roomEnv = pm.fromScene(new RoomEnvironment(renderer), 0.04).texture; pm.dispose(); }
+    scene.environment = roomEnv;
+    lightsForTools(true);
     toolHolder.clear();
     const mesh = obj;
     // turn the model so its length runs left-right and its natural up is up
@@ -491,22 +497,26 @@ export function createScene(canvas, overlay) {
     mesh.position.sub(new THREE.Vector3(c.x, box.min.y, c.z));
     toolHolder.add(mesh);
     toolHolder.rotation.y = 0;
-    // frame the whole tool with room to turn: fit its longest side in a 30 degree view
+    // frame the whole tool with room to turn: its longest side fills about 80% of the width, even on a tall phone screen
     const r = Math.max(size.x, size.z, size.y * 1.5, 30);
+    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const d = Math.max(1.9 * r, 0.62 * r / (tanV * camera.aspect));
     viewAnim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(),
-      toT: new THREE.Vector3(0, size.y / 2, 0), toP: new THREE.Vector3(r * 0.2, r * 0.9 + size.y, r * 1.9) };
-    spin = true;
+      toT: new THREE.Vector3(0, size.y / 2, 0), toP: new THREE.Vector3(0.2, 0.9, 1.9).setLength(d).add(new THREE.Vector3(0, size.y, 0)) };
+    spin = !opts.still;
     return { size: { x: size.x, y: size.y, z: size.z } };
   }
   function hideTool() {
     if (!toolStage.visible) return;
-    toolStage.visible = false; fixed.visible = true; setNoteCount(noteCount);
+    toolStage.visible = false; scene.environment = null; lightsForTools(false); fixed.visible = true; setNoteCount(noteCount);
     if (savedView) { viewAnim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(), toT: savedView.t, toP: savedView.p }; savedView = null; }
   }
+  // the room already lights the tool from all round, so the direct lights step back while it is out
+  function lightsForTools(on) { hemi.intensity = on ? 0.45 : 1.6; sun.intensity = on ? 1.1 : 1.6; fill.intensity = on ? 0.3 : 0.5; }
   controls.addEventListener('start', () => { spin = false; });
   function spinTool(dt) { if (toolStage.visible && spin) toolHolder.rotation.y += dt * 0.35; }
 
   setNoteCount(1);
-  return { render, update, setView, showTool, hideTool, spinTool, highlight, pick, setCallout, clearCallouts, setBackground, controls, setLabels,
+  return { render, update, setView, showTool, hideTool, spinTool, highlight, pick, setCallout, clearCallouts, setBackground, controls, camera, setLabels,
            setNoteCount, setFocus, straightedge, PART_NAMES, VIEWS };
 }
