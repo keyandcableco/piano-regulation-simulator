@@ -1,5 +1,5 @@
 import { G, IN, ADJ, SPEC, DAMPER_SPECS, DAMAGE, FACTORY, NEIGHBOR_H, Sim, measure, grade, hamPt, crownY, crownTop, keyAngle, keyPt,
-         jackGeom, knuckleBottom, coreBack, eff, repSupportZ, gString as gStringNow } from './model.js';
+         jackGeom, knuckleBottom, coreBack, eff, repSupportZ, sideZ, gString as gStringNow } from './model.js';
 import { createScene, NOTE_Z, BASS } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
@@ -89,7 +89,8 @@ catch (err) {
 
 // side views follow the current note; sighting the hammer line shows all three at full strength
 let viewNow = 'action';
-const view = name => { viewNow = name; S.setFocus(name !== 'hammerline' && examActive() && !exam.done ? cur : null); S.setView(name, NOTE_Z[cur]); };
+let travelRestG = null;   // the hammer's rest angle in the traveling view, held while a test lifts it
+const view = name => { viewNow = name; travelRestG = null; S.setFocus(name !== 'hammerline' && examActive() && !exam.done ? cur : null); S.setView(name, NOTE_Z[cur]); };
 
 // ---------- learn steps (standard grand order) ----------
 // The order follows the published grand sequences (Randy Potter School checklist, Steinway and
@@ -210,13 +211,13 @@ const TESTS = {
     run: async () => { setPedal(false); await releaseKey(); sim.press(sim.dip, 6); await waitSim(2.2); await waitReal(1); } },
   alignSight: { label: 'Sight the hammer on its strings', specs: ['hammerSpacing', 'hammerSquare'], view: 'hammerline',
     run: async () => { await releaseKey(); hammerOverride = gStringNow() - 0.004; await waitReal(1.6); hammerOverride = null; } },
-  travelLift: { label: 'Lift the hammer slowly to the strings', specs: ['hammerTravel'], view: 'hammerline',
+  travelLift: { label: 'Lift the hammer slowly to the strings', specs: ['hammerTravel'], view: 'travel',
     run: async () => {
-      await releaseKey();
+      await releaseKey(); await waitReal(0.7);   // let the view settle first
       const g0 = sim.g, g1 = gStringNow() - 0.004;
-      for (let i = 0; i <= 30; i++) { hammerOverride = g0 + (g1 - g0) * i / 30; await waitReal(0.04); }
-      await waitReal(0.8);
-      for (let i = 30; i >= 0; i--) { hammerOverride = g0 + (g1 - g0) * i / 30; await waitReal(0.02); }
+      for (let i = 0; i <= 60; i++) { hammerOverride = g0 + (g1 - g0) * i / 60; await waitReal(0.04); }
+      await waitReal(1.5);
+      for (let i = 30; i >= 0; i--) { hammerOverride = g0 + (g1 - g0) * i / 30; await waitReal(0.03); }
       hammerOverride = null;
     } },
   wiggle: { label: 'Wiggle the hammer, play it, and listen', specs: ['hammerSound'], view: 'hammer',
@@ -354,7 +355,7 @@ function knobRow(id, { readings = false } = {}) {
     : id === 'damperDrag' ? `drag ${adj[id].toFixed(2)}` : `${adj[id].toFixed(2)} × hammer weight`;
   return el('div', { class: 'knob' },
     el('div', { class: 'knob-head' },
-      el('button', { class: 'linkish', onclick: () => { S.highlight(d.part, cur); view(viewFor(d.part)); } }, d.name),
+      el('button', { class: 'linkish', onclick: () => { S.highlight(d.part, cur); view(id === 'hammerTravel' ? 'travel' : viewFor(d.part)); } }, d.name),
       el('span', { class: 'muted small' }, examActive() && SHARED.has(id) ? 'shared by all three notes' : valTxt)),
     el('div', { class: 'knob-btns' },
       // a shim goes under one side or the other: the choice of side is the adjustment
@@ -944,6 +945,21 @@ function updateCallouts() {
   const nz = NOTE_Z[cur], z = 9 + nz, L = sim.L, g = hammerOverride ?? sim.g;
   const atRest = sim.d < 0.01;
   const show = id => revealed(id);
+  // traveling: only a line straight up from where the head rests, like the lines on a traveling stick; a hammer
+  // that travels true rises along it, one that doesn't drifts off it
+  if (sim.d < 0.01) { letoffMark = null; checkMark = null; letoffD = null; }
+  if (viewNow === 'travel') {
+    // from the crown where it rests (a head out of square, or wobbling on a split shank, sits off the hammer's line,
+    // twisted on the shank: the same twist scene.js draws) up to the strings
+    const E = eff(adj);
+    if (atRest) travelRestG = sim.g;
+    const c0 = crownTop(travelRestG ?? sim.g), c1 = crownTop(gStringNow());
+    const twist = (E.hammerSquare || 0) + (E.wobble ? E.wobble * ((sim.strikes || 0) % 2 ? 1 : -1) : 0);
+    const zRest = nz + BASS * sideZ(E, c0[1] - G.H[1]) + (G.crownC[1] + G.crownR) * Math.sin(twist * Math.PI / 180);
+    S.setCallout('travel', [c0[0], c0[1], zRest], [c1[0], c1[1], zRest], 'straight up');
+    S.clearCallouts(['travel']);
+    return;
+  }
   const keep = [];
   if (show('blow') && atRest) {
     const c = crownTop(g); S.setCallout('blow', [c[0], c[1], z], [c[0], G.stringY, z], `blow ${fmt(G.stringY - c[1])}`); keep.push('blow');
@@ -980,7 +996,6 @@ function updateCallouts() {
   if (checkMark !== null && sim.st.checked && show('check')) {
     const c = crownTop(checkMark); S.setCallout('check', [c[0] - 8, c[1], z], [c[0] - 8, G.stringY, z], `check ${fmt(G.stringY - c[1])}`); keep.push('check');
   }
-  if (sim.d < 0.01) { letoffMark = null; checkMark = null; letoffD = null; }
   S.clearCallouts(keep);
 }
 

@@ -486,6 +486,9 @@ export function createScene(canvas, overlay) {
     checktop: { t: [456, 114, 0], p: [438, 240, 0.1], clip: { y: 121 } },
     // the damper heads on their strings, from above the hammers
     damperline: { t: [506, 203, 0], p: [420, 285, 0] },
+    // traveling: straight along the action from the keys, through a slice round the hammer head, so the head rises
+    // toward its unison (the three strings end-on) with nothing in front of it
+    travel: { t: [455, 172, 0], p: [333, 174, 0], clip: { x: [436, 474] } },   // about 140 to 205 high: a low rail's head too
   };
   // A clipped view keeps only a slice of the action. Cut parts are drawn two-sided so they show their insides.
   let clipNow = null;
