@@ -1128,7 +1128,7 @@ const frameBack = () => {
 $('#k-pause').onclick = () => { if (!busy) setPaused(!paused); };
 for (const [id, dir] of [['#k-fwd', 1], ['#k-back', -1]]) {
   const b = $(id), step = () => (dir > 0 ? frameFwd() : frameBack());
-  b.addEventListener('pointerdown', e => { if (e.button !== 0 || busy) return; step(); frameHold = { dir, t0: performance.now() }; });
+  b.addEventListener('pointerdown', e => { if (e.button !== 0 || busy) return; step(); frameHold = { dir, t0: performance.now(), id: e.pointerId }; });
   b.addEventListener('click', e => { if (e.detail === 0) step(); });   // Enter on the focused button (a mouse click stepped on pointerdown)
 }
 function setSpeed(s) {
@@ -1215,18 +1215,24 @@ canvas.addEventListener('pointermove', e => {
   else tip.hidden = true;
 });
 canvas.addEventListener('pointerleave', () => { tip.hidden = true; });
-let keyHeld = false;
+let keyHeld = null;   // the pointer holding the key down
 canvas.addEventListener('pointerdown', e => {
   const hit = S.pick(e), part = hit?.part;
   if (hit && hit.note >= 0 && hit.note !== cur && examActive() && !busy) { selectNote(hit.note); view('angle'); }
-  if (part === 'key' && !busy) { keyHeld = true; S.controls.enabled = false; setLoop(false); clearPlan(); cue = null; sim.press(sim.dip, 250); pausedNote(); }
+  if (part === 'key' && !busy) { keyHeld = e.pointerId; S.controls.enabled = false; setLoop(false); clearPlan(); cue = null; sim.press(sim.dip, 250); pausedNote(); }
   else {
     const knob = ADJ.find(a => a.part === (part === 'flangescrew' ? 'flange' : part));   // the screw is how the flange is spaced
     if (knob) S.highlight(knob.part, cur);
   }
 });
-// a touch can end without pointerup (second finger, app switch, long-press menu): let the key up then too
-const endHold = () => { frameHold = null; moveHold = null; if (keyHeld) { keyHeld = false; S.controls.enabled = true; letGo(); } };
+// a touch can end without pointerup (second finger, app switch, long-press menu): let the key up then too. Each hold
+// ends with the pointer that started it, so a second finger tapping a button leaves a held key down; leaving the window ends all.
+const endHold = e => {
+  const mine = h => e.pointerId === undefined || h.id === e.pointerId;
+  if (frameHold && mine(frameHold)) frameHold = null;
+  if (moveHold && mine(moveHold)) moveHold = null;
+  if (keyHeld !== null && mine({ id: keyHeld })) { keyHeld = null; S.controls.enabled = true; letGo(); }
+};
 window.addEventListener('pointerup', endHold);
 window.addEventListener('pointercancel', endHold);
 window.addEventListener('blur', endHold);
@@ -1243,23 +1249,27 @@ function moveStep(m, k = 1) {   // k: fraction of one click's step
 }
 for (const b of document.querySelectorAll('[data-zoom], [data-slide]')) {
   const [dx, dy] = (b.dataset.slide || '0,0').split(',').map(Number), m = b.dataset.zoom ? { zoom: +b.dataset.zoom } : { dx, dy };
-  b.addEventListener('pointerdown', e => { if (e.button !== 0) return; moveStep(m); moveHold = { ...m, t0: performance.now() }; });
+  b.addEventListener('pointerdown', e => { if (e.button !== 0) return; moveStep(m); moveHold = { ...m, t0: performance.now(), id: e.pointerId }; });
   b.addEventListener('click', e => { if (e.detail === 0) moveStep(m); });   // Enter on the focused button
   b.addEventListener('contextmenu', e => e.preventDefault());   // a long press on a phone
 }
 $('#nav-reset').onclick = () => S.resetView();
+// a clicked button lets go of the keyboard, so Space goes back to striking the key
+$('#navpad').addEventListener('click', e => { if (e.detail) e.target.closest('button')?.blur(); });
 const moveHelp = $('#movehelp');
 let helpSeen = false;
 try { helpSeen = localStorage.getItem('regsim-movehelp') === 'seen'; } catch {}
 moveHelp.hidden = helpSeen;
 $('#nav-help').onclick = () => { moveHelp.hidden = !moveHelp.hidden; };
 $('#movehelp-ok').onclick = () => { moveHelp.hidden = true; try { localStorage.setItem('regsim-movehelp', 'seen'); } catch {} };
-// the arrow keys slide and + and − zoom, when no field or panel button has the keyboard
+// the arrow keys slide and + and − zoom, when the picture was the last thing clicked (else they scroll the panel)
+let viewKeys = true;
+window.addEventListener('pointerdown', e => { viewKeys = $('#stage').contains(e.target); }, true);
 const MOVE_KEYS = { ArrowLeft: { dx: -1, dy: 0 }, ArrowRight: { dx: 1, dy: 0 }, ArrowUp: { dx: 0, dy: 1 }, ArrowDown: { dx: 0, dy: -1 },
   '+': { zoom: -1 }, '=': { zoom: -1 }, '-': { zoom: 1 }, '_': { zoom: 1 } };
 window.addEventListener('keydown', e => {
   const m = MOVE_KEYS[e.key];
-  if (!m || e.ctrlKey || e.metaKey || e.altKey || !(e.target === document.body || $('#stage').contains(e.target))) return;
+  if (!m || !viewKeys || e.ctrlKey || e.metaKey || e.altKey || !(e.target === document.body || $('#stage').contains(e.target))) return;
   e.preventDefault(); moveStep(m, 0.5);
 });
 

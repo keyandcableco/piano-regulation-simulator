@@ -566,17 +566,21 @@ export function createScene(canvas, overlay) {
   }
   camera.position.copy(viewPos(VIEWS.action)); controls.target.set(...VIEWS.action.t);
   // the on-screen move buttons: zoom toward or away from the point looked at, slide across the screen, or go back
+  function settle() {   // pressed during a change of view: finish the change, then move from there
+    if (viewAnim) { controls.target.copy(viewAnim.toT); camera.position.copy(viewAnim.toP); camera.lookAt(controls.target); viewAnim = null; }
+    spin = false;   // a tool on the bench stops turning, as it does when dragged
+  }
   function zoomBy(f) {   // f < 1 steps in
-    viewAnim = null;
+    settle();
     const d = THREE.MathUtils.clamp(camera.position.distanceTo(controls.target) * f, controls.minDistance, controls.maxDistance);
     camera.position.sub(controls.target).setLength(d).add(controls.target);
   }
   const sideV = new THREE.Vector3(), upV = new THREE.Vector3();
   function slideBy(dx, dy) {   // in screen heights: +dx sees more to the right, +dy more above
-    viewAnim = null;
+    settle();
     const h = 2 * camera.position.distanceTo(controls.target) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    sideV.setFromMatrixColumn(camera.matrix, 0).multiplyScalar(dx * h);
-    upV.setFromMatrixColumn(camera.matrix, 1).multiplyScalar(dy * h);
+    sideV.set(dx * h, 0, 0).applyQuaternion(camera.quaternion);
+    upV.set(0, dy * h, 0).applyQuaternion(camera.quaternion);
     sideV.add(upV); camera.position.add(sideV); controls.target.add(sideV);
   }
   function resetView() {
