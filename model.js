@@ -17,8 +17,8 @@ export const G = {
   frontRailX: 12, frontRailY: 24.5, // front rail top (punchings sit on it)
   keyThick: 22, keyFrontLocal: -235, keyBackLocal: 235, keyTopCap: 2.5,
   capstanLocal: 117.6, capDomeR: 9.7,   // capstan, behind the balance point, with a shallow domed top
-  backcheckLocal: 219.2,            // backcheck wire, near the key end, under the hammer's strike line
-  bcHead: [221.39, 86.27],          // key-local: where the backcheck's buckskin catches the tail (key down)
+  backcheckLocal: 210.11,           // backcheck wire, near the key end; its head leans back under the hammer's strike line
+  bcHead: [221.17, 85.18],          // key-local: where the backcheck's buckskin catches the tail (key down)
   // wippen (pivot at its rear, its flange screwed to the wippen rail); wippen-local, body level at phi = 0
   W: [416.0, 82.3], heelC: [-59.5, 3.0], heelR: 25.3,   // heel cushion: an arc that rolls on the capstan
   jackPivotW: [-98.9, -3.5], repPivotW: [-48.3, 27.5],
@@ -29,7 +29,7 @@ export const G = {
   // hammer (local to the shank centre pin, +x along the shank): the knuckle, the crown's arc, the tail
   H: [323.3, 146.1], knuckleC: [16.96, -9.08], knuckleR: 4.4, coreR: 2.6,
   crownC: [132.13, 35.6], crownR: 10.2,  // felt top 45.8 above the shank, 140 out from the centre pin
-  tail: [133.4, -20.0],             // the point on the tail's scored back face that the backcheck catches
+  tail: [133.26, -21.1],            // the point on the tail's scored back face that the backcheck catches
   shankRest: [110.0, -3.14],        // underside of the shank where it meets the rest rail
   // strings and rails
   stringY: 200.1,
@@ -41,7 +41,7 @@ export const G = {
   weakNet: 0.25,                    // net lift below this is sluggish
   wedge: 0.2,                       // a tripped jack can wedge back under a knuckle this far below its top
   bcInPath: 0.6,                    // fraction of dip before the backcheck can catch
-  bcScrapeLean: 1.6,                // bent this far toward the hammer, the tail scrapes
+  bcScrapeLean: 3.0,                // bent this far toward the hammer, the tail scrapes (the Boston rubs at about +2.5 to +3.6)
   // damper: the key's back end lifts the underlever, the wire carries the head off the strings
   dmpContactLocal: 231,             // where the key end meets the underlever's lift felt
   dmpRatio: 1.0,                    // head lift per mm of underlever lift at the key
@@ -590,4 +590,4 @@ export class Sim {
 }
 
 // Factory regulation solved offline with factory() (node), so the page loads fast.
-export const FACTORY = {"balPunch":1.5,"jackScrew":-3.6709,"repStop":-1.3649,"capstan":14.5336,"restRail":110.7759,"frontPunch":2.299,"letoff":96.6825,"drop":139.6457,"repSpring":1.3358,"backcheck":-0.0003,"damperGap":3.3965,"damperStop":6.7754,"pedalLift":6.7254,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0};
+export const FACTORY = {"balPunch":1.5,"jackScrew":-3.6709,"repStop":-1.3649,"capstan":14.5336,"restRail":110.7759,"frontPunch":2.299,"letoff":96.6825,"drop":139.6457,"repSpring":1.3358,"backcheck":0.0005,"damperGap":3.3965,"damperStop":6.7754,"pedalLift":6.7254,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0};

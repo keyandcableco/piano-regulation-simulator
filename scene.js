@@ -76,6 +76,22 @@ const CAP_R = 4.5;                   // capstan screw radius
 const CAP_H = G.capDomeR - Math.sqrt(G.capDomeR ** 2 - CAP_R ** 2);   // height of its dome
 const DROP_TOP = 152;                // the drop screw's head
 
+// Hammer head and backcheck, side profile, mm: Hirschkorn's Boston GP-178 parts traced full size, the crown on
+// G.crownC / G.crownR and the tail's back face on his measured arc (research/hammer-shape/spec.md §5).
+// hammer-local (+x along the shank from the center pin)
+const H_FELT = [[128.03, 7.5], [127.63, 8.3], [126.63, 9.8], [125.28, 11.8], [124.13, 13.8], [122.93, 15.8], [121.93, 17.8], [121.03, 19.8], [120.23, 21.8], [119.48, 23.8], [118.93, 25.8], [118.68, 27.8], [118.63, 29.8], [118.83, 31.8], [119.28, 33.8], [120.08, 35.8], [121.03, 37.8], [122.23, 39.8], [122.93, 40.8], [124.92, 42.81], [125.57, 43.41], [126.28, 43.96], [127.03, 44.43], [127.82, 44.84], [128.64, 45.18], [129.49, 45.45], [130.36, 45.65], [131.24, 45.76], [132.13, 45.8], [132.77, 45.78], [133.02, 45.76], [133.9, 45.65], [134.77, 45.45], [135.62, 45.18], [136.44, 44.84], [137.23, 44.43], [137.98, 43.96], [138.69, 43.41], [139.34, 42.81], [141.33, 40.8], [142.03, 39.8], [143.23, 37.8], [144.18, 35.8], [144.98, 33.8], [145.43, 31.8], [145.63, 29.8], [145.58, 27.8], [145.33, 25.8], [144.78, 23.8], [144.03, 21.8], [143.23, 19.8], [142.33, 17.8], [141.33, 15.8], [140.13, 13.8], [138.98, 11.8], [137.63, 9.8], [136.63, 8.3], [136.23, 7.5]];
+const H_UNDERFELT = [[134.37, 22.8], [134.96, 24.8], [135.56, 26.8], [135.53, 28], [135.45, 31], [135.38, 33.35], [135.18, 34.7], [134.43, 36.14], [133.24, 37.06], [132.13, 37.3], [131.02, 37.06], [129.83, 36.14], [129.08, 34.7], [128.88, 33.35], [128.81, 31], [128.73, 28], [128.7, 26.8], [129.3, 24.8], [129.89, 22.8]];
+const H_WOOD = [[129.75, -24.77], [130.21, -25.23], [130.83, -25.4], [131.46, -25.23], [131.91, -24.77], [132, -24.3], [132.54, -23], [133.26, -21.1], [133.96, -19], [134.55, -17], [135.05, -15], [135.48, -13], [135.82, -11], [136.1, -9], [136.3, -7], [136.42, -5], [136.33, -3], [136.33, 2], [136.18, 3.5], [135.68, 5], [135.13, 6.5], [134.88, 7.5], [134.73, 12], [134.53, 18], [134.33, 24], [134.18, 30], [134.08, 33.35], [133.82, 34.32], [133.1, 35.04], [132.13, 35.3], [131.16, 35.04], [130.44, 34.32], [130.18, 33.35], [130.08, 30], [129.93, 24], [129.73, 18], [129.53, 12], [129.38, 7.5], [129.13, 6.5], [128.58, 5], [128.08, 3.5], [127.93, 2], [127.93, -6], [127.98, -8], [128.28, -10], [128.73, -12], [129.18, -14], [129.53, -16], [129.68, -18], [129.68, -20], [129.53, -22], [129.28, -23.6]];
+const H_SEAT = [[134.81, -16], [134.45, -17.33], [134.06, -18.67], [133.64, -20], [133.17, -21.33], [132.67, -22.67], [132.13, -24], [131.53, -24], [132.07, -22.67], [132.57, -21.33], [133.04, -20], [133.46, -18.67], [133.85, -17.33], [134.21, -16]];
+const H_FELT_FOOT = 7.5;             // the felt is scaled about its foot as it packs down
+// key-local, the key's own (level) frame
+const BC_BLOCK = [[190.11, 22], [218.41, 22], [218.41, 34.8], [196.31, 34.8], [195.94, 31], [194.86, 27.67], [193.67, 25.71], [192.23, 24.37], [190.11, 23.7]];
+const BC_PIVOT = [210.11, 39.8];     // the bend in the wire: bending the backcheck turns the head about it
+const BC_WIRE_TOP = [220.56, 63.61];
+const BC_WOOD = [[212.56, 60.56], [217.18, 71.1], [219.2, 70.21], [226.23, 86.24], [228.41, 85.5], [228.92, 78.94], [229.83, 78.76], [223.47, 59.05], [220.95, 57.54]];
+const BC_FELT = [[212.56, 60.56], [212.92, 61.39], [217.18, 71.1], [219.2, 70.21], [226.23, 86.24], [228.41, 85.5], [228.54, 83.83], [228.95, 84.5], [229.07, 84.92], [229.08, 85.36], [228.98, 85.79], [228.76, 86.18], [228.46, 86.5], [228.03, 86.76], [226.49, 87.43], [225.68, 87.67], [224.9, 87.68], [224.14, 87.5], [223.46, 87.12], [222.89, 86.58], [222.46, 85.86], [211.55, 61.01]];
+const BC_LEATHER = [[229.78, 84.13], [229.97, 84.78], [229.98, 85.46], [229.82, 86.12], [229.49, 86.72], [229.02, 87.21], [228.44, 87.56], [226.8, 88.28], [225.82, 88.57], [224.8, 88.59], [223.81, 88.34], [222.92, 87.85], [222.18, 87.15], [221.66, 86.28], [210.73, 61.37], [211.55, 61.01], [222.46, 85.86], [222.89, 86.58], [223.46, 87.12], [224.14, 87.5], [224.9, 87.68], [225.68, 87.67], [226.49, 87.43], [228.03, 86.76], [228.46, 86.5], [228.76, 86.18], [228.98, 85.79], [229.08, 85.36], [229.07, 84.92], [228.95, 84.5], [228.54, 83.83], [228.92, 78.94], [229.83, 78.76], [229.43, 83.55]];
+
 function shapeFrom(pts) {
   const s = new THREE.Shape();
   s.moveTo(pts[0][0], pts[0][1]);
@@ -223,20 +239,18 @@ export function createScene(canvas, overlay) {
     n.capstan = cyl(CAP_R, 1, 'y', [G.capstanLocal, 0, 0], COLORS.brass, 'capstan', key, { metal: true });
     n.capDome = new THREE.Mesh(new THREE.SphereGeometry(G.capDomeR, 24, 6, 0, Math.PI * 2, 0, Math.asin(CAP_R / G.capDomeR)), mat(COLORS.brass, { metal: true }));
     key.add(n.capDome); register(n.capDome, 'capstan', {});
-    // grand backcheck: an angled wooden head on a stiff wire, felt face leaning toward the
-    // hammer tail. The face passes through the point where the model catches the tail.
-    const bc = n.bc = new THREE.Group(); bc.position.set(G.backcheckLocal, G.keyThick, 0); key.add(bc);
+    // grand backcheck: a block glued on the key, a wire bent back toward the strings, and a wooden head whose
+    // buckskin face leans back to meet the falling tail. Bending the wire turns the head about the bend.
+    ext(shapeFrom(BC_BLOCK), 12, 0, COLORS.wood, 'backcheck', key);
+    rodBetween([BC_PIVOT[0], 14], BC_PIVOT, 1.45, COLORS.steel, 'backcheck', key);
+    const bc = n.bc = new THREE.Group(); bc.position.set(...BC_PIVOT, 0); key.add(bc);
     {
-      // contact point at the top of the face, the face leaning toward the hammer, and the head behind it:
-      // buckskin (its nap grips the scored tail), a felt underlay, then the wooden head
-      const P = [G.bcHead[0] - G.backcheckLocal, G.bcHead[1] - G.keyThick], u = [-0.574, 0.819], d = [0.819, 0.574]; // face 35° off vertical
-      const at = (t, s) => [P[0] + u[0] * t + d[0] * s, P[1] + u[1] * t + d[1] * s];
-      ext(shapeFrom([at(-20, 0), at(3, 0), at(3, 2.5), at(-20, 2.5)]), 13, 0, COLORS.buckskin, 'backcheck', bc);
-      ext(shapeFrom([at(-20, 2.5), at(3, 2.5), at(3, 4.5), at(-20, 4.5)]), 13, 0, COLORS.redfelt, 'backcheck', bc);
-      ext(shapeFrom([at(-20, 4.5), at(3.5, 4.5), at(2, 14), at(-20, 14)]), 12, 0, COLORS.wood, 'backcheck', bc);
-      const foot = at(-20, 9);
-      tube([[2, 0, 0], [6, 30, 0], [foot[0], foot[1] + 1, 0]], 1.2, COLORS.steel, 'backcheck', bc);
-      ext(rect(-3, -1, 9, 3), 10, 0, COLORS.dark, 'backcheck', bc);                                           // wire block on the key
+      const rel = pts => pts.map(([x, y]) => [x - BC_PIVOT[0], y - BC_PIVOT[1]]);
+      rodBetween([0, 0], rel([BC_WIRE_TOP])[0], 1.45, COLORS.steel, 'backcheck', bc);
+      cyl(1.45, 2.9, 'z', [0, 0, 0], COLORS.steel, 'backcheck', bc, { metal: true });
+      ext(shapeFrom(rel(BC_WOOD)), 12, 0, COLORS.wood, 'backcheck', bc);
+      ext(shapeFrom(rel(BC_FELT)), 12.2, 0, COLORS.redfelt, 'backcheck', bc);
+      ext(shapeFrom(rel(BC_LEATHER)), 12.4, 0, COLORS.buckskin, 'backcheck', bc);
     }
 
     // wippen, with its heel, the repetition lever's support, the jack stop and the butterfly spring
@@ -291,7 +305,7 @@ export function createScene(canvas, overlay) {
     const align = n.align = new THREE.Group(); root.add(align);
     align.position.set(G.H[0], G.H[1], 0);
     const hammer = n.hammer = new THREE.Group(); align.add(hammer);
-    cyl(3.2, 128, 'x', [64, 0, 0], COLORS.wood, 'shank', hammer);
+    cyl(3.14, 132, 'x', [66, 0, 0], COLORS.wood, 'shank', hammer);   // ends hidden inside the molding
     center('hcenter', hammer, [0, 0], 13.6);
     // a split along the shank: only there when the shank is damaged
     n.crack = ext(rect(30, 2.2, 95, 3.6), 1.2, 3.4, COLORS.dark, 'shank', hammer, { noPick: true });
@@ -299,30 +313,13 @@ export function createScene(canvas, overlay) {
     const headG = n.headG = new THREE.Group(); hammer.add(headG);
     n.knuckle = cyl(G.knuckleR, 8, 'z', [G.knuckleC[0], G.knuckleC[1], 0], COLORS.buckskin, 'knuckle', hammer);
     cyl(G.coreR, 8.4, 'z', [G.knuckleC[0], G.knuckleC[1], 0], COLORS.core, 'knuckle', hammer);
-    // old head drawing, moved so its crown sits on the new crown arc (replaced by the traced outlines next)
-    const oldHead = new THREE.Group(); oldHead.position.set(7.13, 5.8, 0); headG.add(oldHead);
-    // molding: tapers toward the crown; below the shank it continues as the tail,
-    // whose back face is what the backcheck catches
-    const mold = new THREE.Shape();
-    // the tail swells back toward the strings below the shank and curves under: its back face is
-    // the scored surface the backcheck's leather catches
-    mold.moveTo(118, -8); mold.lineTo(119.5, 14); mold.lineTo(121.5, 24); mold.lineTo(130.5, 24); mold.lineTo(132.5, 8);
-    mold.lineTo(134, -2); mold.quadraticCurveTo(139.5, -7, 139.3, -18);
-    mold.quadraticCurveTo(137.5, -25.5, 130, -26); mold.quadraticCurveTo(122, -25, 120, -16); mold.closePath();
-    ext(mold, 10, 0, COLORS.wood, 'hammer', oldHead);
-    ext(shapeFrom([[134.3, -2.6], [138.6, -7.6], [139.1, -18], [137, -23.4], [136, -22.8], [138, -18], [137.5, -8], [133.6, -3.2]]),
-      10.4, 0, COLORS.dark, 'tail', oldHead); // scored check surface
-    // felt wraps the top of the molding: underfelt band, then the top felt to the crown
-    n.feltG = new THREE.Group(); n.feltG.position.y = 4; oldHead.add(n.feltG);
-    const felt = new THREE.Shape();
-    // grand hammer felt: wide where it is glued to the molding, near-straight sides, rounded crown
-    felt.moveTo(110.5, 0); felt.lineTo(112, 18);
-    felt.bezierCurveTo(112.8, 29, 117, 40 - 4, 125, 40 - 4);
-    felt.bezierCurveTo(133, 40 - 4, 137.2, 29, 138, 18); felt.lineTo(139.5, 0);
-    felt.lineTo(132.8, 2); felt.lineTo(119.2, 2); felt.closePath();
-    ext(felt, 12, 0, COLORS.hammerfelt, 'hammer', n.feltG);
-    ext(shapeFrom([[110.5, 0], [119.2, 2], [119.4, 4.5], [110.7, 3]]), 12.2, 0, COLORS.redfelt, 'hammer', n.feltG);
-    ext(shapeFrom([[139.5, 0], [132.8, 2], [132.6, 4.5], [139.3, 3]]), 12.2, 0, COLORS.redfelt, 'hammer', n.feltG);
+    // head: molding and tail in one piece, the underfelt round the molding's tip, the top felt over it, and the
+    // scored seat on the tail's back face that the backcheck's buckskin grips
+    ext(shapeFrom(H_WOOD), 11.4, 0, COLORS.wood, 'hammer', headG);
+    ext(shapeFrom(H_UNDERFELT), 11.2, 0, COLORS.redfelt, 'hammer', headG);
+    ext(shapeFrom(H_SEAT), 11.6, 0, COLORS.dark, 'tail', headG);
+    n.feltG = new THREE.Group(); n.feltG.position.y = H_FELT_FOOT; headG.add(n.feltG);
+    ext(shapeFrom(H_FELT.map(([x, y]) => [x, y - H_FELT_FOOT])), 11, 0, COLORS.hammerfelt, 'hammer', n.feltG);
     // damper: underlever pivoting on its flange behind the keys, lift felt over the key's end,
     // wire up through the guide rail, head with its felt sitting on the unison
     const ul = n.ul = new THREE.Group(); ul.position.set(...UL_PIVOT, 0); root.add(ul);
@@ -387,7 +384,7 @@ export function createScene(canvas, overlay) {
     [N0.jack, [8, 28, 4], 'Jack'], [N0.rep, [-12, 9, 7], 'Repetition lever'], [N0.letoffBtn, [G.letoffX, -1, 6], 'Let-off button'],
     [N0.root, [G.dropX, 146, 10], 'Drop screw'], [N0.hammer, [G.knuckleC[0], G.knuckleC[1] - 4, 5], 'Knuckle'],
     [N0.hammer, [70, 4, 4], 'Shank'], [N0.hammer, [132, 30, 7], 'Hammer'], [N0.hammer, [133, -20, 6], 'Tail'],
-    [N0.bc, [8, 70, 7], 'Backcheck'], [restRail, [G.restRailX, -8, 41], 'Rest rail'], [fixed, [294, 140, 41], 'Hammer flange rail'],
+    [N0.bc, [12, 40, 7], 'Backcheck'], [restRail, [G.restRailX, -8, 41], 'Rest rail'], [fixed, [294, 140, 41], 'Hammer flange rail'],
     [fixed, [293, 118, 41], 'Regulating rail'], [N0.root, [560, G.stringY + 3, 0], 'Strings'], [fixed, [G.W[0] - 12, G.W[1] - 10, 41], 'Wippen rail'],
     [N0.wippen, [-48, 31, 5], 'Support'], [N0.jack, [20, 30, 6], 'Jack button'], [N0.wippen, [-62, -22, 7], 'Heel'],
     [N0.dHead, [506, 22, 9], 'Damper'], [N0.ul, [-60, 5, 6], 'Underlever'], [fixed, [506, 156, 41], 'Damper guide rail'],
@@ -503,7 +500,7 @@ export function createScene(canvas, overlay) {
     // packed-down felts
     const w = a.wear || 0;
     n.knuckle.scale.set((G.knuckleR + WEAR.knuckle * w) / G.knuckleR, (G.knuckleR + WEAR.knuckle * w) / G.knuckleR, 1);
-    n.feltG.scale.y = (36 + WEAR.crown * w) / 36;
+    n.feltG.scale.y = (G.crownC[1] + G.crownR - H_FELT_FOOT + WEAR.crown * w) / (G.crownC[1] + G.crownR - H_FELT_FOOT);
     n.heelG.scale.y = (2.1 + WEAR.capstan * w) / 2.1;
     // damper: the underlever's felt sits damperGap above the key end; the head rises with it
     const keyTop = k.By + Math.sin(k.th0) * G.dmpContactLocal + G.keyThick * Math.cos(k.th0);
