@@ -56,7 +56,7 @@ let adj = NOTES[0].adj, sim = NOTES[0].sim, m = NOTES[0].m, tested = NOTES[0].te
 function store() { Object.assign(NOTES[cur], { adj, sim, m, tested }); }
 function selectNote(slot) {
   if (slot === cur || busy) return;
-  autoUp = false; releaseAt = null;
+  clearPlan(); clearFrames();   // the frames carry the other note's markers
   if (sim.dTarget > 0) sim.press(0, 60);
   store(); cur = slot;
   ({ adj, sim, m, tested } = NOTES[slot]);
@@ -282,7 +282,7 @@ async function runTest(id) {
   const t = TESTS[id];
   if (busy) return;
   const gen = generation;
-  autoUp = false; releaseAt = null; recentWarn.clear();   // a test's own press stays down; its warnings always show
+  clearPlan(); cue = null; recentWarn.clear();   // a test's own press stays down; its warnings always show
   setPaused(false);                     // a test runs the action itself
   busy++;
   view(t.view);
@@ -308,7 +308,7 @@ function revealed(id) {
 // rails that serve every note: one setting for all three on the exam model
 const SHARED = new Set(['restRail', ...ADJ.filter(d => d.shared).map(d => d.id)]);
 function setAdj(id, v) {
-  frameHistory.length = 0;   // frames played before the change can't be stepped back into
+  clearFrames();   // frames played before the change can't be stepped back into
   const d = ADJ.find(x => x.id === id);
   adj[id] = Math.max(d.min, Math.min(d.max, v));
   sim.setAdj(adj);
@@ -494,7 +494,7 @@ function deregulated() {
   return a;
 }
 function messUp() { adj = deregulated(); applyAdj(); }
-function applyAdj() { generation++; frameHistory.length = 0; sim.setAdj(adj); sim.reset(); m = measure(adj); store(); S.clearCallouts(); refresh(); }
+function applyAdj() { generation++; clearFrames(); sim.setAdj(adj); sim.reset(); m = measure(adj); store(); S.clearCallouts(); refresh(); }
 
 // ---------- panel ----------
 // append children, skipping the nulls left by conditionals
@@ -1030,45 +1030,73 @@ function updateCallouts() {
 }
 
 // ---------- key controls ----------
-let autoUp = false, releaseAt = null; // Play: let the key up once it reaches the bottom (at releaseAt, in action time)
-$('#k-play').onclick = () => { if (!busy) { sim.press(sim.dip, 250); autoUp = true; } };
+// What the key does by itself once it is down: Play ('up') lets it up, and Ease up pressed while the key is still on
+// its way down ('ease') eases it once the hammer has had time to check. planAt is when, in action time.
+let plan = null, planAt = null;
+const clearPlan = () => { plan = null; planAt = null; };
+// why a button did nothing, or what it is waiting for: on the event line, and popped up where it is seen
+const explain = text => { say(text); toast(text); };
+// paused, a key button sets the key going, but nothing moves until the action is stepped or run
+const pausedNote = () => { if (paused) explain('Paused: Frame ▶ steps it on (hold it down to keep going), Run plays it'); };
+$('#k-play').onclick = () => { if (!busy) { cue = null; sim.press(sim.dip, 250); plan = 'up'; planAt = null; pausedNote(); } };
 // Loop: play the key over and over, a normal blow each time it has come back up and settled
 let looping = false, restSince = null;
 const setLoop = on => { looping = on; restSince = null; $('#k-loop').classList.toggle('on', on); };
-$('#k-loop').onclick = () => { if (!busy) setLoop(!looping); };
+// looping is running, from the key up
+$('#k-loop').onclick = () => {
+  if (busy) return;
+  if (!looping) { if (paused) setPaused(false); if (sim.dTarget > 0) { clearPlan(); sim.press(0, 60); } }
+  setLoop(!looping);
+};
 for (const id of ['#k-strike', '#k-slow', '#k-ease', '#k-release']) $(id).addEventListener('click', () => setLoop(false));
-$('#k-slow').onclick = () => { if (!busy) { autoUp = false; releaseAt = null; sim.press(sim.dip, 6); } };
-$('#k-strike').onclick = () => { if (!busy) { autoUp = false; releaseAt = null; sim.press(sim.dip, 250); } };
-$('#k-ease').onclick = () => { if (!busy) { autoUp = false; releaseAt = null; sim.press(Math.max(0, Math.min(sim.d, sim.dip) - 1.2), 10); } };
-const letUp = () => { if (!busy) { autoUp = false; releaseAt = null; sim.press(0, 60); } };
+$('#k-slow').onclick = () => { if (!busy) { clearPlan(); cue = null; sim.press(sim.dip, 6); pausedNote(); } };
+$('#k-strike').onclick = () => { if (!busy) { clearPlan(); cue = null; sim.press(sim.dip, 250); pausedNote(); } };
+// Ease up lets a held key up a little. Pressed while the key is still going down (a blow, or any press while paused),
+// it waits for the key to get there and the hammer to check: strike, hold, then ease up, as the spring test does.
+const easeNow = () => sim.press(Math.max(0, Math.min(sim.d, sim.dip) - 1.2), 10);
+$('#k-ease').onclick = () => {
+  if (busy) return;
+  const goingDown = sim.dTarget > sim.d + 0.01;
+  if (!goingDown && sim.d < 1.3) { explain('Ease up lets a held key up a little: Strike & hold or Press slowly first'); return; }
+  clearPlan(); cue = null;
+  if (goingDown) plan = 'ease'; else easeNow();
+  pausedNote();
+};
+const letUp = () => { if (!busy) { clearPlan(); cue = null; sim.press(0, 60); pausedNote(); } };
 $('#k-release').onclick = letUp;
+// letting go of Space or the key on screen: paused, before the key has got down, it goes down and comes back up as
+// Play does (a tap can't be stepped through otherwise)
+const letGo = () => { if (paused && sim.dTarget > sim.d + 0.01) { plan = 'up'; planAt = null; } else sim.press(0, 60); };
 let pedalDown = false;
 const setPedal = down => { pedalDown = down; NOTES.forEach(n => n.sim.setPedal(down)); $('#k-pedal').classList.toggle('on', down); };
-$('#k-pedal').onclick = () => { if (!busy) setPedal(!pedalDown); };
+$('#k-pedal').onclick = () => { if (!busy) { setPedal(!pedalDown); pausedNote(); } };
 let labelsOn = false;
 $('#labels').onclick = () => { labelsOn = !labelsOn; S.setLabels(labelsOn); $('#labels').classList.toggle('on', labelsOn); };   // hidden in Tools
 // ---------- frame by frame ----------
 // Pause freezes the action. Frame ▶ moves it on by what one screen frame shows at the chosen speed (press a key
 // button while paused, then step through the stroke); ◀ Frame steps back through the frames already played.
-let paused = false, stepFrames = 0;
-const FRAME_S = 1 / 60;
+// Held down, either one keeps stepping, a frame each screen frame.
+let paused = false, stepFrames = 0, frameNo = 0, frameHold = null;
+const FRAME_S = 1 / 60, H_STEP = 0.0002;   // 0.2 ms steps keep the escapement timing stable
 const frameHistory = [], HISTORY_MAX = 900;   // about 15 s of frames
-const clearFrames = () => { frameHistory.length = 0; };
+const clearFrames = () => { frameHistory.length = 0; cue = null; };
 const SNAP_SKIP = new Set(['a', 'L', 'events', 'dip']), SNAP_LAZY = ['strikes', 'popped', 'buzzing'];   // fields a Sim sets only later
 const snapSim = s => Object.fromEntries(Object.entries(s).filter(([k]) => !SNAP_SKIP.has(k)).map(([k, v]) => [k, v && typeof v === 'object' ? structuredClone(v) : v]));
-const idleNow = () => NOTES.every(n => n.sim.d === 0 && n.sim.dTarget === 0 && n.sim.w === 0 && n.sim.yd === 0 && n.sim.vd === 0);
+// nothing moving: keys up, hammers and dampers still (a damper can rest up on the pedal's tray), the pedal not moving
+// (a hammer at rest can keep a speed of 1e-16 or so from the last step's rounding)
+const idleNow = () => NOTES.every(({ sim: s }) => s.d === 0 && s.dTarget === 0 && Math.abs(s.w) < 1e-9 && Math.abs(s.vd) < 1e-9 && s.pedal === s.pedalTarget);
 let lastIdle = false;
 // each frame the action moves: every note's state, and what the panel was marking (so markers and messages step back too)
 function snapshot() {
   const idle = idleNow();
   if (idle && lastIdle) return;   // a long wait at rest doesn't push the blow you want out of the history
   lastIdle = idle;
-  frameHistory.push({ simTime, releaseAt, autoUp, letoffMark, letoffD, checkMark, contactD: { ...contactD }, line: $('#lastevent').textContent,
+  frameHistory.push({ idle, simTime, frameNo, plan, planAt, letoffMark, letoffD, checkMark, contactD: { ...contactD }, line: $('#lastevent').textContent,
     notes: NOTES.map(n => snapSim(n.sim)) });
   if (frameHistory.length > HISTORY_MAX) frameHistory.shift();
 }
 function restoreFrame(h) {
-  ({ simTime, releaseAt, autoUp, letoffMark, letoffD, checkMark } = h); contactD = { ...h.contactD };
+  ({ simTime, frameNo, plan, planAt, letoffMark, letoffD, checkMark } = h); contactD = { ...h.contactD };
   $('#lastevent').textContent = h.line; recentWarn.clear();   // a warning shows again when its frame is replayed
   NOTES.forEach((n, i) => {
     for (const k of SNAP_LAZY) if (!(k in h.notes[i])) n.sim[k] = undefined;
@@ -1078,18 +1106,71 @@ function restoreFrame(h) {
   lastIdle = false;
 }
 function setPaused(on) {
-  paused = on; if (on) setLoop(false);
+  paused = on; if (on) setLoop(false); else cue = null;   // run, the frames go by at the screen's own rate
   $('#k-pause').classList.toggle('on', on); $('#k-pause').textContent = on ? 'Run' : 'Pause';
 }
-const frameFwd = () => { if (busy) return; setPaused(true); stepFrames++; };
-const frameBack = () => { if (busy) return; setPaused(true); const h = frameHistory.pop(); if (h) restoreFrame(h); };
-$('#k-pause').onclick = () => { if (!busy) setPaused(!paused); };
-$('#k-fwd').onclick = frameFwd;
-$('#k-back').onclick = frameBack;
-for (const b of document.querySelectorAll('[data-speed]')) b.onclick = () => {
-  timeScale = +b.dataset.speed;
-  document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b));
+const frameFwd = () => {
+  if (busy) return;
+  if (cue?.run) { explain('Still going to let-off'); return; }
+  setPaused(true); stepFrames++;
+  if (idleNow()) explain('Nothing is moving: press a key button or Go to let-off, then step');
 };
+// false once there is nothing left to step back to
+const frameBack = () => {
+  if (busy) return false;
+  if (cue?.run) { explain('Still going to let-off'); return false; }
+  setPaused(true);
+  while (idleNow() && frameHistory.at(-1)?.idle) frameHistory.pop();   // from rest, straight back to the last frame that moved
+  const h = frameHistory.pop();
+  if (h) { restoreFrame(h); return true; }
+  explain('No earlier frames: stepping back starts over after a knob is turned or the mode changes'); return false;
+};
+$('#k-pause').onclick = () => { if (!busy) setPaused(!paused); };
+for (const [id, dir] of [['#k-fwd', 1], ['#k-back', -1]]) {
+  const b = $(id), step = () => (dir > 0 ? frameFwd() : frameBack());
+  b.addEventListener('pointerdown', e => { if (e.button !== 0 || busy) return; step(); frameHold = { dir, t0: performance.now() }; });
+  b.addEventListener('click', e => { if (e.detail === 0) step(); });   // Enter on the focused button (a mouse click stepped on pointerdown)
+}
+function setSpeed(s) {
+  if (s === timeScale) return;
+  timeScale = s; cue = null;   // the frames change size, so the count to let-off no longer holds
+  document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', +x.dataset.speed === s));
+}
+for (const b of document.querySelectorAll('[data-speed]')) b.onclick = () => setSpeed(+b.dataset.speed);
+// Go to let-off: from rest, press slowly and stop just before the jack's tender meets the let-off button, in the
+// Jack & knuckle view, ready to step through let-off and the drop onto the repetition lever after it. The press is run
+// ahead fast, frame by frame as stepping would, many frames to a screen frame, up to let-off and then stepped back, so
+// the frames before it can be stepped back into too and the count to let-off is known.
+let cue = null;   // { run: true, tender } while it runs ahead; then { letoff: the frame the jack let off on }
+const CUE_BEFORE = 10, CUE_MS = 12;   // stop this many frames before the tender; work per screen frame while running ahead
+function goToLetoff() {
+  if (busy || mode === 'tools') return;
+  setLoop(false); clearPlan();
+  if (timeScale === 1) setSpeed(0.1);   // at real speed the whole of it goes by in two or three frames
+  view('escapement');
+  sim.reset(); letoffMark = checkMark = letoffD = null; contactD = {}; clearFrames();
+  setPaused(true);
+  sim.press(sim.dip, 6);
+  cue = { run: true, tender: null };
+}
+function runCue() {
+  const dt = Math.min(FRAME_S * timeScale, 120 * H_STEP), until = performance.now() + CUE_MS;
+  while (performance.now() < until) {
+    const did = advance(dt);
+    if (did.includes('tender') && cue.tender === null) cue.tender = frameNo;
+    const letoff = did.includes('letoff') ? frameNo : null;
+    // stopped by the let-off, by a hammer blocked on the string, or by the key at the bottom without either
+    if (letoff === null && !did.includes('blocked') && sim.d < sim.dTarget - 1e-6) continue;
+    const { tender } = cue, at = tender ?? letoff ?? (did.includes('blocked') ? frameNo : null);
+    cue = letoff === null ? null : { letoff };
+    if (at === null) { explain('The jack never let off on this press: the key reached the bottom first'); return; }
+    while (frameNo > at - CUE_BEFORE && frameHistory.length) frameBack();
+    explain(letoff !== null ? 'Just before let-off. Frame ▶ steps on and ◀ Frame back; hold either to keep going'
+      : `The jack never lets off on this press. Frame ▶ steps on from just before ${tender !== null ? 'the tender meets its button' : 'the hammer jams at the string'}`);
+    return;
+  }
+}
+$('#k-letoff').onclick = goToLetoff;
 for (const b of document.querySelectorAll('[data-view]')) b.onclick = () => view(b.dataset.view);
 for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   if (b.dataset.mode === mode) return;
@@ -1114,7 +1195,7 @@ window.addEventListener('keydown', e => {
   if (mode === 'tools') return;   // no key on the bench while a tool is out
   if (e.code === 'Escape') { setLoop(false); letUp(); }
   if (e.code === 'KeyP' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !busy && e.target === document.body) setPedal(!pedalDown);
-  if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); autoUp = false; releaseAt = null; sim.press(sim.dip, 250); }
+  if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); clearPlan(); cue = null; sim.press(sim.dip, 250); pausedNote(); }
   // frame keys work wherever focus is (often a button just clicked), but not while typing or choosing in a field
   if (!/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && !e.ctrlKey && !e.metaKey && !e.altKey) {
     // by the character typed, so the keys named in the titles work on any keyboard layout
@@ -1123,7 +1204,7 @@ window.addEventListener('keydown', e => {
     if (e.key === ',') frameBack();
   }
 });
-window.addEventListener('keyup', e => { if (mode !== 'tools' && e.code === 'Space' && !busy && e.target === document.body) sim.press(0, 60); });
+window.addEventListener('keyup', e => { if (mode !== 'tools' && e.code === 'Space' && !busy && e.target === document.body) letGo(); });
 
 // hover names, press the key by clicking it
 const tip = $('#tip');
@@ -1137,14 +1218,14 @@ let keyHeld = false;
 canvas.addEventListener('pointerdown', e => {
   const hit = S.pick(e), part = hit?.part;
   if (hit && hit.note >= 0 && hit.note !== cur && examActive() && !busy) { selectNote(hit.note); view('angle'); }
-  if (part === 'key' && !busy) { keyHeld = true; S.controls.enabled = false; setLoop(false); autoUp = false; releaseAt = null; sim.press(sim.dip, 250); }
+  if (part === 'key' && !busy) { keyHeld = true; S.controls.enabled = false; setLoop(false); clearPlan(); cue = null; sim.press(sim.dip, 250); pausedNote(); }
   else {
     const knob = ADJ.find(a => a.part === part);
     if (knob) S.highlight(knob.part, cur);
   }
 });
 // a touch can end without pointerup (second finger, app switch, long-press menu): let the key up then too
-const endHold = () => { if (keyHeld) { keyHeld = false; S.controls.enabled = true; sim.press(0, 60); } };
+const endHold = () => { frameHold = null; if (keyHeld) { keyHeld = false; S.controls.enabled = true; letGo(); } };
 window.addEventListener('pointerup', endHold);
 window.addEventListener('pointercancel', endHold);
 window.addEventListener('blur', endHold);
@@ -1156,44 +1237,59 @@ function applyTheme() { S.setBackground(getComputedStyle(document.documentElemen
 mq.addEventListener('change', applyTheme);
 
 // ---------- loop ----------
-let last = performance.now();
-function frame(now) {
-  const dtReal = Math.min(0.05, (now - last) / 1000); last = now;
-  // 0.2 ms steps keep the escapement timing stable; on a slow device cap the work per
-  // frame (the action then runs a little slower than real time rather than stuttering)
-  const h = 0.0002, scale = forcedScale ?? timeScale;
-  let dtSim = Math.min(dtReal * scale, 120 * h);
-  if (paused) { dtSim = stepFrames ? Math.min(FRAME_S * scale, 120 * h) : 0; stepFrames = Math.max(0, stepFrames - 1); }
-  if (dtSim > 0 && mode !== 'tools') snapshot();
+// one frame of the action: every note moved on by dtSim of action time, and the panel told what happened.
+// Returns what the note being worked on did in it.
+function advance(dtSim) {
+  if (mode !== 'tools') snapshot();
   for (const n of NOTES) {
     const s2 = n.sim;
     if (s2 !== sim && s2.d === 0 && s2.dTarget === 0 && s2.w === 0 && s2.yd === 0 && s2.vd === 0 && s2.pedal === s2.pedalTarget) continue;
-    for (let t = 0; t < dtSim; t += h) n.sim.step(Math.min(h, dtSim - t));
+    for (let t = 0; t < dtSim; t += H_STEP) n.sim.step(Math.min(H_STEP, dtSim - t));
   }
-  simTime += dtSim;
+  simTime += dtSim; frameNo++;
+  const did = sim.events.map(e => e.type);
   for (let i = waits.length - 1; i >= 0; i--) if (simTime >= waits[i].at) { waits[i].r(); waits.splice(i, 1); }
   handleEvents();
+  // Play lets the key up a moment after it gets down (0.12 s of screen time at the chosen speed); Ease up pressed on
+  // the way down eases it 0.15 s of action time after, by when a struck hammer has checked. Both are counted in the
+  // action's own time so a paused or stepped stroke does the same on the same frame every time.
+  if (plan && planAt === null && (sim.d >= sim.dTarget - 0.01 || sim.blocked)) planAt = simTime + (plan === 'up' ? 0.12 * (forcedScale ?? timeScale) : 0.15);
+  if (planAt !== null && simTime >= planAt) { const p = plan; clearPlan(); if (p === 'up') sim.press(0, 60); else easeNow(); }
+  if (looping && (busy || mode === 'tools')) setLoop(false);
+  if (looping && !plan && sim.d === 0 && sim.dTarget === 0) {
+    if (restSince === null) restSince = simTime;
+    else if (simTime - restSince > 0.35) { sim.press(sim.dip, 250); plan = 'up'; restSince = null; }
+  } else restSince = null;
+  return did;
+}
+const frames = n => `${n} frame${n === 1 ? '' : 's'}`;
+let last = performance.now();
+function frame(now) {
+  const dtReal = Math.min(0.05, (now - last) / 1000); last = now;
+  // on a slow device cap the work per frame (the action then runs a little slower than real time rather than stuttering)
+  const scale = forcedScale ?? timeScale;
+  // a frame button held down steps on (or back) every screen frame, after a moment so a click is one step
+  if (frameHold && now - frameHold.t0 > 350) { if (frameHold.dir > 0) stepFrames = Math.max(stepFrames, 1); else if (frameHistory.length) frameBack(); else frameHold = null; }
+  let dtSim = Math.min(dtReal * scale, 120 * H_STEP);
+  if (paused) { dtSim = stepFrames ? Math.min(FRAME_S * scale, 120 * H_STEP) : 0; stepFrames = Math.max(0, stepFrames - 1); }
+  if (cue?.run) runCue();
+  else if (dtSim > 0) advance(dtSim);
   NOTES.forEach((n, i) => { if (i === 0 || examActive()) S.update(i, n.sim, eff(n.adj), i === cur ? hammerOverride : null, i === cur ? jackOverride : null, i === cur); });
   tickExam();
   if (mode !== 'tools') updateCallouts();
-  // Play lets the key up a moment after it bottoms (0.12 s of screen time at the chosen speed), counted in the action's
-  // own time so a paused or stepped stroke releases on the same frame every time
-  if (autoUp && (sim.d >= sim.dip - 0.01 || sim.blocked)) { autoUp = false; releaseAt = simTime + 0.12 * (forcedScale ?? timeScale); }
-  if (releaseAt !== null && simTime >= releaseAt) { releaseAt = null; sim.press(0, 60); }
-  if (looping && (busy || mode === 'tools')) setLoop(false);
-  if (looping && !autoUp && sim.d === 0 && sim.dTarget === 0) {
-    if (restSince === null) restSince = simTime;
-    else if (simTime - restSince > 0.35) { sim.press(sim.dip, 250); autoUp = true; restSince = null; }
-  } else restSince = null;
   const down = sim.d > 0.05 || sim.dTarget > 0.05;
-  $('#keypos').textContent = `${paused ? 'paused · ' : ''}key ${fmt(sim.d)} down`;
-  $('#keystate').textContent = down ? (sim.dTarget > 0.05 ? 'Key held down' : 'Key coming up') : 'Key at rest';
+  const toLetoff = !cue ? '' : cue.run ? 'going to let-off · ' : frameNo < cue.letoff ? `let-off in ${frames(cue.letoff - frameNo)} · `
+    : frameNo === cue.letoff ? 'let-off · ' : `${frames(frameNo - cue.letoff)} after let-off · `;
+  $('#keypos').textContent = `${paused ? 'paused · ' : ''}${toLetoff}key ${fmt(sim.d)} down`;
+  $('#keystate').textContent = !down ? 'Key at rest' : sim.dTarget > sim.d + 0.01 ? 'Key going down' : sim.dTarget > 0.05 ? 'Key held down' : 'Key coming up';
   $('#keystate').classList.toggle('down', down);
-  $('#k-release').classList.toggle('attn', sim.dTarget > 0.05 && !autoUp && !busy);
-  for (const id of ['#k-pause', '#k-back', '#k-fwd']) if ($(id).disabled !== !!busy) $(id).disabled = !!busy;   // a test runs the action itself
+  $('#k-release').classList.toggle('attn', sim.dTarget > 0.05 && plan !== 'up' && !busy);
+  // a test runs the action itself: the key and frame buttons wait for it
+  for (const b of keyButtons) if (b.disabled !== !!busy) b.disabled = !!busy;
   S.render();
   requestAnimationFrame(frame);
 }
+const keyButtons = [...document.querySelectorAll('#keybar button:not([data-speed])')];
 applyTheme();
 messUp(); focusStep();
 // the exam clock keeps time even while the tab is in the background

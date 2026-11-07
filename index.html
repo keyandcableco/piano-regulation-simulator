@@ -225,7 +225,7 @@ a { color: var(--accent); }
       <button id="k-loop" title="Keep playing the key, one normal blow after another, so you can watch the action work">Loop</button>
       <button id="k-strike" title="Strike and keep holding the key down (or hold Space, or press and hold on the key)">Strike &amp; hold</button>
       <button id="k-slow" title="Press the key slowly to the bottom and hold it there">Press slowly</button>
-      <button id="k-ease" title="Let the key up a little while still holding it">Ease up</button>
+      <button id="k-ease" title="Let a held key up a little (pressed while the key is still going down, it waits until the hammer has checked)">Ease up</button>
       <button id="k-release" title="Let the key all the way up (Esc)">Let key up</button>
       <button id="k-pedal" title="Damper pedal down or up (P)">Pedal</button>
       <span id="keystate"></span>
@@ -236,8 +236,9 @@ a { color: var(--accent); }
       <button data-speed="0.1" class="on">Slow ×10</button>
       <button data-speed="0.02">Slow ×50</button>
       <button id="k-pause" title="Freeze the action, then step it a frame at a time (Pause or K; comma and full stop step)">Pause</button>
-      <button id="k-back" title="Back one frame (comma)">◀ Frame</button>
-      <button id="k-fwd" title="Forward one frame (full stop)">Frame ▶</button>
+      <button id="k-back" title="Back one frame (comma); hold to keep stepping back">◀ Frame</button>
+      <button id="k-fwd" title="Forward one frame (full stop); hold to keep stepping">Frame ▶</button>
+      <button id="k-letoff" title="Press slowly and stop just before let-off, in the Jack &amp; knuckle view, ready to step through let-off and the drop a frame at a time">Go to let-off</button>
     </div>
   </div>
   <aside>
