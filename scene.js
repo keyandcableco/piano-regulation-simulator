@@ -9,7 +9,7 @@ import { G, NEIGHBOR_H, WEAR, keyAngle, hamPt, repRho } from './model.js';
 
 const COLORS = {
   keybed: 0x6e4c2e, rail: 0xa47a4c, wood: 0xd7b98c, keywood: 0xe6d3ad, keytop: 0xf6f3ea,
-  felt: 0x2f6e46, redfelt: 0x9b2f2f, hammerfelt: 0xeee6d2, buckskin: 0xb38b55, core: 0xc0955c, knucklefelt: 0xe6ddca,
+  felt: 0x2f6e46, redfelt: 0x9b2f2f, hammerfelt: 0xeee6d2, buckskin: 0xb38b55, core: 0xdcbc8a, knucklefelt: 0xe6ddca,
   jack: 0xc9a06a,
   brass: 0xc9a24a, steel: 0xa9afb6, string: 0xcfd3d8, dark: 0x3a2c22, ghost: 0xf2efe7,
 };
@@ -20,7 +20,7 @@ const PART_NAMES = {
   capstan: 'Capstan screw', wippen: 'Wippen', heel: 'Wippen heel cushion', wippenrail: 'Wippen rail & flange',
   jack: 'Jack', tender: 'Jack tender (toe)', jackscrew: 'Jack regulating screw', rep: 'Repetition lever',
   repscrew: 'Repetition lever height screw', repspring: 'Repetition spring', shank: 'Hammer shank',
-  knuckle: 'Knuckle', knucklecore: 'Knuckle core (wood): the back of the jack lines up with its back edge', hammer: 'Hammer', flange: 'Hammer flange', flangerail: 'Hammer flange rail',
+  knuckle: 'Knuckle (buckskin over felt)', knucklecore: 'Knuckle core (wood), glued into the shank: the back of the jack lines up with its back edge', hammer: 'Hammer', flange: 'Hammer flange', flangerail: 'Hammer flange rail',
   wflange: 'Wippen flange', support: 'Repetition lever support', jackstop: 'Jack stop (spoon)', repbutton: 'Repetition lever button',
   dropfelt: 'Drop screw felt', windowfelt: 'Jack stop felt in the repetition lever window',
   wcenter: 'Wippen flange center pin (bushed in the flange)', jcenter: 'Jack center pin (bushed in the wippen)',
@@ -312,10 +312,24 @@ export function createScene(canvas, overlay) {
     n.crack = ext(rect(30, 2.2, 95, 3.6), 1.2, 3.4, COLORS.dark, 'shank', hammer, { noPick: true });
     // the head twists about the shank's axis when the shank is out of square
     const headG = n.headG = new THREE.Group(); hammer.add(headG);
-    // knuckle: buckskin over felt round a wooden core; the core's end shows on each side, and the jack lines up with it
-    n.knuckle = cyl(G.knuckleR, 8, 'z', [G.knuckleC[0], G.knuckleC[1], 0], COLORS.buckskin, 'knuckle', hammer);
-    cyl(G.knuckleR - 0.9, 8.2, 'z', [G.knuckleC[0], G.knuckleC[1], 0], COLORS.knucklefelt, 'knuckle', hammer);
-    cyl(G.coreR, 8.6, 'z', [G.knuckleC[0], G.knuckleC[1], 0], COLORS.core, 'knucklecore', hammer);
+    // knuckle: a wooden core glued up into a rabbet in the shank's underside, wrapped round its bottom with felt and
+    // buckskin whose edges meet the shank. The bare core shows on each side: the jack lines up with its back edge.
+    {
+      const [kx, ky] = G.knuckleC, top = -3.14 - ky;               // the shank's underside, above the knuckle's center
+      const U = (rIn, rOut, yTop) => {                             // a U of felt or leather round the core, up to yTop
+        const s = new THREE.Shape(); s.moveTo(rOut, yTop); s.lineTo(rOut, 0); s.absarc(0, 0, rOut, 0, Math.PI, true);
+        s.lineTo(-rOut, yTop); s.lineTo(-rIn, yTop); s.lineTo(-rIn, 0); s.absarc(0, 0, rIn, Math.PI, 0, false); s.lineTo(rIn, yTop); s.closePath();
+        return s;
+      };
+      const core = new THREE.Shape(); core.moveTo(G.coreR, -ky - 0.5); core.lineTo(G.coreR, 0); core.absarc(0, 0, G.coreR, 0, Math.PI, true);
+      core.lineTo(-G.coreR, -ky - 0.5); core.closePath();
+      ext(core, 8.6, 0, COLORS.core, 'knucklecore', hammer).position.set(kx, ky, 0);
+      ext(U(G.coreR, G.knuckleR - 0.9, top), 8.2, 0, COLORS.knucklefelt, 'knuckle', hammer).position.set(kx, ky, 0);
+      // the buckskin is built down from the shank so wear (the knuckle packing down) lifts only its bottom
+      const leather = U(G.knuckleR - 0.9, G.knuckleR, top);
+      n.knuckle = ext(leather, 8, 0, COLORS.buckskin, 'knuckle', hammer);
+      n.knuckle.geometry.translate(0, -top, 0); n.knuckle.position.set(kx, ky + top, 0);
+    }
     // head: molding and tail in one piece, the underfelt round the molding's tip, the top felt over it, and the
     // scored seat on the tail's back face that the backcheck's buckskin grips
     ext(shapeFrom(H_WOOD), 11.4, 0, COLORS.wood, 'hammer', headG);
@@ -502,7 +516,7 @@ export function createScene(canvas, overlay) {
     n.bc.rotation.z = (a.backcheck - (a.wear || 0) * WEAR.backcheck) / 80;
     // packed-down felts
     const w = a.wear || 0;
-    n.knuckle.scale.set((G.knuckleR + WEAR.knuckle * w) / G.knuckleR, (G.knuckleR + WEAR.knuckle * w) / G.knuckleR, 1);
+    n.knuckle.scale.y = (G.knuckleR - 3.14 - G.knuckleC[1] + WEAR.knuckle * w) / (G.knuckleR - 3.14 - G.knuckleC[1]);
     n.feltG.scale.y = (G.crownC[1] + G.crownR - H_FELT_FOOT + WEAR.crown * w) / (G.crownC[1] + G.crownR - H_FELT_FOOT);
     n.heelG.scale.y = (2.1 + WEAR.capstan * w) / 2.1;
     // damper: the underlever's felt sits damperGap above the key end; the head rises with it
