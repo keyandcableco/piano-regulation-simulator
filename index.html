@@ -187,8 +187,9 @@ summary { cursor: pointer; font-weight: 600; }
 .foot { margin-top: 18px; }
 a { color: var(--accent); }
 .fallback { padding: 40px 24px; max-width: 520px; }
-/* phones: the action stays on screen above the panel, which scrolls on its own */
-@media (max-width: 820px) {
+/* phones: the action stays on screen above the panel, which scrolls on its own. A phone on its side is usually wider
+   than 820px but under 500px tall: it gets the same compact bars, beside the panel (below) */
+@media (max-width: 820px), (orientation: landscape) and (max-height: 500px) {
   #app { grid-template-columns: 1fr; grid-template-rows: minmax(0, 9fr) minmax(0, 11fr); height: 100vh; height: 100dvh; }
   aside { border-left: 0; border-top: 1px solid var(--line); }
   .tabs { display: grid; grid-template-columns: repeat(3, 1fr); }
@@ -209,7 +210,7 @@ a { color: var(--accent); }
   button.test, details.fold > summary { min-height: 42px; }
   button.test { padding: 8px 10px; }
 }
-@media (max-width: 820px) and (orientation: landscape) {
+@media (max-width: 820px) and (orientation: landscape), (orientation: landscape) and (max-height: 500px) {
   #app { grid-template-columns: minmax(0, 1fr) minmax(300px, 48%); grid-template-rows: minmax(0, 1fr); }
   aside { border-top: 0; border-left: 1px solid var(--line); }
 }
