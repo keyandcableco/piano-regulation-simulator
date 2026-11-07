@@ -49,7 +49,7 @@ const gradeL = (id, mm) => grade(id, mm, level().tolK);
 
 // ---------- state ----------
 // Three note slots (0 = middle, 1 = toward the bass, 2 = toward the treble). The one-note modes
-// use slot 0; exam mode uses all three. adj, sim, m and tested always point at the current slot.
+// use slot 0; exam mode and the Sandbox's three keys use all three. adj, sim, m and tested always point at the current slot.
 const NOTES = [0, 1, 2].map(() => { const a = { ...FACTORY }; return { adj: a, sim: new Sim(a), m: measure(a), tested: new Set() }; });
 let cur = 0;
 let adj = NOTES[0].adj, sim = NOTES[0].sim, m = NOTES[0].m, tested = NOTES[0].tested;
@@ -60,7 +60,7 @@ function selectNote(slot) {
   if (sim.dTarget > 0) sim.press(0, 60);
   store(); cur = slot;
   ({ adj, sim, m, tested } = NOTES[slot]);
-  S.setFocus(examActive() ? slot : null);
+  S.setFocus(focusFor(viewNow));
   S.clearCallouts(); letoffMark = checkMark = letoffD = null;
   refresh();
 }
@@ -87,10 +87,13 @@ catch (err) {
   throw err;
 }
 
-// side views follow the current note; sighting the hammer line shows all three at full strength
+// side views follow the current note and fade the other two; sighting the hammer line shows all three at full strength,
+// and so do the Sandbox's views where the three stand side by side
 let viewNow = 'action';
 let travelRestG = null;   // the hammer's rest angle in the traveling view, held while a test lifts it
-const view = name => { viewNow = name; travelRestG = null; S.setFocus(name !== 'hammerline' && examActive() && !exam.done ? cur : null); S.setView(name, NOTE_Z[cur]); };
+const TOGETHER = new Set(['angle', 'damperline', 'damperrow']);
+const focusFor = name => !multi() || name === 'hammerline' || (examActive() ? exam.done : TOGETHER.has(name)) ? null : cur;
+const view = name => { viewNow = name; travelRestG = null; S.setFocus(focusFor(name)); S.setView(name, NOTE_Z[cur]); };
 
 // ---------- learn steps (standard grand order) ----------
 // The order follows the published grand sequences (Randy Potter School checklist, Steinway and
@@ -234,7 +237,7 @@ const TESTS = {
       landed = new Map();
       setPedal(false); await waitSim(0.25); await waitReal(0.6);
       // report landing times for the notes that are in play
-      const slots = examActive() ? EXAM_ORDER : [cur];
+      const slots = multi() ? EXAM_ORDER : [cur];
       const ms = slots.map((slot, i) => landed.has(slot) ? Math.round(1000 * (landed.get(slot) - t0[slot])) : null);
       toast(slots.length > 1 ? `Dampers landed after ${ms.map((v, i) => `note ${i + 1}: ${v ?? '—'} ms`).join(', ')}` : `Damper landed after ${ms[0] ?? '—'} ms`);
       landed = null;
@@ -245,7 +248,7 @@ const TESTS = {
     run: async () => { await releaseKey(); sim.press(sim.dip, 6); await waitSim(2.2); await waitReal(1.2); } },
   strikeHold: { label: 'Strike and hold', specs: ['check'], view: 'backcheck', scale: 0.12,
     run: async () => { await releaseKey(); sim.press(sim.dip, 250); await waitSim(0.5); await waitReal(1); } },
-  hammerLine: { label: 'Sight the hammer line', specs: ['blow'], view: 'hammerline', examOnly: true,
+  hammerLine: { label: 'Sight the hammer line', specs: ['blow'], view: 'hammerline', threeOnly: true,
     run: async () => { await releaseKey(); await waitReal(1.5); } },
   easeUp: { label: 'Strike, hold, then ease up', specs: ['spring'], view: 'hammer', scale: 0.25,
     run: async () => { await releaseKey(); sim.press(sim.dip, 250); await waitSim(0.4); await waitReal(0.6);
@@ -284,6 +287,7 @@ async function runTest(id) {
   const gen = generation;
   clearPlan(); cue = null; recentWarn.clear();   // a test's own press stays down; its warnings always show
   setPaused(false);                     // a test runs the action itself
+  NOTES.forEach(n => { if (n.sim !== sim && n.sim.dTarget > 0) n.sim.press(0, 60); });   // keys a chord left down come up
   busy++;
   view(t.view);
   if (mode === 'diagnose' || examActive()) testsUsed++;
@@ -335,7 +339,7 @@ const SHORT = {
   damperTiming: 'Lift timing', damperStop: 'Stop rail', pedalLift: 'Pedal lift', damperFall: 'Fall', damperSeat: 'Seat',
 };
 // an unmeasured reading names its test, which may sit in another part of the action (aftertouch: the slow press)
-const testFor = s => TESTS[Object.keys(TESTS).find(k => !TESTS[k].examOnly && TESTS[k].specs.includes(s))]?.label;
+const testFor = s => TESTS[Object.keys(TESTS).find(k => !TESTS[k].threeOnly && TESTS[k].specs.includes(s))]?.label;
 function knobReadings(id) {
   const ids = KNOB_FOR[id] || [];
   return el('div', { class: 'sets small' }, el('span', { class: 'muted' }, 'Sets'), ids.map(s => {
@@ -358,7 +362,7 @@ function knobRow(id, { readings = false } = {}) {
   return el('div', { class: 'knob' },
     el('div', { class: 'knob-head' },
       el('button', { class: 'linkish', onclick: () => { S.highlight(d.part, cur); view(id === 'hammerTravel' ? 'travel' : viewFor(d.part)); } }, d.name),
-      el('span', { class: 'muted small' }, examActive() && SHARED.has(id) ? 'shared by all three notes' : valTxt)),
+      el('span', { class: 'muted small' }, multi() && SHARED.has(id) ? [valTxt, 'shared by all three notes'].filter(Boolean).join(' · ') : valTxt)),
     el('div', { class: 'knob-btns' },
       // a shim goes under one side or the other: the choice of side is the adjustment
       d.sides ? d.sides.map((s, i) => btn(`${s[0].toUpperCase()}${s.slice(1)} side`, i ? -fine : +fine, `${i ? 'right' : 'left'} from the keys · add ${d.stepLabel[0]}`)) : [
@@ -617,7 +621,7 @@ function repairs() {
 const damageLabel = k => ({ splitShank: 'Split shank', looseFlange: 'Loose flange screw', looseHead: 'Loose hammer head',
   tightCenter: 'Tight flange center', brokenJackSpring: 'Broken jack spring' })[k];
 // Find the fault, Sandbox and Exam work part by part: each part of the action with its tests, readings and adjustments together
-// (hammerLine shows only in the exam, where there are three hammers to sight)
+// (hammerLine shows only with three notes, the exam's or the Sandbox's, where there are three hammers to sight)
 const AREAS = [
   { id: 'key', name: 'Key', tests: ['straightedge', 'dipBlock'], knobs: ['balPunch', 'frontPunch'] },
   { id: 'hammer', name: 'Hammer, blow and rest rail', tests: ['travelLift', 'alignSight', 'wiggle', 'blowGauge', 'hammerLine', 'restRail', 'topPlay'],
@@ -633,7 +637,7 @@ const openFolds = new Set(['how']);
 const fold = (key, summary, ...kids) => el('details', { class: 'fold', open: openFolds.has(key) ? '' : false,
   ontoggle: e => { e.target.open ? openFolds.add(key) : openFolds.delete(key); } }, el('summary', {}, summary), el('div', { class: 'fold-body' }, ...kids));
 function areaPanel(a) {
-  const tests = a.tests.filter(t => !TESTS[t].examOnly || examActive());
+  const tests = a.tests.filter(t => !TESTS[t].threeOnly || multi());
   const specs = [...new Set(tests.flatMap(t => TESTS[t].specs))];
   const shown = specs.filter(revealed), out = shown.filter(id => !gradeL(id, m).ok);
   const status = out.length ? el('span', { class: 'badc small' }, `${out.length} out of spec`)
@@ -691,14 +695,18 @@ function renderDiagnose(p) {
         : el('button', { class: 'primary', onclick: checkWork }, checks ? 'Check again' : 'Check my work'));
 }
 // felt and cloth packing down with playing: punchings, back rail cloth, wippen heel,
-// knuckle, hammer felt, button felts, backcheck felt, and a tiring repetition spring
+// knuckle, hammer felt, button felts, backcheck felt, and a tiring repetition spring (one piano: all three keys wear alike)
 function wearControl() {
   const yrs = Math.round((adj.wear || 0) * 10);
   return el('div', { class: 'wear' },
     el('div', { class: 'knob-head' }, el('b', {}, 'Felt & cloth wear'), el('span', { class: 'muted small' }, yrs ? `about ${yrs} year${yrs > 1 ? 's' : ''} of daily playing` : 'new felt')),
     el('input', { type: 'range', min: 0, max: 10, step: 1, value: yrs,
       oninput: e => { const y = +e.target.value; e.target.closest('.wear').querySelector('.muted').textContent = y ? `about ${y} year${y > 1 ? 's' : ''} of daily playing` : 'new felt'; },
-      onchange: e => { adj.wear = +e.target.value / 10; applyAdj(); } }),
+      onchange: e => {
+        const w = +e.target.value / 10;
+        if (multi()) NOTES.forEach((n, i) => { if (i !== cur) putNote(n, { ...n.adj, wear: w }); });
+        adj.wear = w; applyAdj();
+      } }),
     el('div', { class: 'muted small' }, 'Punchings, cloth, cushions, knuckles and hammer felt pack down. Watch blow, lost motion and aftertouch drift, then regulate it back.'));
 }
 // ---------- tool bag ----------
@@ -746,11 +754,72 @@ function renderDrills(p) {
   }
   p.append(drillsEl);
 }
+// ---------- sandbox ----------
+// One key, or three neighbors on the same rails (the exam's three notes), to see the dampers lift and land together
+let threeKeys = false;
+const sharedOf = a => Object.fromEntries([...SHARED].map(k => [k, a[k]]));
+function putNote(n, a) { n.adj = a; n.sim.setAdj(a); n.sim.reset(); n.m = measure(a); n.tested = new Set(); }
+function setThreeKeys(on) {
+  if (on === threeKeys || busy) return;
+  setLoop(false); clearPlan(); clearFrames();
+  NOTES.forEach(n => { if (n.sim.dTarget > 0) n.sim.press(0, 60); });
+  store();
+  // the neighbors start regulated, on the middle note's rails and as worn as it is
+  const a0 = NOTES[0].adj;
+  for (const i of [1, 2]) putNote(NOTES[i], on ? { ...FACTORY, wear: a0.wear || 0, ...sharedOf(a0) } : { ...FACTORY });
+  threeKeys = on; cur = 0;
+  ({ adj, sim, m, tested } = NOTES[0]);
+  S.setNoteCount(on ? 3 : 1); S.clearCallouts();
+  view(on ? 'damperrow' : viewNow);
+  refresh();
+}
+// all three keys at once: a blow comes back up as Play's does; a slow press stays down until Let key up
+function chord(slow) {
+  if (busy) return;
+  setLoop(false); clearPlan(); cue = null;
+  NOTES.forEach(n => n.sim.press(n.sim.dip, slow ? 6 : 250));
+  if (!slow) { plan = 'all'; planAt = null; }
+  pausedNote();
+}
+// three keys: each knocked out on its own, the rails they share set once
+function messUpAll() {
+  const rails = sharedOf(deregulated()), w = adj.wear || 0;
+  const one = () => ({ ...deregulated(), wear: w, ...rails });
+  NOTES.forEach((n, i) => { if (i !== cur) putNote(n, one()); });
+  adj = one(); applyAdj();
+}
+function factoryAll() {
+  const w = adj.wear || 0;
+  if (multi()) NOTES.forEach((n, i) => { if (i !== cur) putNote(n, { ...FACTORY, wear: w }); });
+  adj = { ...FACTORY, wear: w }; applyAdj();
+}
+// the three dampers side by side: when each starts to lift on its key, and how long each takes to land off the pedal
+function damperCompare() {
+  const cell = (id, txt) => s => el('td', { class: gradeL(id, NOTES[s].m).ok ? 'okc' : 'badc' }, txt(NOTES[s].m));
+  const rows = [
+    ['Starts lifting (share of hammer travel)', 'damperTiming', mm => mm.damperTiming == null ? 'never' : `${Math.round(100 * mm.damperTiming)}%`],
+    ['Lands after the pedal', 'damperFall', mm => `${Math.round(mm.fallMs)} ms`]];
+  return el('table', { class: 'specs score' },
+    el('thead', {}, el('tr', {}, el('th', {}, 'Dampers'), EXAM_ORDER.map((s, i) => el('th', {}, `Note ${i + 1}`)))),
+    el('tbody', {}, rows.map(([name, id, txt]) => el('tr', {}, el('td', {}, name), EXAM_ORDER.map(cell(id, txt))))));
+}
 function renderSandbox(p) {
+  const three = multi(), dis = busy ? '' : false;
   put(p, el('h2', {}, 'Sandbox'),
     el('p', { class: 'muted' }, 'Every reading is live. Open a part of the action, turn anything, and watch what else moves.'),
-    el('div', { class: 'row' }, el('button', { onclick: () => { adj = { ...FACTORY, wear: adj.wear || 0 }; applyAdj(); } }, 'Factory regulation'),
-      el('button', { onclick: messUp }, 'Mess it all up')),
+    el('div', { class: 'row notes' }, el('button', { class: three ? '' : 'on', disabled: dis, onclick: () => setThreeKeys(false) }, 'One key'),
+      el('button', { class: three ? 'on' : '', disabled: dis, onclick: () => setThreeKeys(true) }, 'Three keys')),
+    three ? [
+      el('p', { class: 'muted small' }, 'Three neighbors, bass to treble, on the same rest rail, damper stop rail and pedal. The neighbors start regulated. Pick the note to work on here, or click its key.'),
+      el('div', { class: 'row notes' }, EXAM_ORDER.map((slot, i) =>
+        el('button', { class: slot === cur ? 'on' : '', disabled: dis, onclick: () => { selectNote(slot); view(viewNow); } }, `Note ${i + 1}`))),
+      el('div', { class: 'row' }, el('button', { disabled: dis, onclick: () => chord(false) }, 'Play all three'),
+        el('button', { disabled: dis, onclick: () => chord(true) }, 'Press all three slowly'),
+        el('button', { onclick: () => view('damperrow') }, 'Watch the dampers')),
+      damperCompare(),
+      el('h3', {}, `Note ${EXAM_ORDER.indexOf(cur) + 1}`)] : null,
+    el('div', { class: 'row' }, el('button', { onclick: factoryAll }, 'Factory regulation'),
+      el('button', { onclick: three ? messUpAll : messUp }, 'Mess it all up')),
     wearControl(),
     AREAS.map(areaPanel),
     el('label', { class: 'row small' }, 'Break something: ',
@@ -773,6 +842,8 @@ const DAMPER_KNOBS = ['damperGap', 'damperStop', 'pedalLift', 'damperDrag', 'dam
 const examSpecs = () => Object.keys(SPEC).filter(id => exam.dampers || !SPEC[id].damper);
 let exam = { started: false, done: false };
 const examActive = () => mode === 'exam' && exam.started;
+// three notes in play: the exam model, or the Sandbox's three keys
+const multi = () => examActive() || (mode === 'sandbox' && threeKeys);
 function startExam() {
   setPaused(false); clearFrames();
   const restRail = deregulated().restRail;
@@ -796,14 +867,15 @@ function startExam() {
   refresh();
   view('angle');
 }
-function leaveExam() {
+// back to one note, from the exam or the Sandbox's three keys
+function toOneNote() {
   clearFrames();
-  const wasExam = exam.started;
-  exam = { started: false, done: false };
+  const wasThree = exam.started || threeKeys;
+  exam = { started: false, done: false }; threeKeys = false;
   $('#level').disabled = false;
-  if (sim.dTarget > 0) sim.press(0, 60);
+  NOTES.forEach(n => { if (n.sim.dTarget > 0) n.sim.press(0, 60); });
   store(); cur = 0;
-  if (wasExam) NOTES.forEach(n => { n.adj = { ...FACTORY }; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); n.tested = new Set(); });
+  if (wasThree) NOTES.forEach(n => putNote(n, { ...FACTORY }));
   ({ adj, sim, m, tested } = NOTES[0]);
   S.setNoteCount(1); S.setFocus(null);
 }
@@ -891,7 +963,7 @@ function renderExamResult(p) {
       el('tr', {}, el('td', {}, e.ms ? 'Dampers land together' : SPEC[e.id].name), el('td', { class: e.ok ? 'okc' : 'badc' },
         e.spread == null ? 'not all working' : e.ms ? `${Math.round(e.spread)} ms apart` : e.id === 'damperTiming' ? `spread ${Math.round(e.spread * 100)}%` : `spread ${fmt(e.spread)}`))))),
     el('p', { class: 'muted small' }, `Evenness passes when the three notes are within each spec's tolerance of each other. Practice scoring, not PTG's.`),
-    el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { leaveExam(); refresh(); } }, 'New exam')));
+    el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { toOneNote(); refresh(); } }, 'New exam')));
 }
 
 // ---------- events from the simulation ----------
@@ -1062,7 +1134,8 @@ $('#k-ease').onclick = () => {
   if (goingDown) plan = 'ease'; else easeNow();
   pausedNote();
 };
-const letUp = () => { if (!busy) { clearPlan(); cue = null; sim.press(0, 60); pausedNote(); } };
+// (and any other key a chord left down)
+const letUp = () => { if (!busy) { clearPlan(); cue = null; NOTES.forEach(n => { if (n.sim === sim || n.sim.dTarget > 0) n.sim.press(0, 60); }); pausedNote(); } };
 $('#k-release').onclick = letUp;
 // letting go of Space or the key on screen: paused, before the key has got down, it goes down and comes back up as
 // Play does (a tap can't be stepped through otherwise)
@@ -1072,6 +1145,11 @@ const setPedal = down => { pedalDown = down; NOTES.forEach(n => n.sim.setPedal(d
 $('#k-pedal').onclick = () => { if (!busy) { setPedal(!pedalDown); pausedNote(); } };
 let labelsOn = false;
 $('#labels').onclick = () => { labelsOn = !labelsOn; S.setLabels(labelsOn); $('#labels').classList.toggle('on', labelsOn); };   // hidden in Tools
+// the key front in a corner, so the key's travel shows beside whatever part of the action the main view is on;
+// on from the start where the stage has room for it
+const setInset = on => { S.setInset(on); $('#inset-btn').classList.toggle('on', on); };
+$('#inset-btn').onclick = () => setInset(!$('#inset-btn').classList.contains('on'));
+setInset($('#stage').clientWidth >= 700);
 // ---------- frame by frame ----------
 // Pause freezes the action. Frame ▶ moves it on by what one screen frame shows at the chosen speed (press a key
 // button while paused, then step through the stroke); ◀ Frame steps back through the frames already played.
@@ -1175,7 +1253,7 @@ for (const b of document.querySelectorAll('[data-view]')) b.onclick = () => view
 for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   if (b.dataset.mode === mode) return;
   if (mode === 'exam' && exam.started && !exam.done && b.dataset.mode !== 'exam' && !confirm('Leave the exam? Your progress will be lost.')) return;
-  leaveExam();
+  toOneNote();
   showCredits = false;
   if (mode === 'drills') { drillsStop?.(); drillsEl = null; }
   if (mode === 'tools') { S.hideTool(); toolSel = null; S.setLabels(labelsOn); }
@@ -1218,10 +1296,11 @@ canvas.addEventListener('pointerleave', () => { tip.hidden = true; });
 let keyHeld = null;   // the pointer holding the key down
 canvas.addEventListener('pointerdown', e => {
   const hit = S.pick(e), part = hit?.part;
-  if (hit && hit.note >= 0 && hit.note !== cur && examActive() && !busy) { selectNote(hit.note); view('angle'); }
+  if (hit && hit.note >= 0 && hit.note !== cur && multi() && !busy) { selectNote(hit.note); view(examActive() ? 'angle' : viewNow); }
   if (part === 'key' && !busy) { keyHeld = e.pointerId; S.controls.enabled = false; setLoop(false); clearPlan(); cue = null; sim.press(sim.dip, 250); pausedNote(); }
   else {
-    const knob = ADJ.find(a => a.part === (part === 'flangescrew' ? 'flange' : part));   // the screw is how the flange is spaced
+    // the screw is how the flange is spaced; the damper's timing is set at the underlever's top flange
+    const knob = ADJ.find(a => a.part === ({ flangescrew: 'flange', ulflange: 'damper', damperfelt: 'damper' }[part] || part));
     if (knob) S.highlight(knob.part, cur);
   }
 });
@@ -1292,11 +1371,14 @@ function advance(dtSim) {
   const did = sim.events.map(e => e.type);
   for (let i = waits.length - 1; i >= 0; i--) if (simTime >= waits[i].at) { waits[i].r(); waits.splice(i, 1); }
   handleEvents();
-  // Play lets the key up a moment after it gets down (0.12 s of screen time at the chosen speed); Ease up pressed on
-  // the way down eases it 0.15 s of action time after, by when a struck hammer has checked. Both are counted in the
-  // action's own time so a paused or stepped stroke does the same on the same frame every time.
-  if (plan && planAt === null && (sim.d >= sim.dTarget - 0.01 || sim.blocked)) planAt = simTime + (plan === 'up' ? 0.12 * (forcedScale ?? timeScale) : 0.15);
-  if (planAt !== null && simTime >= planAt) { const p = plan; clearPlan(); if (p === 'up') sim.press(0, 60); else easeNow(); }
+  // Play (and Play all three, 'all') lets the key up a moment after it gets down (0.12 s of screen time at the chosen
+  // speed); Ease up pressed on the way down eases it 0.15 s of action time after, by when a struck hammer has checked.
+  // Both are counted in the action's own time so a paused or stepped stroke does the same on the same frame every time.
+  if (plan && planAt === null && (sim.d >= sim.dTarget - 0.01 || sim.blocked)) planAt = simTime + (plan === 'ease' ? 0.15 : 0.12 * (forcedScale ?? timeScale));
+  if (planAt !== null && simTime >= planAt) {
+    const p = plan; clearPlan();
+    if (p === 'up') sim.press(0, 60); else if (p === 'all') NOTES.forEach(n => n.sim.press(0, 60)); else easeNow();
+  }
   if (looping && (busy || mode === 'tools')) setLoop(false);
   if (looping && !plan && sim.d === 0 && sim.dTarget === 0) {
     if (restSince === null) restSince = simTime;
@@ -1317,16 +1399,17 @@ function frame(now) {
   if (paused) { dtSim = stepFrames ? Math.min(FRAME_S * scale, 120 * H_STEP) : 0; stepFrames = Math.max(0, stepFrames - 1); }
   if (cue?.run) runCue();
   else if (dtSim > 0) advance(dtSim);
-  NOTES.forEach((n, i) => { if (i === 0 || examActive()) S.update(i, n.sim, eff(n.adj), i === cur ? hammerOverride : null, i === cur ? jackOverride : null, i === cur); });
+  NOTES.forEach((n, i) => { if (i === 0 || multi()) S.update(i, n.sim, eff(n.adj), i === cur ? hammerOverride : null, i === cur ? jackOverride : null, i === cur); });
   tickExam();
   if (mode !== 'tools') updateCallouts();
   const down = sim.d > 0.05 || sim.dTarget > 0.05;
   const toLetoff = !cue ? '' : cue.run ? 'going to let-off · ' : frameNo < cue.letoff ? `let-off in ${frames(cue.letoff - frameNo)} · `
     : frameNo === cue.letoff ? 'let-off · ' : `${frames(frameNo - cue.letoff)} after let-off · `;
   $('#keypos').textContent = `${paused ? 'paused · ' : ''}${toLetoff}key ${fmt(sim.d)} down`;
+  S.setInsetText(`Key front · ${fmt(sim.d)} down${sim.d >= sim.dip - 0.01 ? ' (dip)' : ''}`);
   $('#keystate').textContent = !down ? 'Key at rest' : sim.dTarget > sim.d + 0.01 ? 'Key going down' : sim.dTarget > 0.05 ? 'Key held down' : 'Key coming up';
   $('#keystate').classList.toggle('down', down);
-  $('#k-release').classList.toggle('attn', sim.dTarget > 0.05 && plan !== 'up' && !busy);
+  $('#k-release').classList.toggle('attn', sim.dTarget > 0.05 && plan !== 'up' && plan !== 'all' && !busy);
   // a test runs the action itself: the key and frame buttons wait for it
   for (const b of keyButtons) if (b.disabled !== !!busy) b.disabled = !!busy;
   S.render();

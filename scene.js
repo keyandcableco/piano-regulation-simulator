@@ -28,7 +28,8 @@ const PART_NAMES = {
   rcenter: 'Repetition lever center pin (bushed in the support)', hcenter: 'Hammer flange center pin (bushed in the flange)',
   ucenter: 'Damper underlever center pin (bushed in its flange)',
   drop: 'Drop screw', letoff: 'Let-off button', regrail: 'Regulating rail', restrail: 'Hammer rest rail',
-  string: 'Strings', backcheck: 'Backcheck (buckskin face)', damper: 'Damper head', damperwire: 'Damper wire', underlever: 'Damper underlever',
+  string: 'Strings', backcheck: 'Backcheck (buckskin face)', damper: 'Damper head', damperfelt: 'Damper felt: a pad under each end of the head, split so its points drop between the strings',
+  damperwire: 'Damper wire', ulflange: 'Underlever top flange: its set screw holds the damper wire', underlever: 'Damper underlever',
   damperstop: 'Damper stop rail', lifttray: 'Damper lift tray (pedal)', guiderail: 'Damper guide rail', ulrail: 'Underlever flange rail', tail: 'Hammer tail (scored check surface)', keybed: 'Keybed', straightedge: 'Straightedge',
 };
 
@@ -38,9 +39,28 @@ export const BASS = -1;
 export const NOTE_Z = [0, 23.5 * BASS, -23.5 * BASS];
 const UL_PIVOT = [604, 66];        // underlever centre pin
 const UL_FELT = [-135, -6];        // lift felt, over the key's end
-const UL_WIRE = [-98, 5];          // where the damper wire leaves the underlever
-const WIRE_Z = 8;                  // the wire rises beside the unison; the head reaches over it
-const DH_X = 506, DH_LEN = 28;     // damper head: its middle over the strings, and its length along them
+const UL_WIRE = [-98, 5];          // where the damper wire meets the underlever: its top flange sits here
+const UL_FLANGE_H = 10;            // the top flange: a block on the underlever, the wire held in it by a set screw
+// The damper wire (Igrec, Pianos Inside Out, fig. 327): up from the top flange, jogged sideways between bends 1 and 2 to
+// line up with its guide rail bushing, up through the rail beside the unison, then over the strings between bends 3 and 4
+// and up into the head between its two felts. Heights of the bends are from the head's seat on the strings.
+const WIRE_Z = 8;                  // through the guide rail beside the unison
+const WIRE_B2 = -62, WIRE_B1 = -70, WIRE_B3 = 3.5, WIRE_B4 = 4.5;
+// Damper head, side profile (Igrec fig. 327): a wooden plate with a peaked top and a felt pad under each end. The felt is
+// Renner's trichord strip (#850139: 9.5 mm wide, 11 mm tall), split up the middle so its two points drop between the
+// three strings. The length and the plate's outline follow Igrec's photo, scaled to clear the hammer. Not checked against
+// a real head yet.
+const DH_X = 506, DH_LEN = 54, DH_PAD = 18;   // the head's middle over the strings, its length along them, each felt pad's
+const DH_SEAT = 9.8;                // the felt's top (the plate's underside) above the strings' centre line, seated
+const DH_WOOD_W = 9;
+// felt cross-section across the strings (z, y), y from the strings' centre line: two points between the three strings,
+// flanks on the outer strings, the middle string in the notch
+const DH_FELT_X = [[-4.75, DH_SEAT], [4.75, DH_SEAT], [4.75, 2.35], [1.75, -1.2], [0, 0.85], [-1.75, -1.2], [-4.75, 2.35]];
+// the plate, along the strings (x, y) from its underside: square ends rounded at the top, shoulders rising to a peak
+const DH_WOOD = (() => {
+  const half = [[-27, 0], [-27, 7.2], [-26.6, 8.2], [-25.6, 8.7], [-14, 9.4], [-9.5, 10.4], [-6.5, 12], [-3.5, 12.9], [0, 13.2]];
+  return [...half, ...half.slice(0, -1).reverse().map(([x, y]) => [-x, y])];
+})();
 
 // Wippen, jack and repetition lever outlines, side profile, mm. Digitized from Renner USA's dimensioned
 // wippen drawing and fitted to Hirschkorn's measured Boston GP-178 (research/wippen/spec.md).
@@ -172,6 +192,14 @@ export function createScene(canvas, overlay) {
     if (axis === 'z') geo.rotateX(Math.PI / 2);
     const m = new THREE.Mesh(geo, mat(color, opts));
     m.position.set(...pos);
+    parent.add(m); register(m, part, opts);
+    return m;
+  }
+  // a cross-section drawn across the strings ([z, y] points), run along them from x0 to x1
+  function extAlongX(shape, x0, x1, color, part, parent, opts = {}) {
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: x1 - x0, bevelEnabled: false });
+    geo.rotateY(Math.PI / 2); geo.translate(x0, 0, 0);
+    const m = new THREE.Mesh(geo, mat(color, opts));
     parent.add(m); register(m, part, opts);
     return m;
   }
@@ -399,15 +427,18 @@ export function createScene(canvas, overlay) {
     ext(shapeFrom(H_SEAT), 11.6, 0, COLORS.dark, 'tail', headG);
     n.feltG = new THREE.Group(); n.feltG.position.y = H_FELT_FOOT; headG.add(n.feltG);
     ext(shapeFrom(H_FELT.map(([x, y]) => [x, y - H_FELT_FOOT])), 11, 0, COLORS.hammerfelt, 'hammer', n.feltG);
-    // damper: underlever pivoting on its flange behind the keys, lift felt over the key's end,
-    // wire up through the guide rail, head with its felt sitting on the unison
+    // damper: underlever pivoting on its flange behind the keys, lift felt over the key's end, the top flange holding the
+    // wire, the wire up through the guide rail, and the head with its two felts sitting on the unison
     const ul = n.ul = new THREE.Group(); ul.position.set(...UL_PIVOT, 0); root.add(ul);
     ext(rect(-142, -2, 6, 5), 9, 0, COLORS.wood, 'underlever', ul);
     ext(rect(-142, -6, -128, -2), 10, 0, COLORS.redfelt, 'underlever', ul);
-    n.wire = cyl(1.1, 1, 'y', [UL_WIRE[0] + UL_PIVOT[0], 0, WIRE_Z], COLORS.steel, 'damperwire', root, { metal: true });
-    const head = n.dHead = new THREE.Group(); root.add(head);   // origin at the middle of the felt's underside
-    ext(rect(-DH_LEN / 2, 4, DH_LEN / 2, 22), 16, 1, COLORS.wood, 'damper', head);
-    ext(rect(-DH_LEN / 2, 0, DH_LEN / 2, 4), 13, 0, COLORS.hammerfelt, 'damper', head);
+    ext(rect(UL_WIRE[0] - 4, UL_WIRE[1], UL_WIRE[0] + 4, UL_WIRE[1] + UL_FLANGE_H), 7, 0, COLORS.wood, 'ulflange', ul);
+    cyl(1.3, 2.4, 'z', [UL_WIRE[0], UL_WIRE[1] + UL_FLANGE_H / 2, 4.5], COLORS.brass, 'ulflange', ul, { metal: true });   // its set screw
+    // the wire in five straight runs, flange to bend 1 to 4 to the head, laid out each frame
+    n.wire = Array.from({ length: 5 }, () => cyl(1, 1, 'y', [0, 0, 0], COLORS.steel, 'damperwire', root, { metal: true }));
+    const head = n.dHead = new THREE.Group(); root.add(head);   // origin on the strings' centre line, under the head's middle
+    ext(shapeFrom(DH_WOOD.map(([x, y]) => [x, y + DH_SEAT])), DH_WOOD_W, 0, COLORS.wood, 'damper', head);
+    for (const x0 of [-DH_LEN / 2, DH_LEN / 2 - DH_PAD]) extAlongX(shapeFrom(DH_FELT_X), x0, x0 + DH_PAD, COLORS.hammerfelt, 'damperfelt', head);
     center('ucenter', ul, [0, 0], 10);
     building = -1;
     return n;
@@ -492,7 +523,7 @@ export function createScene(canvas, overlay) {
     [N0.bc, [12, 40, 7], 'Backcheck'], [restRail, [G.restRailX, -8, 41], 'Rest rail'], [fixed, [294, 140, 41], 'Hammer flange rail'],
     [fixed, [293, 118, 41], 'Regulating rail'], [N0.root, [560, G.stringY + 3, 0], 'Strings'], [fixed, [G.W[0] - 12, G.W[1] - 10, 41], 'Wippen rail'],
     [N0.wippen, [-48, 31, 5], 'Support'], [N0.jack, [20, 30, 6], 'Jack button'], [N0.wippen, [-62, -22, 7], 'Heel'],
-    [N0.dHead, [0, 22, 9], 'Damper'], [N0.ul, [-60, 5, 6], 'Underlever'], [fixed, [506, 156, 41], 'Damper guide rail'],
+    [N0.dHead, [0, DH_SEAT + 13, 6], 'Damper'], [N0.ul, [-60, 5, 6], 'Underlever'], [fixed, [506, 156, 41], 'Damper guide rail'],
     [dStopRail, [539, 10, 41], 'Damper stop rail'], [liftTray, [575, -10, 41], 'Lift tray']
   ].map(([obj, p, text]) => {
     const e = document.createElement('div'); e.className = 'plabel'; e.textContent = text; e.hidden = true; overlay.appendChild(e);
@@ -531,6 +562,8 @@ export function createScene(canvas, overlay) {
     checktop: { t: [456, 114, 0], p: [438, 240, 0.1], clip: { y: 121 } },
     // the damper heads on their strings, from above the hammers
     damperline: { t: [506, 203, 0], p: [420, 285, 0] },
+    // three dampers side by side from the treble end, low enough to see each head lift off its strings
+    damperrow: { t: [506, 198, 0], p: [385, 250, 165] },
     // traveling: straight along the action from the keys, through a slice round the hammer head, so the head rises
     // toward its unison (the three strings end-on) with nothing in front of it
     travel: { t: [455, 172, 0], p: [333, 174, 0], clip: { x: [436, 474] } },   // about 140 to 205 high: a low rail's head too
@@ -545,7 +578,7 @@ export function createScene(canvas, overlay) {
     const side = c ? THREE.DoubleSide : THREE.FrontSide;
     for (const r of [fixed, ...notes.map(n => n.root)]) r.traverse(o => { if (o.isMesh && o.material.side !== side) { o.material.side = side; o.material.needsUpdate = true; } });
   }
-  let viewAnim = null, viewZ = 0;
+  let viewAnim = null, viewZ = 0, viewName = 'action';
   // pull the camera back on tall, narrow screens so the same width of the action fits
   function viewPos(v) {
     const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
@@ -553,13 +586,13 @@ export function createScene(canvas, overlay) {
     const t = new THREE.Vector3(...v.t);
     return new THREE.Vector3(...v.p).sub(t).multiplyScalar(k).add(t);
   }
-  // side views follow the note being worked on; the hammer-line view stays centered
+  // side views follow the note being worked on; the views of all three together stay centered
   let home = { name: 'action', z: 0 };   // the view Reset view goes back to
   function setView(name, z = viewZ) {
-    viewZ = z; home = { name, z };
+    viewZ = z; viewName = name; home = { name, z };
     const v = VIEWS[name] || VIEWS.action;
     setClip(v.clip);
-    const dz = name === 'hammerline' ? 0 : z;
+    const dz = name === 'hammerline' || name === 'damperrow' ? 0 : z;
     const toT = new THREE.Vector3(...v.t), toP = viewPos(v);
     toT.z += dz; toP.z += dz;
     viewAnim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(), toT, toP };
@@ -594,7 +627,9 @@ export function createScene(canvas, overlay) {
   function highlight(parts, note = null) {
     for (const m of highlighted) m.material.emissive.setHex(0);
     highlighted = [];
-    for (const p of [].concat(parts || []).flatMap(p => p === 'flange' ? [p, 'flangescrew'] : [p])) for (const m of partMeshes[p] || []) {   // the flange knobs work its screw too
+    // the flange knobs work its screw too, and the damper's lift timing is set at the underlever's top flange
+    const also = { flange: ['flangescrew'], damper: ['damperfelt', 'ulflange'] };
+    for (const p of [].concat(parts || []).flatMap(p => [p, ...(also[p] || [])])) for (const m of partMeshes[p] || []) {
       if (note !== null && m.userData.note !== -1 && m.userData.note !== note) continue;
       m.material.emissive.setHex(0x7a4a00); highlighted.push(m);
     }
@@ -665,13 +700,15 @@ export function createScene(canvas, overlay) {
     const feltY = keyTop + (a.damperGap ?? 3.5) + sim.yd / G.dmpRatio;
     const th = solveUl(feltY);
     n.ul.rotation.z = th;
-    const wb = [UL_PIVOT[0] + UL_WIRE[0] * Math.cos(th) - UL_WIRE[1] * Math.sin(th), UL_PIVOT[1] + UL_WIRE[0] * Math.sin(th) + UL_WIRE[1] * Math.cos(th)];
-    const headY = G.stringY + 1.1 + sim.yd;
     // a head bent off its seat rests on one end, the other up by damperLevel; one bent sideways sits off its unison
-    const lvl = a.damperLevel || 0;
-    n.dHead.position.set(DH_X, headY + Math.abs(lvl) / 2, BASS * (a.damperCenter || 0));
+    const lvl = a.damperLevel || 0, hz = BASS * (a.damperCenter || 0), hy = G.stringY + sim.yd + Math.abs(lvl) / 2;
+    n.dHead.position.set(DH_X, hy, hz);
     n.dHead.rotation.z = lvl / DH_LEN;
-    n.wire.scale.y = Math.max(1, headY + 4 - wb[1]); n.wire.position.set(wb[0], (headY + 4 + wb[1]) / 2, WIRE_Z);
+    // the wire from the top flange (riding on the underlever) to the head's middle, between its felts
+    const fl = ulPt(th, [UL_WIRE[0], UL_WIRE[1] + UL_FLANGE_H]);
+    const wp = [[fl[0], fl[1], 0], [DH_X, hy + WIRE_B1, 0], [DH_X, hy + WIRE_B2, WIRE_Z], [DH_X, hy + WIRE_B3, WIRE_Z],
+      [DH_X, hy + WIRE_B4, hz], [DH_X, hy + DH_SEAT + 3, hz]];
+    n.wire.forEach((m, i) => rodTo(m, wp[i], wp[i + 1]));
     if (drawShared) {
       // the stop rail sits where the underlever's top would be with the damper lifted damperStop;
       // the lift tray's top touches the underlever's underside when the pedal lifts it
@@ -695,6 +732,17 @@ export function createScene(canvas, overlay) {
     const [x, y] = R_BUTTON_C, c = Math.cos(-rho), s = Math.sin(-rho);
     return (0.7 - G.repPivotW[1] - x * s) / c - y;
   }
+  // a point on the underlever, given in its own frame, with the underlever at angle th
+  const ulPt = (th, [lx, ly]) => [UL_PIVOT[0] + lx * Math.cos(th) - ly * Math.sin(th), UL_PIVOT[1] + lx * Math.sin(th) + ly * Math.cos(th)];
+  // lay a unit-length rod (a cylinder along y) from a to b
+  const UP = new THREE.Vector3(0, 1, 0), ra = new THREE.Vector3(), rb = new THREE.Vector3();
+  function rodTo(m, a, b) {
+    ra.set(...a); rb.set(...b);
+    const len = ra.distanceTo(rb);
+    m.position.copy(ra).add(rb).multiplyScalar(0.5);
+    m.scale.set(1, Math.max(1e-3, len), 1);
+    if (len > 1e-6) m.quaternion.setFromUnitVectors(UP, rb.sub(ra).divideScalar(len));
+  }
   // underlever angle that puts its lift felt at height y
   function solveUl(y) {
     let lo = -0.5, hi = 0.5;
@@ -710,6 +758,40 @@ export function createScene(canvas, overlay) {
       refitTool();
     }
   }
+  // ---------- key-front inset: the one part no side view keeps in frame, so you see the key travel beside the action ----------
+  // the key's front and its front rail punching, from in front, a little above and to the treble side (not so far to the
+  // side that a neighbor key hides it)
+  const INSET = { t: [6, 44, 0], p: [-80, 66, 38] };
+  const insetCam = new THREE.PerspectiveCamera(30, 4 / 3, 5, 5000);
+  const insetBox = document.createElement('div'); insetBox.id = 'inset'; insetBox.hidden = true; overlay.appendChild(insetBox);
+  const insetText = document.createElement('div'); insetText.className = 'inset-text'; insetBox.appendChild(insetText);
+  let insetOn = false;
+  function setInset(on) { insetOn = on; }
+  function setInsetText(t) { if (insetText.textContent !== t) insetText.textContent = t; }
+  // top right, under the view buttons however many rows they wrap to (and under the exam clock), left of the move
+  // buttons, about a quarter of the stage wide
+  const viewsBar = document.getElementById('views'), navpad = document.getElementById('navpad');
+  function insetRect() {
+    const w = canvas.clientWidth, h = canvas.clientHeight, iw = Math.round(Math.max(150, Math.min(280, w * 0.26))), ih = Math.round(iw * 0.72);
+    const top = Math.max(56, viewsBar ? viewsBar.offsetTop + viewsBar.offsetHeight + 8 : 0);
+    const right = navpad?.offsetParent ? navpad.offsetLeft - 8 : w - 10;
+    return { x: right - iw, top, w: iw, h: ih, stageH: h };
+  }
+  function renderInset() {
+    const show = insetOn && !toolStage.visible && viewName !== 'keyfront';
+    if (insetBox.hidden === show) insetBox.hidden = !show;
+    if (!show) return;
+    const r = insetRect(), y = r.stageH - r.top - r.h;   // the renderer counts from the bottom
+    insetBox.style.cssText = `left:${r.x}px;top:${r.top}px;width:${r.w}px;height:${r.h}px`;
+    insetCam.position.set(INSET.p[0], INSET.p[1], INSET.p[2] + viewZ); insetCam.lookAt(INSET.t[0], INSET.t[1], INSET.t[2] + viewZ);
+    insetCam.aspect = r.w / r.h; insetCam.updateProjectionMatrix();
+    const clip = renderer.clippingPlanes; renderer.clippingPlanes = [];   // a clipped side view's cut doesn't reach the key front
+    renderer.setScissorTest(true); renderer.setScissor(r.x, y, r.w, r.h); renderer.setViewport(r.x, y, r.w, r.h);
+    renderer.render(scene, insetCam);
+    renderer.setScissorTest(false); renderer.setViewport(0, 0, canvas.clientWidth, r.stageH);
+    renderer.clippingPlanes = clip;
+  }
+
   const v3 = new THREE.Vector3();
   function render() {
     resize();
@@ -723,6 +805,7 @@ export function createScene(canvas, overlay) {
     controls.update();
     updateLabels();
     renderer.render(scene, camera);
+    renderInset();
     const w = canvas.clientWidth, h = canvas.clientHeight;
     for (const c of callouts.values()) {
       const cut = !inClip(v3.set(...c.mid));   // its line is cut away in a clipped view: hide the label too
@@ -798,5 +881,5 @@ export function createScene(canvas, overlay) {
 
   setNoteCount(1);
   return { render, update, setView, zoomBy, slideBy, resetView, showTool, hideTool, spinTool, highlight, pick, setCallout, clearCallouts, backcheckGap, setBackground, controls, camera, setLabels,
-           setNoteCount, setFocus, straightedge, PART_NAMES, VIEWS };
+           setNoteCount, setFocus, setInset, setInsetText, straightedge, PART_NAMES, VIEWS };
 }
