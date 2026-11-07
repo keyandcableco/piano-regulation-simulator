@@ -71,10 +71,12 @@ export function knurl(repeatU = 24, repeatV = 8) {
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeatU, repeatV);
   return t;
 }
-// a copy of a material with a bump map on it (knurling on steel, aluminium or brass)
+// a copy of a material with a bump map on it (knurling on steel, aluminium or brass); made once per combination
 export function knurled(material, repeatU, repeatV, depth = 0.6) {
-  const m = material.clone(); m.bumpMap = knurl(repeatU, repeatV); m.bumpScale = depth;
-  return m;
+  return once(`knurled:${material.uuid}:${repeatU}:${repeatV}:${depth}`, () => {
+    const m = material.clone(); m.bumpMap = knurl(repeatU, repeatV); m.bumpScale = depth;
+    return m;
+  });
 }
 
 // ---------- shape helpers ----------

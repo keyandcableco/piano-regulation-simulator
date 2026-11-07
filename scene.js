@@ -444,6 +444,7 @@ export function createScene(canvas, overlay) {
     if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) {
       renderer.setSize(w, h, false);
       camera.aspect = w / h; camera.updateProjectionMatrix();
+      refitTool();
     }
   }
   const v3 = new THREE.Vector3();
@@ -455,7 +456,7 @@ export function createScene(canvas, overlay) {
       camera.position.lerpVectors(viewAnim.fromP, viewAnim.toP, e);
       if (t >= 1) viewAnim = null;
     }
-    spinTool(1 / 60);
+    spinTool();
     controls.update();
     updateLabels();
     renderer.render(scene, camera);
@@ -474,16 +475,18 @@ export function createScene(canvas, overlay) {
   const toolHolder = new THREE.Group(); toolStage.add(toolHolder);
   const AX = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
   const axis = s => { const m = /([+-]?)\s*([xyz])/i.exec(s || ''); if (!m) return null; const v = new THREE.Vector3(...AX[m[2].toLowerCase()]); return m[1] === '-' ? v.negate() : v; };
-  let savedView = null, spin = true, roomEnv = null;
+  let savedView = null, spin = true, roomEnv = null, toolR = 0;
   // obj: a THREE.Object3D built for the tool (models of real tools, added one at a time)
   async function showTool(obj, opts = {}) {
+    // polished steel and brass need something to reflect: a soft room, only while a tool is out
+    if (!roomEnv) { const pm = new THREE.PMREMGenerator(renderer); roomEnv = pm.fromScene(new RoomEnvironment(renderer), 0.04).texture; pm.dispose(); }
     if (!savedView) savedView = { p: camera.position.clone(), t: controls.target.clone() };
     fixed.visible = false; notes.forEach(n => { n.root.visible = false; });
     toolStage.visible = true;
-    // polished steel and brass need something to reflect: a soft room, only while a tool is out
-    if (!roomEnv) { const pm = new THREE.PMREMGenerator(renderer); roomEnv = pm.fromScene(new RoomEnvironment(renderer), 0.04).texture; pm.dispose(); }
     scene.environment = roomEnv;
     lightsForTools(true);
+    // each tool is built fresh; free the last one's buffers (materials are shared, so they stay)
+    toolHolder.traverse(o => o.geometry?.dispose());
     toolHolder.clear();
     const mesh = obj;
     // turn the model so its length runs left-right and its natural up is up
@@ -497,14 +500,22 @@ export function createScene(canvas, overlay) {
     mesh.position.sub(new THREE.Vector3(c.x, box.min.y, c.z));
     toolHolder.add(mesh);
     toolHolder.rotation.y = 0;
-    // frame the whole tool with room to turn: its longest side fills about 80% of the width, even on a tall phone screen
-    const r = Math.max(size.x, size.z, size.y * 1.5, 30);
-    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const d = Math.max(1.9 * r, 0.62 * r / (tanV * camera.aspect));
+    toolR = Math.max(size.x, size.z, size.y * 1.5, 30);
     viewAnim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(),
-      toT: new THREE.Vector3(0, size.y / 2, 0), toP: new THREE.Vector3(0.2, 0.9, 1.9).setLength(d).add(new THREE.Vector3(0, size.y, 0)) };
+      toT: new THREE.Vector3(0, size.y / 2, 0), toP: new THREE.Vector3(0.2, 0.9, 1.9).setLength(toolDistance()).add(new THREE.Vector3(0, size.y, 0)) };
     spin = !opts.still;
     return { size: { x: size.x, y: size.y, z: size.z } };
+  }
+  // frame the whole tool with room to turn: its longest side fills about 80% of the width, even on a tall phone screen
+  function toolDistance() {
+    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    return Math.max(1.9 * toolR, 0.62 * toolR / (tanV * camera.aspect));
+  }
+  // the window changed shape (a phone turned): keep the view's direction, step in or out to fit again
+  function refitTool() {
+    if (!toolStage.visible || !toolR) return;
+    if (viewAnim) { viewAnim.toP.sub(viewAnim.toT).setLength(toolDistance()).add(viewAnim.toT); return; }
+    camera.position.sub(controls.target).setLength(toolDistance()).add(controls.target);
   }
   function hideTool() {
     if (!toolStage.visible) return;
@@ -514,7 +525,11 @@ export function createScene(canvas, overlay) {
   // the room already lights the tool from all round, so the direct lights step back while it is out
   function lightsForTools(on) { hemi.intensity = on ? 0.45 : 1.6; sun.intensity = on ? 1.1 : 1.6; fill.intensity = on ? 0.3 : 0.5; }
   controls.addEventListener('start', () => { spin = false; });
-  function spinTool(dt) { if (toolStage.visible && spin) toolHolder.rotation.y += dt * 0.35; }
+  let spinT = 0;
+  function spinTool() {   // by the clock, so it turns at the same speed on any screen refresh rate
+    const now = performance.now(), dt = Math.min(0.1, (now - spinT) / 1000); spinT = now;
+    if (toolStage.visible && spin) toolHolder.rotation.y += dt * 0.35;
+  }
 
   setNoteCount(1);
   return { render, update, setView, showTool, hideTool, spinTool, highlight, pick, setCallout, clearCallouts, setBackground, controls, camera, setLabels,

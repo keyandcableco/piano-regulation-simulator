@@ -72,16 +72,16 @@ const nutMat = () => nutSteel || (nutSteel = knurled(M.chrome(), 30, 8));
 export default {
   id: 'letoff-regulator',
   name: 'Let-off regulator',
-  what: 'A straight driver for the let-off screws of a grand action on the bench. Its slotted cup fits over the wire eye on top of the screw, and turning it raises or lowers the button that trips the jack, which sets how close the hammer gets to the string before it lets off.',
+  what: 'A straight driver for regulating screws with a wire eye, here on the let-off screws of a grand action out on the bench. Its slotted cup fits over the eye, and turning it raises or lowers the button that trips the jack, which sets how close the hammer gets to the string before it lets off.',
   how: [
     'Find the let-off screws. On a grand they stand upright in the let-off rail at the front of the stack, just in front of and below the hammer flanges, not under the shanks. The wire eye is on top and the felt button is underneath, over the jack tender.',
     'Set the cup straight down over the eye so the eye drops into the slot. Keep the tool upright, or the eye bends. With the action in the piano the eyes sit under the pinblock, so technicians slide in a flat let-off wrench instead, like the S-3149 designed by Keith Akins RPT.',
     'Turn a fraction of a turn. Screwing the button down makes the jack trip earlier, farther from the string. Backing it up makes it trip later.',
-    'Press the key slowly and watch how close the hammer gets before it drops away: about 1/16 in (1.6 mm) in the top treble, 1/8 in (3.2 mm) in the tenor, and a little more in the bass.',
+    'Press the key slowly and watch how close the hammer gets before it drops away: about 1/16 in (1.6 mm) in the top treble, 1/8 in (3.2 mm) in the tenor, and a little more in the bass. The sim\'s note is set to 1/16 in.',
   ],
   dims: 'Listed by Schaff: bit 7 in (178 mm) long, 1/8 in (3.2 mm) shank, 5/16 in (7.9 mm) opening; handle 5 in (127 mm). Estimated from catalog photos: cup about 3/8 in (9.5 mm) across, grip about 1-3/16 in (30 mm) across, about 10-1/2 in (268 mm) long with the bit in the handle. The slot, 2.5 mm wide and 8 mm deep, is not seen in any photo: it is sized to take a 7.5 mm eye of 2.2 mm wire from the Renner drawing.',
   steps: ['letoff'],
-  credit: 'Modeled on the Schaff No. 67A let-off regulator in a Schaff No. 26 combination handle, from Schaff Piano Supply catalog photos and listings.',
+  credit: 'Modeled on the Schaff No. 67A let-off regulator in a Schaff No. 26 combination handle (sold to fit Schaff\'s regulating bits), from Schaff Piano Supply catalog photos and listings.',
   upAxis: 'y', lengthAxis: 'x',
   build() {
     const tool = new THREE.Group(), chrome = M.chrome();

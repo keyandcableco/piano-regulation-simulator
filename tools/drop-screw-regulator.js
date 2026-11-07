@@ -52,7 +52,7 @@ function grain(mesh, len) {
 export default {
   id: 'drop-screw-regulator',
   name: 'Drop screw regulator',
-  what: 'Turns the drop screw on each grand hammer flange. The drop screw stops the repetition lever, and that sets how far the hammer falls after let-off.',
+  what: 'Turns the drop screw on each grand hammer flange. The drop screw stops the repetition lever, and that sets how far the hammer falls after let-off. Schaff and Howard sell the same socket for the repetition lever screws, and Howard says it fits the jack regulating screw on most actions.',
   how: [
     'Work with the action out on the bench. The drop screw stands in the front of each hammer flange, with its head on top beside the shank butt.',
     'Set let-off first, since the two interact. The head is usually a flat tab (spade): lower the barrel over it so the slot in the barrel floor straddles the tab. A slotted head needs a small flat screwdriver instead.',

@@ -590,17 +590,17 @@ function renderTools(p) {
       el('p', {}, t.what),
       t.how?.length ? el('ol', {}, t.how.map(h => el('li', {}, h))) : null,
       t.dims ? el('p', { class: 'muted small' }, el('b', {}, 'Dimensions: '), t.dims) : null,
-      t.steps?.filter(stepTitle).length ? el('p', { class: 'small' }, 'Used in: ', t.steps.filter(stepTitle).map((id, i) => [i ? ', ' : '',
+      t.steps?.filter(stepTitle).length ? el('p', { class: 'small' }, 'Used in: ', t.steps.filter(stepTitle).flatMap((id, i) => [i ? ', ' : '',
         el('button', { class: 'linkish', onclick: () => { goLearn(id); } }, stepTitle(id))])) : null,
       t.credit ? el('p', { class: 'credit' }, t.credit) : null) : null,
     el('p', { class: 'muted small' }, 'Models of real regulation tools, added a few at a time.'));
 }
 async function pickTool(id) {
-  toolSel = id; refresh();
   const t = TOOLBAG.find(x => x.id === id);
-  S.clearCallouts(); S.setLabels(false);
-  try { await S.showTool(t.build(), { upAxis: t.upAxis, lengthAxis: t.lengthAxis }); }
+  S.clearCallouts();
+  try { await S.showTool(t.build(), { upAxis: t.upAxis, lengthAxis: t.lengthAxis }); toolSel = id; }
   catch { toast('Could not load that model.', 'warn'); }
+  refresh();
 }
 function goLearn(id) {
   $('.tab[data-mode=learn]').click();
@@ -846,7 +846,7 @@ let pedalDown = false;
 const setPedal = down => { pedalDown = down; NOTES.forEach(n => n.sim.setPedal(down)); $('#k-pedal').classList.toggle('on', down); };
 $('#k-pedal').onclick = () => { if (!busy) setPedal(!pedalDown); };
 let labelsOn = false;
-$('#labels').onclick = () => { labelsOn = !labelsOn; S.setLabels(labelsOn); $('#labels').classList.toggle('on', labelsOn); };
+$('#labels').onclick = () => { labelsOn = !labelsOn; S.setLabels(labelsOn); $('#labels').classList.toggle('on', labelsOn); };   // hidden in Tools
 for (const b of document.querySelectorAll('[data-speed]')) b.onclick = () => {
   timeScale = +b.dataset.speed;
   document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b));
@@ -858,8 +858,9 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   leaveExam();
   showCredits = false;
   if (mode === 'drills') { drillsStop?.(); drillsEl = null; }
-  if (mode === 'tools') { S.hideTool(); toolSel = null; }
+  if (mode === 'tools') { S.hideTool(); toolSel = null; S.setLabels(labelsOn); }
   mode = b.dataset.mode; tested = new Set(); verdict = null; S.clearCallouts();
+  if (mode === 'tools') { S.setLabels(false); if (sim.dTarget > 0) sim.press(0, 60); if (TOOLBAG.length) pickTool(TOOLBAG[0].id); }
   if (mode === 'exam' || mode === 'drills' || mode === 'tools') { exam = { started: false, done: false }; refresh(); return; }
   if (mode === 'learn') { stepIdx = 0; messUp(); focusStep(); }
   else if (mode === 'diagnose') { scenario = null; adj = { ...FACTORY }; applyAdj(); }
@@ -870,11 +871,12 @@ $('#level').value = Object.keys(LEVELS).find(k => LEVELS[k] === LEVEL);
 $('#level').onchange = e => { LEVEL = LEVELS[e.target.value]; try { localStorage.setItem('regsim-level', e.target.value); } catch {} e.target.blur(); refresh(); };
 $('#credits').onclick = e => { e.preventDefault(); showCredits = true; refresh(); $('aside').scrollTop = 0; };
 window.addEventListener('keydown', e => {
+  if (mode === 'tools') return;   // no key on the bench while a tool is out
   if (e.code === 'Escape') letUp();
   if (e.code === 'KeyP' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !busy && e.target === document.body) setPedal(!pedalDown);
   if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); sim.press(sim.dip, 250); }
 });
-window.addEventListener('keyup', e => { if (e.code === 'Space' && !busy && e.target === document.body) sim.press(0, 60); });
+window.addEventListener('keyup', e => { if (mode !== 'tools' && e.code === 'Space' && !busy && e.target === document.body) sim.press(0, 60); });
 
 // hover names, press the key by clicking it
 const tip = $('#tip');
