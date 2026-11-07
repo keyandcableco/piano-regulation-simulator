@@ -1,4 +1,4 @@
-import { G, IN, ADJ, SPEC, DAMPER_SPECS, DAMAGE, FACTORY, NEIGHBOR_H, Sim, measure, grade, hamPt, crownY, keyAngle, keyPt,
+import { G, IN, ADJ, SPEC, DAMPER_SPECS, DAMAGE, FACTORY, NEIGHBOR_H, Sim, measure, grade, hamPt, crownY, crownTop, keyAngle, keyPt,
          jackGeom, knuckleBottom, eff, repSupportZ, gString as gStringNow } from './model.js';
 import { createScene, NOTE_Z } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
@@ -148,7 +148,7 @@ const STEPS = [
     how: 'Change the front rail punchings. Thicker punchings stop the key sooner and give less dip.',
     note: 'If the hammer blocks before the key bottoms, let-off is too close: fix that first.' },
   { spec: 'aftertouch', title: 'Aftertouch', knobs: ['frontPunch', 'capstan'], test: 'slowPress',
-    what: 'Aftertouch is the key travel left after let-off, about 1 mm. It is what makes sure the jack escapes on the softest blow.',
+    what: 'Aftertouch is the key travel left after let-off. On a modern grand at the textbook dip and blow it comes to 2 mm or more; this one gives about 2.8. It is what makes sure the jack escapes on the softest blow.',
     how: 'Set it with dip and blow distance, never with let-off or drop: more dip or less blow gives more aftertouch. Then recheck let-off and drop, which those changes move.',
     note: 'Too little and soft notes block or bobble; too much and the jack is forced into its stop and can break.' },
   { spec: 'check', title: 'Backcheck', knobs: ['backcheck'], test: 'strikeHold',
@@ -370,7 +370,7 @@ function measureTable(ids) {
 const SCENARIOS = [
   { complaint: 'Soft notes choke: the hammer seems to stick against the string.', faults: { letoff: +0.9 }, answer: 'Let-off set too close: the jack trips too late (or never).' },
   { complaint: 'I can\'t play this note quietly, it either thumps or misses.', faults: { letoff: -1.0 }, answer: 'Let-off too far from the string.' },
-  { complaint: 'The key feels shallow and sometimes the note doesn\'t speak.', faults: { frontPunch: +0.7 }, answer: 'Dip too shallow: no aftertouch, the jack barely escapes.' },
+  { complaint: 'The key feels shallow and sometimes the note doesn\'t speak.', faults: { frontPunch: +2.0 }, answer: 'Dip too shallow: too little aftertouch, the jack barely escapes.' },
   { complaint: 'The key feels deep and mushy at the bottom.', faults: { frontPunch: -0.8 }, answer: 'Dip too deep: too much aftertouch.' },
   { complaint: 'Fast repeated notes and trills fail on this key.', faults: { repSpring: -0.6 }, answer: 'Repetition spring too weak.' },
   { complaint: 'There\'s a little bump in the key when I let it up slowly, and loud notes bounce.', faults: { repSpring: +0.7 }, answer: 'Repetition spring too strong.' },
@@ -396,7 +396,7 @@ const SCENARIOS = [
   { complaint: 'The note plays once and then won\'t play again until I let the key all the way up.', faults: { damage: 'brokenJackSpring' }, alone: true,
     answer: 'A broken jack spring: nothing pushes the jack back under the knuckle until the key is fully up. Replace the spring.' },
   { complaint: 'It was regulated when we bought it eight years ago. Now there\'s a click at the top of the key, soft notes are hard to control, and it feels like it bottoms out.', faults: { wear: 0.8 }, alone: true,
-    answer: 'Nothing was turned: eight years of playing packed down the felts and cloth. Blow grew, the hammer settled onto the rest rail (lost motion), and aftertouch disappeared. The fix is a touch-up of the whole sequence.' },
+    answer: 'Nothing was turned: eight years of playing packed down the felts and cloth. Blow grew, the hammer settled onto the rest rail (lost motion), and aftertouch shrank. The fix is a touch-up of the whole sequence.' },
 ];
 function newScenario() {
   const pool = [...SCENARIOS].sort(() => Math.random() - 0.5);
@@ -512,6 +512,10 @@ function renderCredits(p) {
     people.length ? el('h3', {}, 'Technicians') : null,
     people.length ? el('p', {}, people.join(' · ')) : null,
     forumCount ? el('p', { class: 'muted' }, `And ${forumCount} tips from members of PTG's Pianotech forum, credited by year until each has said they'd like their name here.`) : null,
+    el('h3', {}, 'The action'),
+    el('p', {}, 'The layout of every part is measured, not drawn by eye: M. C. Hirschkorn, ',
+      el('a', { href: 'https://hdl.handle.net/10012/877', target: '_blank', rel: 'noopener' }, 'Dynamic Model of a Piano Action Mechanism'),
+      ' (MASc thesis, University of Waterloo, 2004), a Boston GP-178 grand, note 52. The wippen, jack and repetition lever outlines follow Renner USA\'s dimensioned wippen drawing.'),
     el('div', { class: 'row' }, el('button', { onclick: () => { showCredits = false; refresh(); } }, '← Back')));
 }
 let showCredits = false;
@@ -786,6 +790,7 @@ function handleEvents() {
     if (e.type === 'checked') { checkMark = e.g; toast(show('check') ? `Checked ${fmt(e.dist)} from the string` : 'Hammer checked'); }
     if (e.type === 'reset') toast(`Jack back under the knuckle (key ${Math.round(100 * (1 - e.d / sim.dip))}% up)`);
     if (e.type === 'blocked') toast('Blocked: the jack never let off and the hammer is jammed against the string', 'warn');
+    if (e.type === 'buzz') toast('The repetition lever pushes the hammer up against the string: it buzzes (too little drop)', 'warn');
     if (e.type === 'pop') toast('Pop: you would feel a bump in the key', 'warn');
     if (e.type === 'scrape') toast('The hammer tail scraped the backcheck', 'warn');
     if (e.type === 'jumpcheck') toast('The hammer jumped out of check', 'warn');
@@ -801,7 +806,7 @@ function updateCallouts() {
   const show = id => revealed(id);
   const keep = [];
   if (show('blow') && atRest) {
-    const c = hamPt(g, G.crown); S.setCallout('blow', [c[0], c[1], z], [c[0], G.stringY, z], `blow ${fmt(G.stringY - c[1])}`); keep.push('blow');
+    const c = crownTop(g); S.setCallout('blow', [c[0], c[1], z], [c[0], G.stringY, z], `blow ${fmt(G.stringY - c[1])}`); keep.push('blow');
   }
   if (show('restGap') && atRest) {
     const s = hamPt(g, G.shankRest), rr = eff(adj).restRail; S.setCallout('rest', [G.restRailX, rr, 12 + nz], [G.restRailX, s[1], 12 + nz], `rail gap ${fmt(Math.max(0, m.restGap))}`); keep.push('rest');
@@ -820,7 +825,7 @@ function updateCallouts() {
     S.setCallout('jack', [jg.backX, jg.topY, 8 + nz], [kc[0] + G.coreR, jg.topY, 8 + nz], reading('jackPos').txt); keep.push('jack');
   }
   if (letoffMark !== null && sim.d > 0.05 && show('letoff')) {
-    const c = hamPt(letoffMark, G.crown); S.setCallout('letoff', [c[0] + 8, c[1], z], [c[0] + 8, G.stringY, z], `let-off ${fmt(G.stringY - c[1])}`); keep.push('letoff');
+    const c = crownTop(letoffMark); S.setCallout('letoff', [c[0] + 8, c[1], z], [c[0] + 8, G.stringY, z], `let-off ${fmt(G.stringY - c[1])}`); keep.push('letoff');
   }
   if (letoffD !== null && sim.d > letoffD + 0.02 && show('aftertouch')) {
     const E = eff(adj), ka = keyAngle(E, letoffD), kb = keyAngle(E, sim.d);
@@ -828,7 +833,7 @@ function updateCallouts() {
     S.setCallout('after', [pa[0], pa[1], 12 + nz], [pb[0], pb[1], 12 + nz], `aftertouch ${fmt(sim.d - letoffD)}`); keep.push('after');
   }
   if (checkMark !== null && sim.st.checked && show('check')) {
-    const c = hamPt(checkMark, G.crown); S.setCallout('check', [c[0] - 8, c[1], z], [c[0] - 8, G.stringY, z], `check ${fmt(G.stringY - c[1])}`); keep.push('check');
+    const c = crownTop(checkMark); S.setCallout('check', [c[0] - 8, c[1], z], [c[0] - 8, G.stringY, z], `check ${fmt(G.stringY - c[1])}`); keep.push('check');
   }
   if (sim.d < 0.01) { letoffMark = null; checkMark = null; letoffD = null; }
   S.clearCallouts(keep);
