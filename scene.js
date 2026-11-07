@@ -57,7 +57,15 @@ const W_SPRING_COIL = [-49.1, 17.0];
 const W_SPRING_UPPER = [[-49.1, 17.0], [-51.6, 19.6], [-60.4, 21.8], [-63.6, 24.7], [-67.6, 26.9], [-71.5, 29.3]];
 const W_SPRING_LOWER = [[-49.1, 17.0], [-51.6, 15.3], [-61.1, 16.0], [-69.8, 12.7], [-74.9, 9.1], [-80.7, 4.4], [-90.9, 1.5], [-95.4, -0.7]];
 // jack-local: origin at the jack center pin, drawn at its rest lean
-const J_BODY = [[17.7, 47.1], [11.9, 48.9], [-1.6, 4.2], [-3.2, 1.2], [-6.1, -1.1], [-22.6, 0.2], [-23.2, 2.1], [-23.1, 3.2], [-23.6, 4.1],
+// the top's back corner is rounded so the knuckle slips off it: Hirschkorn's 1 mm arc (Table A.5, Pj2), the curve
+// model.js lifts the knuckle with, running from the back edge round to the top face
+const J_TOP_ARC = (() => {
+  const [cx, cy] = G.jackTop, r = G.jackTopR;
+  const tangent = ([px, py], s) => Math.atan2(py - cy, px - cx) + s * Math.acos(r / Math.hypot(px - cx, py - cy));
+  const a0 = tangent([4.9, 8.9], 1), a1 = tangent(G.jackFront, -1);
+  return Array.from({ length: 9 }, (_, i) => { const a = a0 + (a1 - a0) * i / 8; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; });
+})();
+const J_BODY = [...J_TOP_ARC, [11.9, 48.9], [-1.6, 4.2], [-3.2, 1.2], [-6.1, -1.1], [-22.6, 0.2], [-23.2, 2.1], [-23.1, 3.2], [-23.6, 4.1],
   [-24.5, 4.8], [-25.6, 4.9], [-26.5, 4.4], [-27.2, 3.5], [-27.3, 2.4], [-26.8, 1.5], [-25.9, 0.8], [-24.8, 0.7], [-16.5, -4.6],
   [-6.1, -8], [-0.6, -8.4], [3.4, -6.8], [5.8, -3.6], [6.5, 1.8], [6.7, 4.5], [6.2, 7.1], [4.9, 8.9]];
 const J_BUTTON = [[20.4, 19.9], [13.3, 22.2], [16.3, 31.2], [23.3, 28.9]];
