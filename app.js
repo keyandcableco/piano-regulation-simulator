@@ -56,6 +56,7 @@ let adj = NOTES[0].adj, sim = NOTES[0].sim, m = NOTES[0].m, tested = NOTES[0].te
 function store() { Object.assign(NOTES[cur], { adj, sim, m, tested }); }
 function selectNote(slot) {
   if (slot === cur || busy) return;
+  autoUp = false;
   if (sim.dTarget > 0) sim.press(0, 60);
   store(); cur = slot;
   ({ adj, sim, m, tested } = NOTES[slot]);
@@ -263,6 +264,7 @@ async function runTest(id) {
   const t = TESTS[id];
   if (busy) return;
   const gen = generation;
+  autoUp = false; recentWarn.clear();   // a test's own press stays down; its warnings always show
   busy++;
   view(t.view);
   if (mode === 'diagnose' || examActive()) testsUsed++;
@@ -783,7 +785,7 @@ function toast(text, kind = '') {
 // and for anything that is wrong (a block, a pop, a scrape), it pops up as well.
 const recentWarn = new Map();
 function say(text, kind = '') {
-  $('#lastevent').textContent = text;
+  $('#lastevent').textContent = text; $('#lastevent').title = text;
   if (kind === 'warn') {
     if (performance.now() - (recentWarn.get(text) ?? -1e9) < 5000) return;   // not again on every loop
     recentWarn.set(text, performance.now());
@@ -899,7 +901,7 @@ window.addEventListener('keydown', e => {
   if (mode === 'tools') return;   // no key on the bench while a tool is out
   if (e.code === 'Escape') { setLoop(false); letUp(); }
   if (e.code === 'KeyP' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !busy && e.target === document.body) setPedal(!pedalDown);
-  if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); sim.press(sim.dip, 250); }
+  if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); autoUp = false; sim.press(sim.dip, 250); }
 });
 window.addEventListener('keyup', e => { if (mode !== 'tools' && e.code === 'Space' && !busy && e.target === document.body) sim.press(0, 60); });
 
@@ -915,7 +917,7 @@ let keyHeld = false;
 canvas.addEventListener('pointerdown', e => {
   const hit = S.pick(e), part = hit?.part;
   if (hit && hit.note >= 0 && hit.note !== cur && examActive() && !busy) { selectNote(hit.note); view('angle'); }
-  if (part === 'key' && !busy) { keyHeld = true; S.controls.enabled = false; sim.press(sim.dip, 250); }
+  if (part === 'key' && !busy) { keyHeld = true; S.controls.enabled = false; setLoop(false); autoUp = false; sim.press(sim.dip, 250); }
   else {
     const knob = ADJ.find(a => a.part === part);
     if (knob) S.highlight(knob.part, cur);
@@ -956,7 +958,7 @@ function frame(now) {
   if (looping && !autoUp && sim.d === 0 && sim.dTarget === 0) {
     if (restSince === null) restSince = simTime;
     else if (simTime - restSince > 0.35) { sim.press(sim.dip, 250); autoUp = true; restSince = null; }
-  }
+  } else restSince = null;
   const down = sim.d > 0.05 || sim.dTarget > 0.05;
   $('#keypos').textContent = `key ${fmt(sim.d)} down`;
   $('#keystate').textContent = down ? (sim.dTarget > 0.05 ? 'Key held down' : 'Key coming up') : 'Key at rest';
