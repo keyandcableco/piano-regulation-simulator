@@ -1,6 +1,6 @@
 import { G, IN, ADJ, SPEC, DAMPER_SPECS, DAMAGE, FACTORY, NEIGHBOR_H, Sim, measure, grade, hamPt, crownY, crownTop, keyAngle, keyPt,
          jackGeom, knuckleBottom, coreBack, eff, repSupportZ, gString as gStringNow } from './model.js';
-import { createScene, NOTE_Z } from './scene.js';
+import { createScene, NOTE_Z, BASS } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
 import { TOOLBAG } from './toolbag.js';
@@ -108,7 +108,7 @@ const STEPS = [
     how: 'Square a key by bending the balance rail pin to one side with a soft drift; space it by bending the front rail pin, the tool under the punching so the pin isn\'t marked.' },
   { spec: 'hammerTravel', title: 'Travel the hammers', knobs: ['hammerTravel'], test: 'travelLift',
     what: 'Lift the hammer slowly to the strings: it should rise straight, without drifting sideways. A hammer that travels off its path ends up striking a different spot than where it rests.',
-    how: 'Put a strip of paper under one side of the hammer flange to tilt its path. Travel before spacing, since traveling moves the hammer at the strings.',
+    how: 'Put a strip of thin paper under one side of the hammer flange to tilt its path: under the side the hammer drifts toward as it rises. That side of the flange lifts and the path swings back. Paper on the wrong side makes the drift worse. Travel before spacing, since traveling moves the hammer at the strings.',
     note: 'Wippens and jacks are squared the same way at their flanges; the sim keeps those square.' },
   { spec: 'hammerSpacing', title: 'Space the hammers to the strings', knobs: ['hammerSpace'], test: 'alignSight',
     what: 'At the strings, the hammer should be centered on its unison so it strikes all three strings evenly (makers vary: some favor the treble side).',
@@ -347,19 +347,22 @@ function knobRow(id, { readings = false } = {}) {
     el('span', { class: 'sym' }, sym), el('span', { class: 'step' }, step));
   const coarse = d.steps[d.steps.length - 1], fine = d.steps[0];
   const two = d.steps.length > 1;
-  const valTxt = mode === 'sandbox'
-    ? (d.unit === 'mm' || d.unit === '°' ? `${(adj[id] - FACTORY[id] >= 0 ? '+' : '')}${(adj[id] - FACTORY[id]).toFixed(2)}${d.unit === '°' ? '°' : ' mm'} from factory`
-      : id === 'damperDrag' ? `drag ${adj[id].toFixed(2)}` : `${adj[id].toFixed(2)} × hammer weight`)
-    : '';
+  const net = adj[id] - FACTORY[id];
+  const valTxt = mode !== 'sandbox' ? ''
+    : d.sides ? (Math.abs(net) < 0.005 ? 'no paper' : `paper under the ${d.sides[net > 0 ? 0 : 1]} side (${Math.abs(net).toFixed(1)} mm of drift)`)
+    : d.unit === 'mm' || d.unit === '°' ? `${net >= 0 ? '+' : ''}${net.toFixed(2)}${d.unit === '°' ? '°' : ' mm'} from factory`
+    : id === 'damperDrag' ? `drag ${adj[id].toFixed(2)}` : `${adj[id].toFixed(2)} × hammer weight`;
   return el('div', { class: 'knob' },
     el('div', { class: 'knob-head' },
       el('button', { class: 'linkish', onclick: () => { S.highlight(d.part, cur); view(viewFor(d.part)); } }, d.name),
       el('span', { class: 'muted small' }, examActive() && SHARED.has(id) ? 'shared by all three notes' : valTxt)),
     el('div', { class: 'knob-btns' },
-      two ? btn('−−', -coarse, d.stepLabel[1]) : null,
-      btn('−', -fine, d.stepLabel[0]),
-      btn('+', +fine, d.stepLabel[0]),
-      two ? btn('++', +coarse, d.stepLabel[1]) : null),
+      // a shim goes under one side or the other: the choice of side is the adjustment
+      d.sides ? d.sides.map((s, i) => btn(`${s[0].toUpperCase()}${s.slice(1)} side`, i ? -fine : +fine, `${i ? 'right' : 'left'} from the keys · add ${d.stepLabel[0]}`)) : [
+        two ? btn('−−', -coarse, d.stepLabel[1]) : null,
+        btn('−', -fine, d.stepLabel[0]),
+        btn('+', +fine, d.stepLabel[0]),
+        two ? btn('++', +coarse, d.stepLabel[1]) : null]),
     readings ? knobReadings(id) : null,
     el('div', { class: 'muted small' }, d.how));
 }
@@ -963,8 +966,8 @@ function updateCallouts() {
     S.setCallout('jack', [jg.backX, jg.backY, 8 + nz], [coreBack(g, jg.backY), jg.backY, 8 + nz], reading('jackPos').txt); keep.push('jack');
   }
   if (show('wippenSpacing') && atRest && viewNow === 'jackfront') {
-    const jg = jackGeom(L, sim.psi), zj = nz + (adj.wippenSpace || 0);
-    S.setCallout('jackside', [jg.backX - 3, jg.topY + 1, zj], [jg.backX - 3, jg.topY + 1, zj - m.wippenSpacing], reading('wippenSpacing').txt); keep.push('jackside');
+    const jg = jackGeom(L, sim.psi), zj = nz + BASS * (adj.wippenSpace || 0);
+    S.setCallout('jackside', [jg.backX - 3, jg.topY + 1, zj], [jg.backX - 3, jg.topY + 1, zj - BASS * m.wippenSpacing], reading('wippenSpacing').txt); keep.push('jackside');
   }
   if (letoffMark !== null && sim.d > 0.05 && show('letoff')) {
     const c = crownTop(letoffMark); S.setCallout('letoff', [c[0] + 8, c[1], z], [c[0] + 8, G.stringY, z], `let-off ${fmt(G.stringY - c[1])}`); keep.push('letoff');

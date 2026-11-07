@@ -1,5 +1,6 @@
 // Three.js rendering of the grand action. Units are millimetres, same frame
-// as model.js: x toward the strings, y up, z across the keyboard (+z toward the bass).
+// as model.js: x toward the strings, y up, z across the keyboard. With x away from the player and y up, +z is the
+// player's right: the treble. model.js measures sideways offsets with + toward the bass, so they are drawn at BASS times.
 // Three notes are built; normal modes show the middle one with ghost neighbors,
 // exam mode shows all three like the 3-note exam model.
 import * as THREE from 'three';
@@ -31,8 +32,10 @@ const PART_NAMES = {
   damperstop: 'Damper stop rail', lifttray: 'Damper lift tray (pedal)', guiderail: 'Damper guide rail', ulrail: 'Underlever flange rail', tail: 'Hammer tail (scored check surface)', keybed: 'Keybed', straightedge: 'Straightedge',
 };
 
+// the bass side is -z (on the player's left, as seen from the keys)
+export const BASS = -1;
 // note slots: 0 is the middle (the one normal modes use), 1 toward the bass, 2 toward the treble
-export const NOTE_Z = [0, 23.5, -23.5];
+export const NOTE_Z = [0, 23.5 * BASS, -23.5 * BASS];
 const UL_PIVOT = [604, 66];        // underlever centre pin
 const UL_FELT = [-135, -6];        // lift felt, over the key's end
 const UL_WIRE = [-98, 5];          // where the damper wire leaves the underlever
@@ -552,13 +555,13 @@ export function createScene(canvas, overlay) {
     n.rep.rotation.z = -repRho(L, Math.min(L.hornTop, kb));
     n.hammer.rotation.z = hammerOverride ?? sim.g;
     // side to side: the wippen shifted on its flange, the backcheck wire bent over and its head twisted
-    n.wippen.position.z = n.wfl.position.z = a.wippenSpace || 0;
-    n.bc.rotation.x = Math.asin(Math.max(-0.5, Math.min(0.5, (a.backcheckSpace || 0) / BC_ARM)));
+    n.wippen.position.z = n.wfl.position.z = BASS * (a.wippenSpace || 0);
+    n.bc.rotation.x = Math.asin(Math.max(-0.5, Math.min(0.5, BASS * (a.backcheckSpace || 0) / BC_ARM)));
     n.bcHeadG.rotation.y = (a.backcheckSquare || 0) * Math.PI / 180;
     // alignment: spacing, traveling (drift at the string = 47 mm of rise times the tilt), squaring
-    const tilt = -(a.hammerTravel || 0) / TRAVEL_RISE;    // crown rises about 44.5 mm to the strings
+    const tilt = -BASS * (a.hammerTravel || 0) / TRAVEL_RISE;    // + travel drifts toward the treble; the crown rises about 44.5 mm to the strings
     n.align.rotation.x = tilt;
-    n.align.position.z = (a.hammerSpace || 0) - SIDE_K * Math.sin(tilt);   // keep the resting head where spacing puts it (model.js sideZ)
+    n.align.position.z = BASS * (a.hammerSpace || 0) - SIDE_K * Math.sin(tilt);   // keep the resting head where spacing puts it (model.js sideZ)
     const wob = a.wobble ? a.wobble * ((sim.strikes || 0) % 2 ? 1 : -1) : 0;   // a split shank wobbles blow to blow
     n.headG.rotation.x = ((a.hammerSquare || 0) + wob) * Math.PI / 180;
     n.crack.visible = a.damage === 'splitShank';
@@ -591,7 +594,7 @@ export function createScene(canvas, overlay) {
     const headY = G.stringY + 1.1 + sim.yd;
     // a head bent off its seat rests on one end, the other up by damperLevel; one bent sideways sits off its unison
     const lvl = a.damperLevel || 0;
-    n.dHead.position.set(DH_X, headY + Math.abs(lvl) / 2, a.damperCenter || 0);
+    n.dHead.position.set(DH_X, headY + Math.abs(lvl) / 2, BASS * (a.damperCenter || 0));
     n.dHead.rotation.z = lvl / DH_LEN;
     n.wire.scale.y = Math.max(1, headY + 4 - wb[1]); n.wire.position.set(wb[0], (headY + 4 + wb[1]) / 2, WIRE_Z);
     if (drawShared) {

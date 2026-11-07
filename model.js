@@ -79,7 +79,8 @@ export const ADJ = [
   { id: 'backcheck', name: 'Backcheck wire', part: 'backcheck', unit: 'mm', min: -4, max: 4,
     steps: [0.25], stepLabel: ['bend'], how: 'Bend the backcheck toward (+) or away from (−) the hammer tail.' },
   { id: 'hammerTravel', name: 'Traveling paper under the hammer flange', part: 'flange', unit: 'mm', min: -3, max: 3,
-    steps: [0.1], stepLabel: ['paper'], how: 'A strip of paper under one side of the flange tilts the hammer\'s path. Sets how far the head drifts sideways on its way to the string.' },
+    steps: [0.1], stepLabel: ['paper'], sides: ['bass', 'treble'],   // + is paper under the bass side: the path swings toward the treble
+    how: 'A strip of thin paper under one side of the flange lifts that side, so the hammer\'s path swings away from it. Put it under the side the hammer drifts toward as it rises. Too much? Take a strip out: the sim counts that as one under the other side.' },
   { id: 'hammerSpace', name: 'Hammer spacing (shift on the flange)', part: 'flange', unit: 'mm', min: -4, max: 4,
     steps: [0.1, 0.4], stepLabel: ['tap', 'shift'], how: 'Loosen the flange screw and shift the hammer sideways to center it on its unison.' },
   { id: 'hammerSquare', name: 'Burn the shank (heat and twist)', part: 'shank', unit: '°', min: -8, max: 8,

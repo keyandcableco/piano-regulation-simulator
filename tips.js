@@ -34,6 +34,7 @@ export const TIPS = {
     { text: 'Travel the shanks before hanging hammers: screw the stack to a dead-level bench and check each shank against a square.', ...PT('Dale Erwin RPT', 2001) },
     { text: 'Travel the two end shanks of a section perfectly, then clip a stick ruled with vertical lines to the end hammers. Lift the section and the wanderers show at once.', ...PT('Lance Lafargue RPT', 2001) },
     { text: 'Mark a spacing scale from the hammer wear marks before you start, so unspaced hammers have a real place to go back to.', ...BROWN },
+    { text: 'The shim goes under the side of the flange the hammer is traveling toward. Take the flange off to fit a strip of gummed tape, and check underneath for dirt: it may be what tipped the hammer in the first place.', ...FRANCESCO('Grand regulation in detail, part 3, 2023', 'https://pianotuningmatters.blogspot.com/2023/08/grand-regulation-in-detail-part-3.html') },
   ],
   keyHeight: [
     { text: 'Pre-level the end keys with cut punchings and make sure the straightedge clears every key before you start.', ...BROWN },
