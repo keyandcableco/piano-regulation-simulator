@@ -541,7 +541,8 @@ export function createScene(canvas, overlay) {
     for (const l of LABELS) {
       lv.copy(l.p); l.obj.localToWorld(lv); lv.project(camera);
       l.e.style.transform = `translate(${(lv.x * 0.5 + 0.5) * w}px, ${(-lv.y * 0.5 + 0.5) * h}px)`;
-      l.e.style.display = lv.z < 1 && Math.abs(lv.x) < 1.05 && Math.abs(lv.y) < 1.05 ? '' : 'none';
+      const off = notes[0].stackOff && !KEY_LABELS.has(l.e.textContent);   // nothing named over a lifted-off stack
+      l.e.style.display = lv.z < 1 && Math.abs(lv.x) < 1.05 && Math.abs(lv.y) < 1.05 && !off ? '' : 'none';
     }
   }
 
@@ -656,9 +657,11 @@ export function createScene(canvas, overlay) {
 
   // with the stack lifted off the keys (the key drop test) only the keys and the keyframe show
   const KEY_PARTS = new Set(['key', 'keytop', 'neighbor', 'balance', 'balrail', 'frontrail', 'frontpunch', 'backrail', 'capstan', 'backcheck', 'keybed']);
+  const KEY_LABELS = new Set(['Key', 'Capstan', 'Balance rail', 'Front rail', 'Back rail', 'Backcheck']);
   function showStack(n, on, shared) {
     for (const c of n.root.children) c.visible = on || c === n.key || KEY_PARTS.has(c.userData.part);
-    if (shared) for (const c of fixed.children) if (c !== ghosts && c !== straightedge) c.visible = on || KEY_PARTS.has(c.userData.part);
+    // the shared rails come back with any note's stack (a test cut short by a mode change can leave another note current)
+    if (shared || on) for (const c of fixed.children) if (c !== ghosts && c !== straightedge) c.visible = on || KEY_PARTS.has(c.userData.part);
   }
 
   function update(slot, sim, a, hammerOverride = null, jackOverride = null, drawShared = slot === 0) {

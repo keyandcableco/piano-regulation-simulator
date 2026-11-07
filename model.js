@@ -710,8 +710,10 @@ export class Sim {
   }
   emit(type, data = {}) { this.events.push({ type, d: this.d, g: this.g, ...data }); }
   press(target, speed) {
-    // letting a key up again once it has stuck down: the hand lifts it
-    if (this.stuck && target < this.d && this.dTarget <= target + 1e-9) this.lifting = true;
+    // letting a key up again once it has stuck down: the hand lifts it. Pressed and let go instead, it stays down,
+    // and says so again. Pressed down, a tight key binds again.
+    if (target > this.d) this.lifting = false;
+    else if (this.stuck && target < this.d) { if (target === 0 && this.dTarget === 0) this.lifting = true; else this.emit('keystuck'); }
     this.dTarget = Math.max(0, Math.min(target, this.dip + 1)); this.keySpeed = speed;
   }
   step(dt) {

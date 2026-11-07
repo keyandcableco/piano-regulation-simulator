@@ -684,7 +684,7 @@ const BUSHING_FIXES = {
   easeBal: { label: 'Ease the balance rail bushing', fixes: { balTight: 'Eased: the key has a little play at its balance pin and drops freely.' },
     wrong: { frontTight: 'The balance bushing already has its play: the key binds at the front.' } },
 };
-function bushingChanged() { clearFrames(); sim.setAdj(adj); sim.reset(); m = measure(adj); store(); refresh(); }
+function bushingChanged() { generation++; clearFrames(); sim.setAdj(adj); sim.reset(); m = measure(adj); store(); refresh(); }
 function bushingRepairs() {
   return el('div', {}, el('p', { class: 'muted small' }, 'Key bushings: eased or rebushed, not regulated.'),
     el('div', { class: 'tests' }, Object.values(BUSHING_FIXES).map(f => el('button', { class: 'test', disabled: busy ? '' : false, onclick: () => {
@@ -906,7 +906,7 @@ function renderSandbox(p) {
         el('option', { value: '' }, 'nothing'),
         Object.keys(DAMAGE).map(k => el('option', { value: k, ...(adj.damage === k ? { selected: '' } : {}) }, damageLabel(k))))),
     el('label', { class: 'row small' }, 'Key bushings: ',
-      el('select', { onchange: e => { adj.bushing = e.target.value || null; bushingChanged(); } },
+      el('select', { disabled: busy ? '' : false, onchange: e => { adj.bushing = e.target.value || null; bushingChanged(); } },
         el('option', { value: '' }, 'healthy'),
         Object.entries(BUSHINGS).map(([k, b]) => el('option', { value: k, ...(adj.bushing === k ? { selected: '' } : {}) }, b.name)))),
     repairs());
@@ -1108,7 +1108,8 @@ function handleEvents() {
     if (e.type === 'seated' && !gradeL('damperSeat', m).ok && (show('damperSeat') || mode === 'diagnose')) say('The damper is down, but a string goes on ringing', 'warn');
     if (e.type === 'click') say('A dry click on the blow', 'warn');
     if (e.type === 'keyclick') say('A click from the key as it bottoms: it knocks on its pins', 'warn');
-    if (e.type === 'keystuck') say('The key stayed down: a tight bushing holds it. Let key up again to lift it by hand', 'warn');
+    // a test lifts the key itself; Loop can't go on with it down
+    if (e.type === 'keystuck' && !busy) { setLoop(false); say('The key stayed down: a tight bushing holds it. Press Let key up to lift it by hand', 'warn'); }
   }
   // the pedal test listens for every damper landing, on every note
   NOTES.forEach((n, slot) => { if (landed) for (const e of n.sim.events) if (e.type === 'seated' && !landed.has(slot)) landed.set(slot, e.t); n.sim.events = []; });
@@ -1248,7 +1249,7 @@ let paused = false, stepFrames = 0, frameNo = 0, frameHold = null;
 const FRAME_S = 1 / 60, H_STEP = 0.0002;   // 0.2 ms steps keep the escapement timing stable
 const frameHistory = [], HISTORY_MAX = 900;   // about 15 s of frames
 const clearFrames = () => { frameHistory.length = 0; cue = null; };
-const SNAP_SKIP = new Set(['a', 'L', 'events', 'dip']), SNAP_LAZY = ['strikes', 'popped', 'buzzing'];   // fields a Sim sets only later
+const SNAP_SKIP = new Set(['a', 'L', 'events', 'dip', 'keyRock', 'keyTwist', 'keyShown', 'stackOff']), SNAP_LAZY = ['strikes', 'popped', 'buzzing'];   // fields a Sim sets only later
 const snapSim = s => Object.fromEntries(Object.entries(s).filter(([k]) => !SNAP_SKIP.has(k)).map(([k, v]) => [k, v && typeof v === 'object' ? structuredClone(v) : v]));
 // nothing moving: keys up, hammers and dampers still (a damper can rest up on the pedal's tray), the pedal not moving
 // (a hammer at rest can keep a speed of 1e-16 or so from the last step's rounding)
@@ -1502,7 +1503,7 @@ function frame(now) {
     : frameNo === cue.letoff ? 'let-off · ' : `${frames(frameNo - cue.letoff)} after let-off · `;
   $('#keypos').textContent = `${paused ? 'paused · ' : ''}${toLetoff}key ${fmt(sim.d)} down`;
   S.setInsetText(`Key front · ${fmt(sim.d)} down${sim.d >= sim.dip - 0.01 ? ' (dip)' : ''}`);
-  $('#keystate').textContent = !down ? 'Key at rest' : sim.dTarget > sim.d + 0.01 ? 'Key going down' : sim.dTarget > 0.05 ? 'Key held down' : 'Key coming up';
+  $('#keystate').textContent = !down ? 'Key at rest' : sim.dTarget > sim.d + 0.01 ? 'Key going down' : sim.dTarget > 0.05 ? 'Key held down' : sim.stuck && !sim.lifting ? 'Key stuck down' : 'Key coming up';
   $('#keystate').classList.toggle('down', down);
   $('#k-release').classList.toggle('attn', sim.dTarget > 0.05 && plan !== 'up' && plan !== 'all' && !busy);
   // a test runs the action itself: the key and frame buttons wait for it
