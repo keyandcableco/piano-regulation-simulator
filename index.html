@@ -200,8 +200,12 @@ a { color: var(--accent); }
   #views button, #keybar button { font-size: 12px; padding: 4px 8px; white-space: nowrap; flex: none; }
   #keystate { display: none; }
   #lastevent { max-width: 30ch; }
-  #examclock { top: auto; bottom: 52px; right: 10px; font-size: 16px; }
+  #examclock { top: auto; bottom: 52px; right: 84px; font-size: 16px; }   /* left of the move buttons, never over Help */
   #navpad { top: 46px; transform: none; }   /* up under the view buttons, clear of the exam clock */
+}
+/* a mouse can't swipe a button row sideways: show a thin scrollbar under it (a short window, or zoomed in) */
+@media (max-width: 820px) and (pointer: fine), (orientation: landscape) and (max-height: 500px) and (pointer: fine) {
+  #views, #keybar { scrollbar-width: thin; }
 }
 /* fingers, at any width (most phones are wider than 820px on their side) */
 @media (pointer: coarse) {
@@ -211,7 +215,7 @@ a { color: var(--accent); }
   button.test { padding: 8px 10px; }
 }
 @media (max-width: 820px) and (orientation: landscape), (orientation: landscape) and (max-height: 500px) {
-  #app { grid-template-columns: minmax(0, 1fr) minmax(300px, 48%); grid-template-rows: minmax(0, 1fr); }
+  #app { grid-template-columns: minmax(0, 1fr) minmax(300px, min(48%, 480px)); grid-template-rows: minmax(0, 1fr); }
   aside { border-top: 0; border-left: 1px solid var(--line); }
 }
 /* a small or short picture: zoom, reset and help only (two fingers slide) */
