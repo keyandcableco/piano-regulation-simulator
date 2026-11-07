@@ -67,7 +67,8 @@ function selectNote(slot) {
 let mode = 'learn';
 let timeScale = 0.1;
 let stepIdx = 0;
-let scenario = null, testsUsed = 0, verdict = null;
+// Find the fault: verdict is the last check ({ bad: spec ids still out }); gaveUp shows the answer
+let scenario = null, testsUsed = 0, verdict = null, checks = 0, gaveUp = false, hint = false;
 let hammerOverride = null, jackOverride = null;
 let simTime = 0;
 const waits = [];
@@ -298,7 +299,7 @@ function revealed(id) {
   if (mode === 'sandbox' || level().live) return true;
   if (mode === 'learn') return tested.has(id);
   if (mode === 'exam') return tested.has(id) || exam.done;
-  return tested.has(id) || !!verdict;
+  return tested.has(id) || gaveUp || (!!verdict && !verdict.bad.length);
 }
 
 // ---------- adjustments ----------
@@ -310,13 +311,40 @@ function setAdj(id, v) {
   sim.setAdj(adj);
   if (sim.d < 0.01 && !sim.st.checked) sim.reset();
   m = measure(adj);
+  unsolve();
   store();
   if (SHARED.has(id)) NOTES.forEach((n, i) => { if (i !== cur) { n.adj[id] = adj[id]; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); } });
   refresh();
 }
-function knobRow(id) {
+// what each adjustment is for: the readings its card shows, so you see them move as you turn it
+const KNOB_FOR = {
+  balPunch: ['keyHeight'], frontPunch: ['dip', 'aftertouch'], capstan: ['blow', 'lostMotion', 'aftertouch'], restRail: ['restGap', 'lostMotion'],
+  hammerTravel: ['hammerTravel'], hammerSpace: ['hammerSpacing'], hammerSquare: ['hammerSquare'],
+  jackScrew: ['jackPos'], wippenSpace: ['wippenSpacing'], repStop: ['wink'], letoff: ['letoff'], drop: ['drop'], repSpring: ['spring'],
+  backcheck: ['check'], backcheckSpace: ['backcheckAlign'], backcheckSquare: ['backcheckAlign'],
+  damperGap: ['damperTiming'], damperStop: ['damperStop'], pedalLift: ['pedalLift'],
+  damperDrag: ['damperFall'], damperCenter: ['damperSeat'], damperLevel: ['damperSeat'],
+};
+const SHORT = {
+  keyHeight: 'Key height', dip: 'Dip', aftertouch: 'Aftertouch', blow: 'Blow', lostMotion: 'Lost motion', restGap: 'Rail gap',
+  hammerTravel: 'Travel', hammerSpacing: 'Spacing', hammerSquare: 'Square', jackPos: 'Jack position', wippenSpacing: 'Jack centered',
+  wink: 'Wink', letoff: 'Let-off', drop: 'Drop', spring: 'Spring', check: 'Checking', backcheckAlign: 'Centered, square',
+  damperTiming: 'Lift timing', damperStop: 'Stop rail', pedalLift: 'Pedal lift', damperFall: 'Fall', damperSeat: 'Seat',
+};
+// an unmeasured reading names its test, which may sit in another part of the action (aftertouch: the slow press)
+const testFor = s => TESTS[Object.keys(TESTS).find(k => !TESTS[k].examOnly && TESTS[k].specs.includes(s))]?.label;
+function knobReadings(id) {
+  const ids = KNOB_FOR[id] || [];
+  return el('div', { class: 'sets small' }, el('span', { class: 'muted' }, 'Sets'), ids.map(s => {
+    const show = revealed(s), r = show ? reading(s) : null;
+    return el('span', { class: 'chip' + (show ? (r.ok ? ' ok' : ' bad') : '') }, el('span', { class: 'dot' }), `${SHORT[s]}: `,
+      show ? r.txt : el('span', { class: 'muted' }, `not measured (${testFor(s)})`));
+  }));
+}
+function knobRow(id, { readings = false } = {}) {
   const d = ADJ.find(x => x.id === id);
-  const btn = (txt, delta, title) => el('button', { class: 'nudge', title, onclick: () => { S.highlight(d.part, cur); setAdj(id, adj[id] + delta); } }, txt);
+  const btn = (sym, delta, step) => el('button', { class: 'nudge', title: `${sym} ${step}`, onclick: () => { S.highlight(d.part, cur); setAdj(id, adj[id] + delta); } },
+    el('span', { class: 'sym' }, sym), el('span', { class: 'step' }, step));
   const coarse = d.steps[d.steps.length - 1], fine = d.steps[0];
   const two = d.steps.length > 1;
   const valTxt = mode === 'sandbox'
@@ -328,10 +356,11 @@ function knobRow(id) {
       el('button', { class: 'linkish', onclick: () => { S.highlight(d.part, cur); view(viewFor(d.part)); } }, d.name),
       el('span', { class: 'muted small' }, examActive() && SHARED.has(id) ? 'shared by all three notes' : valTxt)),
     el('div', { class: 'knob-btns' },
-      two ? btn('−−', -coarse, `− ${d.stepLabel[1]}`) : null,
-      btn('−', -fine, `− ${d.stepLabel[0]}`),
-      btn('+', +fine, `+ ${d.stepLabel[0]}`),
-      two ? btn('++', +coarse, `+ ${d.stepLabel[1]}`) : null),
+      two ? btn('−−', -coarse, d.stepLabel[1]) : null,
+      btn('−', -fine, d.stepLabel[0]),
+      btn('+', +fine, d.stepLabel[0]),
+      two ? btn('++', +coarse, d.stepLabel[1]) : null),
+    readings ? knobReadings(id) : null,
     el('div', { class: 'muted small' }, d.how));
 }
 function viewFor(part) {
@@ -440,8 +469,9 @@ function newScenario() {
     for (const [k, v] of Object.entries(s2.faults)) adj[k] += v;
     scenario.second = s2;
   }
-  tested = new Set(); testsUsed = 0; verdict = null;
+  tested = new Set(); testsUsed = 0; verdict = null; checks = 0; gaveUp = false; hint = false;
   applyAdj();
+  $('aside').scrollTop = 0;
 }
 const rnd = (lo, hi) => lo + Math.random() * (hi - lo), pm = x => rnd(-x, x);
 function deregulated() {
@@ -468,7 +498,7 @@ function refresh() {
   // the action's views and key buttons have nothing to work on while a tool is on the bench
   $('#views').style.display = $('#keybar').style.display = mode === 'tools' ? 'none' : '';
   const p = $('#mode');
-  p.replaceChildren();
+  p.replaceChildren(); $('#actionbar').replaceChildren();
   if (showCredits) renderCredits(p);
   else if (mode === 'learn') renderLearn(p);
   else if (mode === 'diagnose') renderDiagnose(p);
@@ -491,7 +521,9 @@ function renderLearn(p) {
   put(p, el('div', { class: 'steps' }, STEPS.map((s, i) =>
     el('button', { class: 'pip' + (s.info ? ' info' : '') + (i === stepIdx ? ' cur' : '') + (!s.info && stepDone(s) ? ' ok' : ''), title: s.title,
       onclick: () => { stepIdx = i; focusStep(); refresh(); } }, String(i + 1))),
-    el('button', { class: 'pip' + (done ? ' cur' : ''), title: 'Final check', onclick: () => { stepIdx = STEPS.length; refresh(); } }, '✓')));
+    el('button', { class: 'pip' + (done ? ' cur' : ''), title: 'Final check', onclick: () => { stepIdx = STEPS.length; refresh(); } }, '✓')),
+    // the key arrives knocked out of regulation (messUp), and nothing else on the page would say so
+    done ? null : el('p', { class: 'muted small' }, 'This key starts out of regulation on purpose: every setting, hammer alignment included, is knocked a little off. Work through the steps to put it right; ✓ re-checks everything at the end.'));
   if (done) {
     GRADED.flatMap(stepSpecs).forEach(id => tested.add(id));
     const bad = GRADED.filter(s => !stepDone(s));
@@ -566,6 +598,7 @@ function repairs() {
     el('div', { class: 'tests' }, Object.entries(DAMAGE).map(([key, d]) => el('button', { class: 'test', disabled: busy ? '' : false, onclick: () => {
       if (adj.damage !== key) { if (mode === 'diagnose' || examActive()) testsUsed++; toast(`${d.repair}: nothing wrong there, so nothing changed.`); refresh(); return; }
       adj.damage = null;
+      unsolve();
       // a new shank arrives untraveled and unspaced
       if (key === 'splitShank') {
         Object.assign(adj, { hammerTravel: pm(0.6), hammerSpace: pm(0.6), hammerSquare: pm(2) });
@@ -577,30 +610,77 @@ function repairs() {
 }
 const damageLabel = k => ({ splitShank: 'Split shank', looseFlange: 'Loose flange screw', looseHead: 'Loose hammer head',
   tightCenter: 'Tight flange center', brokenJackSpring: 'Broken jack spring' })[k];
+// Find the fault works part by part: each part of the action with its tests, readings and adjustments together
+const AREAS = [
+  { id: 'key', name: 'Key', tests: ['straightedge', 'dipBlock'], knobs: ['balPunch', 'frontPunch'] },
+  { id: 'hammer', name: 'Hammer, blow and rest rail', tests: ['travelLift', 'alignSight', 'wiggle', 'blowGauge', 'restRail', 'topPlay'],
+    knobs: ['hammerTravel', 'hammerSpace', 'hammerSquare', 'capstan', 'restRail'] },
+  { id: 'jack', name: 'Jack and repetition lever', tests: ['sightJack', 'sightJackFront', 'wink', 'slowPress', 'easeUp'],
+    knobs: ['jackScrew', 'wippenSpace', 'repStop', 'letoff', 'drop', 'repSpring'] },
+  { id: 'backcheck', name: 'Backcheck', tests: ['strikeHold', 'sightBackcheck'], knobs: ['backcheck', 'backcheckSpace', 'backcheckSquare'] },
+  { id: 'dampers', name: 'Dampers and pedal', tests: ['damperSlow', 'pedalTest', 'damperSight'],
+    knobs: ['damperGap', 'damperStop', 'pedalLift', 'damperDrag', 'damperCenter', 'damperLevel'] },
+];
+// open sections survive the panel being redrawn
+const openFolds = new Set(['how']);
+const fold = (key, summary, ...kids) => el('details', { class: 'fold', open: openFolds.has(key) ? '' : false,
+  ontoggle: e => { e.target.open ? openFolds.add(key) : openFolds.delete(key); } }, el('summary', {}, summary), el('div', { class: 'fold-body' }, ...kids));
+function areaPanel(a) {
+  const specs = [...new Set(a.tests.flatMap(t => TESTS[t].specs))];
+  const shown = specs.filter(revealed), out = shown.filter(id => !gradeL(id, m).ok);
+  const status = out.length ? el('span', { class: 'badc small' }, `${out.length} out of spec`)
+    : shown.length === specs.length ? el('span', { class: 'okc small' }, 'all in spec')
+    : el('span', { class: 'muted small' }, shown.length ? `${shown.length} of ${specs.length} measured` : 'not measured');
+  return fold(a.id, [el('span', { class: 'grow' }, a.name), status],
+    el('div', { class: 'tests' }, a.tests.map(testButton)),
+    measureTable(specs),
+    el('div', { class: 'knobs' }, a.knobs.map(id => knobRow(id, { readings: true }))));
+}
+const howTo = () => el('ol', { class: 'how' },
+  el('li', {}, el('b', {}, 'Test. '), 'Open a part of the action below and run its tests (▶). The action shows each test, and its readings fill in.',
+    level().live ? ' At Apprentice level every reading shows from the start.' : ''),
+  el('li', {}, el('b', {}, 'Adjust. '), 'Press − or + to turn a screw or change a punching. Each adjustment shows the readings it sets, and they change as you turn it.'),
+  el('li', {}, el('b', {}, 'Check. '), 'Play the key to try it, then press ', el('b', {}, 'Check my work'),
+    ' at the bottom. You are told which checks are still out, but not why, until it is right or you ask for the answer.'));
+// a solved verdict no longer holds once anything is turned again
+const unsolve = () => { if (verdict && !verdict.bad.length) verdict = null; };
+function checkWork() {
+  checks++;
+  verdict = { bad: Object.keys(SPEC).filter(id => !gradeL(id, m).ok) };
+  refresh();
+  // the list sits at the top: go there the first time and when it's right; after that, don't pull you out of the part you're in
+  if (checks === 1 || !verdict.bad.length) $('#verdict')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  else toast(`Still out: ${verdict.bad.map(id => SHORT[id] || SPEC[id].name).join(', ')}`, 'warn');
+}
 function renderDiagnose(p) {
   if (!scenario) {
     put(p, el('h2', {}, 'Find the fault'),
-      el('p', {}, `A customer describes a problem with one key. ${LEVEL.live ? 'At Apprentice level the readings are shown, and you can ask for a hint.' : 'Readings stay hidden until you run the test that measures them.'} Find what is out, fix it, then have your work checked.`),
+      el('p', {}, 'A customer describes a problem with one key. Find what is out of regulation and put it right.'),
+      howTo(),
       el('div', { class: 'row' }, el('button', { class: 'primary', onclick: newScenario }, 'Next customer')));
     return;
   }
+  const solved = !!verdict && !verdict.bad.length;
+  const answer = () => el('p', {}, el('b', {}, 'What was wrong: '), scenario.answer, scenario.second ? ` Also: ${scenario.second.answer}` : '');
+  const hintBad = Object.keys(SPEC).filter(id => !gradeL(id, m).ok).map(id => SPEC[id].name);
   put(p, el('div', { class: 'complaint' }, el('div', { class: 'muted small' }, 'The customer says'), el('p', {}, `“${scenario.complaint}”`)),
-    el('h3', {}, 'Tests'), el('div', { class: 'tests' }, Object.keys(TESTS).filter(k => !TESTS[k].examOnly).map(testButton)),
-    el('div', { class: 'muted small' }, `Tests run: ${testsUsed}`),
-    measureTable(Object.keys(SPEC)),
-    el('details', { open: '' }, el('summary', {}, 'Adjustments'), el('div', { class: 'knobs' }, ADJ.map(a => knobRow(a.id)))),
+    verdict ? el('div', { class: 'verdict ' + (solved ? 'ok' : 'bad'), id: 'verdict' },
+      el('h3', {}, solved ? 'Regulated. Nice work.' : `Last check: ${verdict.bad.length} still out of spec`),
+      solved ? null : el('ul', { class: 'small' }, verdict.bad.map(id => el('li', {}, SPEC[id].name))),
+      solved || gaveUp ? answer() : null,
+      el('p', { class: 'muted small' }, `${testsUsed} test${testsUsed === 1 ? '' : 's'} run, checked ${checks} time${checks === 1 ? '' : 's'}.`),
+      el('div', { class: 'row' }, solved || gaveUp ? el('button', { class: solved ? 'primary' : '', onclick: newScenario }, 'Next customer')
+        : el('button', { onclick: () => { gaveUp = true; refresh(); } }, 'Show what was wrong'))) : null,
+    hint && level().hints && !solved ? el('p', { class: 'note' }, 'Hint: look at ', hintBad.join('; ') || 'nothing: it looks regulated', '.') : null,
+    solved ? null : fold('how', 'How it works', howTo()),
+    AREAS.map(areaPanel),
     repairs());
-  if (!verdict) put(p, el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { verdict = true; refresh(); } }, 'Check my work'),
-    LEVEL.hints ? el('button', { onclick: e => { const bad = Object.keys(SPEC).filter(id => !gradeL(id, m).ok).map(id => SPEC[id].name); e.target.replaceWith(el('p', { class: 'note' }, 'Hint: look at ', bad.join('; ') || 'nothing: it looks regulated', '.')); } }, 'Hint') : null));
-  else {
-    const bad = Object.keys(SPEC).filter(id => !gradeL(id, m).ok);
-    put(p, el('div', { class: 'verdict ' + (bad.length ? 'bad' : 'ok') },
-      el('h3', {}, bad.length ? `${bad.length} still out of spec` : 'Regulated. Nice work.'),
-      el('p', {}, el('b', {}, 'What was wrong: '), scenario.answer, scenario.second ? ` Also: ${scenario.second.answer}` : ''),
-      el('p', { class: 'muted small' }, `You ran ${testsUsed} test${testsUsed === 1 ? '' : 's'}.`)),
-      el('div', { class: 'row' }, el('button', { class: 'primary', onclick: newScenario }, 'Next customer'),
-        bad.length ? el('button', { onclick: () => { verdict = null; refresh(); } }, 'Keep working') : null));
-  }
+  // the bar is the panel's last child, so it can stay pinned to the bottom edge
+  put($('#actionbar'),
+      el('span', { class: 'muted small grow' }, `Tests run: ${testsUsed}`),
+      level().hints && !hint && !solved ? el('button', { onclick: () => { hint = true; refresh(); } }, 'Hint') : null,
+      solved ? el('button', { class: 'primary', onclick: newScenario }, 'Next customer')
+        : el('button', { class: 'primary', onclick: checkWork }, checks ? 'Check again' : 'Check my work'));
 }
 // felt and cloth packing down with playing: punchings, back rail cloth, wippen heel,
 // knuckle, hammer felt, button felts, backcheck felt, and a tiring repetition spring
@@ -666,7 +746,7 @@ function renderSandbox(p) {
     wearControl(),
     measureTable(Object.keys(SPEC)),
     el('h3', {}, 'Tests'), el('div', { class: 'tests' }, Object.keys(TESTS).filter(k => !TESTS[k].examOnly).map(testButton)),
-    el('h3', {}, 'Adjustments'), el('div', { class: 'knobs' }, ADJ.map(a => knobRow(a.id))),
+    el('h3', {}, 'Adjustments'), el('div', { class: 'knobs' }, ADJ.map(a => knobRow(a.id, { readings: true }))),
     el('label', { class: 'row small' }, 'Break something: ',
       el('select', { onchange: e => { adj.damage = e.target.value || null; sim.setAdj(adj); sim.reset(); m = measure(adj); store(); refresh(); } },
         el('option', { value: '' }, 'nothing'),
@@ -786,7 +866,7 @@ function renderExam(p) {
     el('h3', {}, `Note ${n}: tests`), el('div', { class: 'tests' }, Object.keys(TESTS).filter(k => exam.dampers || !TESTS[k].damper).map(testButton)),
     el('div', { class: 'muted small' }, `Tests run: ${testsUsed}`),
     measureTable(examSpecs()),
-    el('details', { open: '' }, el('summary', {}, `Note ${n}: adjustments`), el('div', { class: 'knobs' }, ADJ.filter(a => exam.dampers || !SPEC_OF_KNOB_DAMPER.has(a.id)).map(a => knobRow(a.id)))),
+    el('details', { open: '' }, el('summary', {}, `Note ${n}: adjustments`), el('div', { class: 'knobs' }, ADJ.filter(a => exam.dampers || !SPEC_OF_KNOB_DAMPER.has(a.id)).map(a => knobRow(a.id, { readings: true })))),
     repairs(),
     el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { if (confirm('Hand in your exam model now?')) handIn(); } }, 'Hand it in')));
 }
@@ -942,7 +1022,8 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
 };
 $('#units').onclick = () => { units = units === 'in' ? 'mm' : 'in'; refresh(); };
 $('#level').value = Object.keys(LEVELS).find(k => LEVELS[k] === LEVEL);
-$('#level').onchange = e => { LEVEL = LEVELS[e.target.value]; try { localStorage.setItem('regsim-level', e.target.value); } catch {} e.target.blur(); refresh(); };
+// a hint or a check was given at the old level's tolerances
+$('#level').onchange = e => { LEVEL = LEVELS[e.target.value]; hint = false; verdict = null; try { localStorage.setItem('regsim-level', e.target.value); } catch {} e.target.blur(); refresh(); };
 $('#credits').onclick = e => { e.preventDefault(); showCredits = true; refresh(); $('aside').scrollTop = 0; };
 window.addEventListener('keydown', e => {
   if (mode === 'tools') return;   // no key on the bench while a tool is out
