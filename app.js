@@ -610,10 +610,11 @@ function repairs() {
 }
 const damageLabel = k => ({ splitShank: 'Split shank', looseFlange: 'Loose flange screw', looseHead: 'Loose hammer head',
   tightCenter: 'Tight flange center', brokenJackSpring: 'Broken jack spring' })[k];
-// Find the fault works part by part: each part of the action with its tests, readings and adjustments together
+// Find the fault, Sandbox and Exam work part by part: each part of the action with its tests, readings and adjustments together
+// (hammerLine shows only in the exam, where there are three hammers to sight)
 const AREAS = [
   { id: 'key', name: 'Key', tests: ['straightedge', 'dipBlock'], knobs: ['balPunch', 'frontPunch'] },
-  { id: 'hammer', name: 'Hammer, blow and rest rail', tests: ['travelLift', 'alignSight', 'wiggle', 'blowGauge', 'restRail', 'topPlay'],
+  { id: 'hammer', name: 'Hammer, blow and rest rail', tests: ['travelLift', 'alignSight', 'wiggle', 'blowGauge', 'hammerLine', 'restRail', 'topPlay'],
     knobs: ['hammerTravel', 'hammerSpace', 'hammerSquare', 'capstan', 'restRail'] },
   { id: 'jack', name: 'Jack and repetition lever', tests: ['sightJack', 'sightJackFront', 'wink', 'slowPress', 'easeUp'],
     knobs: ['jackScrew', 'wippenSpace', 'repStop', 'letoff', 'drop', 'repSpring'] },
@@ -626,13 +627,14 @@ const openFolds = new Set(['how']);
 const fold = (key, summary, ...kids) => el('details', { class: 'fold', open: openFolds.has(key) ? '' : false,
   ontoggle: e => { e.target.open ? openFolds.add(key) : openFolds.delete(key); } }, el('summary', {}, summary), el('div', { class: 'fold-body' }, ...kids));
 function areaPanel(a) {
-  const specs = [...new Set(a.tests.flatMap(t => TESTS[t].specs))];
+  const tests = a.tests.filter(t => !TESTS[t].examOnly || examActive());
+  const specs = [...new Set(tests.flatMap(t => TESTS[t].specs))];
   const shown = specs.filter(revealed), out = shown.filter(id => !gradeL(id, m).ok);
   const status = out.length ? el('span', { class: 'badc small' }, `${out.length} out of spec`)
     : shown.length === specs.length ? el('span', { class: 'okc small' }, 'all in spec')
     : el('span', { class: 'muted small' }, shown.length ? `${shown.length} of ${specs.length} measured` : 'not measured');
   return fold(a.id, [el('span', { class: 'grow' }, a.name), status],
-    el('div', { class: 'tests' }, a.tests.map(testButton)),
+    el('div', { class: 'tests' }, tests.map(testButton)),
     measureTable(specs),
     el('div', { class: 'knobs' }, a.knobs.map(id => knobRow(id, { readings: true }))));
 }
@@ -740,13 +742,11 @@ function renderDrills(p) {
 }
 function renderSandbox(p) {
   put(p, el('h2', {}, 'Sandbox'),
-    el('p', { class: 'muted' }, 'Every reading is live. Turn anything and watch what else moves.'),
+    el('p', { class: 'muted' }, 'Every reading is live. Open a part of the action, turn anything, and watch what else moves.'),
     el('div', { class: 'row' }, el('button', { onclick: () => { adj = { ...FACTORY, wear: adj.wear || 0 }; applyAdj(); } }, 'Factory regulation'),
       el('button', { onclick: messUp }, 'Mess it all up')),
     wearControl(),
-    measureTable(Object.keys(SPEC)),
-    el('h3', {}, 'Tests'), el('div', { class: 'tests' }, Object.keys(TESTS).filter(k => !TESTS[k].examOnly).map(testButton)),
-    el('h3', {}, 'Adjustments'), el('div', { class: 'knobs' }, ADJ.map(a => knobRow(a.id, { readings: true }))),
+    AREAS.map(areaPanel),
     el('label', { class: 'row small' }, 'Break something: ',
       el('select', { onchange: e => { adj.damage = e.target.value || null; sim.setAdj(adj); sim.reset(); m = measure(adj); store(); refresh(); } },
         el('option', { value: '' }, 'nothing'),
@@ -764,7 +764,6 @@ const EXAM_ORDER = [1, 0, 2];                 // note 1, 2, 3 from bass to trebl
 const EVEN = ['keyHeight', 'dip', 'blow', 'letoff', 'drop', 'check'];
 let examDampers = false;
 const DAMPER_KNOBS = ['damperGap', 'damperStop', 'pedalLift', 'damperDrag', 'damperCenter', 'damperLevel'];
-const SPEC_OF_KNOB_DAMPER = new Set(DAMPER_KNOBS);   // include damper regulation in the exam
 const examSpecs = () => Object.keys(SPEC).filter(id => exam.dampers || !SPEC[id].damper);
 let exam = { started: false, done: false };
 const examActive = () => mode === 'exam' && exam.started;
@@ -863,12 +862,11 @@ function renderExam(p) {
       el('div', {}, `Key height: ${fmt(NEIGHBOR_H)} (straightedge set to it)`), el('div', {}, `Dip: ${fmt(SPEC.dip.target)}`)),
     el('div', { class: 'row notes' }, EXAM_ORDER.map((slot, i) =>
       el('button', { class: slot === cur ? 'on' : '', disabled: busy ? '' : false, onclick: () => { selectNote(slot); view('angle'); } }, `Note ${i + 1}`))),
-    el('h3', {}, `Note ${n}: tests`), el('div', { class: 'tests' }, Object.keys(TESTS).filter(k => exam.dampers || !TESTS[k].damper).map(testButton)),
-    el('div', { class: 'muted small' }, `Tests run: ${testsUsed}`),
-    measureTable(examSpecs()),
-    el('details', { open: '' }, el('summary', {}, `Note ${n}: adjustments`), el('div', { class: 'knobs' }, ADJ.filter(a => exam.dampers || !SPEC_OF_KNOB_DAMPER.has(a.id)).map(a => knobRow(a.id, { readings: true })))),
-    repairs(),
-    el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { if (confirm('Hand in your exam model now?')) handIn(); } }, 'Hand it in')));
+    el('h3', {}, `Note ${n}`),
+    AREAS.filter(a => exam.dampers || a.id !== 'dampers').map(areaPanel),
+    repairs());
+  put($('#actionbar'), el('span', { class: 'muted small grow' }, `Note ${n} · tests run: ${testsUsed}`),
+    el('button', { class: 'primary', onclick: () => { if (confirm('Hand in your exam model now?')) handIn(); } }, 'Hand it in'));
 }
 function renderExamResult(p) {
   const sc = examScore(), pass = sc.pct >= 80;
