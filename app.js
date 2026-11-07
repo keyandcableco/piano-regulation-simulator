@@ -59,7 +59,7 @@ function selectNote(slot) {
   if (slot === cur || busy) return;
   clearPlan(); clearFrames();   // the frames carry the other note's markers
   NOTES.forEach(n => { if (n.sim.dTarget > 0) n.sim.press(0, 60); });   // a chord comes up too: its plan to let it up is gone
-  store(); cur = slot;
+  store(); cur = slot; closePop();
   ({ adj, sim, m, tested } = NOTES[slot]);
   S.setFocus(focusFor(viewNow));
   S.clearCallouts(); letoffMark = checkMark = letoffD = null;
@@ -377,7 +377,7 @@ const KNOB_FOR = {
 };
 const SHORT = {
   keyBushings: 'Key bushings', keyHeight: 'Key height', dip: 'Dip', aftertouch: 'Aftertouch', blow: 'Blow', lostMotion: 'Lost motion', restGap: 'Rail gap',
-  hammerTravel: 'Travel', hammerSpacing: 'Spacing', hammerSquare: 'Square', jackPos: 'Jack position', wippenSpacing: 'Jack centered',
+  hammerTravel: 'Travel', hammerSpacing: 'Spacing', hammerSquare: 'Square', hammerSound: 'Solid on its center', jackPos: 'Jack position', wippenSpacing: 'Jack centered',
   wink: 'Wink', letoff: 'Let-off', drop: 'Drop', spring: 'Spring', check: 'Checking', backcheckAlign: 'Centered, square',
   damperTiming: 'Lift timing', damperStop: 'Stop rail', pedalLift: 'Pedal lift', damperFall: 'Fall', damperSeat: 'Seat',
 };
@@ -391,28 +391,36 @@ function knobReadings(id) {
       show ? r.txt : el('span', { class: 'muted' }, `not measured (${testFor(s)})`));
   }));
 }
-function knobRow(id, { readings = false } = {}) {
+function knobButtons(id) {
   const d = ADJ.find(x => x.id === id);
   const btn = (sym, delta, step) => el('button', { class: 'nudge', title: `${sym} ${step}`, onclick: () => { S.highlight(d.part, cur); setAdj(id, adj[id] + delta); } },
     el('span', { class: 'sym' }, sym), el('span', { class: 'step' }, step));
   const coarse = d.steps[d.steps.length - 1], fine = d.steps[0];
   const two = d.steps.length > 1;
-  const net = adj[id] - FACTORY[id];
+  return el('div', { class: 'knob-btns' },
+    // a shim goes under one side or the other: the choice of side is the adjustment
+    d.sides ? d.sides.map((s, i) => btn(`${s[0].toUpperCase()}${s.slice(1)} side`, i ? -fine : +fine, `${i ? 'right' : 'left'} from the keys · add ${d.stepLabel[0]}`)) : [
+      two ? btn('−−', -coarse, d.stepLabel[1]) : null,
+      btn('−', -fine, d.stepLabel[0]),
+      btn('+', +fine, d.stepLabel[0]),
+      two ? btn('++', +coarse, d.stepLabel[1]) : null]);
+}
+// where a knob sits now: the Sandbox says, and a shared rail says it is shared
+function knobValue(id) {
+  const d = ADJ.find(x => x.id === id), net = adj[id] - FACTORY[id];
   const valTxt = mode !== 'sandbox' ? ''
     : d.sides ? (Math.abs(net) < 0.005 ? 'no paper' : `paper under the ${d.sides[net > 0 ? 0 : 1]} side (${Math.abs(net).toFixed(1)} mm of drift)`)
     : d.unit === 'mm' || d.unit === '°' ? `${net >= 0 ? '+' : ''}${net.toFixed(2)}${d.unit === '°' ? '°' : ' mm'} from factory`
     : id === 'damperDrag' ? `drag ${adj[id].toFixed(2)}` : `${adj[id].toFixed(2)} × hammer weight`;
+  return multi() && SHARED.has(id) ? [valTxt, 'shared by all three notes'].filter(Boolean).join(' · ') : valTxt;
+}
+function knobRow(id, { readings = false } = {}) {
+  const d = ADJ.find(x => x.id === id);
   return el('div', { class: 'knob' },
     el('div', { class: 'knob-head' },
       el('button', { class: 'linkish', onclick: () => { S.highlight(d.part, cur); view(id === 'hammerTravel' ? 'travel' : viewFor(d.part)); } }, d.name),
-      el('span', { class: 'muted small' }, multi() && SHARED.has(id) ? [valTxt, 'shared by all three notes'].filter(Boolean).join(' · ') : valTxt)),
-    el('div', { class: 'knob-btns' },
-      // a shim goes under one side or the other: the choice of side is the adjustment
-      d.sides ? d.sides.map((s, i) => btn(`${s[0].toUpperCase()}${s.slice(1)} side`, i ? -fine : +fine, `${i ? 'right' : 'left'} from the keys · add ${d.stepLabel[0]}`)) : [
-        two ? btn('−−', -coarse, d.stepLabel[1]) : null,
-        btn('−', -fine, d.stepLabel[0]),
-        btn('+', +fine, d.stepLabel[0]),
-        two ? btn('++', +coarse, d.stepLabel[1]) : null]),
+      el('span', { class: 'muted small' }, knobValue(id))),
+    knobButtons(id),
     readings ? knobReadings(id) : null,
     el('div', { class: 'muted small' }, d.how));
 }
@@ -465,13 +473,13 @@ function reading(id, mm = m) {
   if (id !== 'spring' && r.note && (id === 'keyHeight' || id === 'jackPos')) txt += ` · ${r.note}`;
   return { ok: r.ok, txt };
 }
-function measureTable(ids) {
-  return el('table', { class: 'specs' },
-    el('thead', {}, el('tr', {}, el('th', {}, 'Check'), el('th', {}, 'Target'), el('th', {}, 'Now'))),
+function measureTable(ids, { head = true, short = false } = {}) {
+  return el('table', { class: 'specs' + (head ? '' : ' bare') },
+    head ? el('thead', {}, el('tr', {}, el('th', {}, 'Check'), el('th', {}, 'Target'), el('th', {}, 'Now'))) : null,
     el('tbody', {}, ids.map(id => {
       const show = revealed(id), r = reading(id);
       return el('tr', { class: show ? (r.ok ? 'ok' : 'bad') : '' },
-        el('td', {}, el('span', { class: 'dot' }), SPEC[id].name),
+        el('td', {}, el('span', { class: 'dot' }), short ? SHORT[id] || SPEC[id].name : SPEC[id].name),
         el('td', { class: 'muted' }, specTarget(id)),
         el('td', {}, show ? r.txt : el('span', { class: 'muted' }, 'not measured')));
     })));
@@ -572,6 +580,7 @@ function refresh() {
   else if (mode === 'drills') renderDrills(p);
   else if (mode === 'tools') renderTools(p);
   else renderSandbox(p);
+  renderPop();
   $('#units').textContent = units === 'in' ? 'inches' : 'mm';
 }
 function testButton(id) {
@@ -714,23 +723,110 @@ const AREAS = [
 const openFolds = new Set(['how']);
 const fold = (key, summary, ...kids) => el('details', { class: 'fold', open: openFolds.has(key) ? '' : false,
   ontoggle: e => { e.target.open ? openFolds.add(key) : openFolds.delete(key); } }, el('summary', {}, summary), el('div', { class: 'fold-body' }, ...kids));
+const testOk = t => (!TESTS[t].threeOnly || multi()) && !(TESTS[t].noExam && examActive()) && (!TESTS[t].damper || !examActive() || exam.dampers);
+// Which adjustment sets which reading is part of what's being learned: past Apprentice, Find the fault and the Exam don't
+// list the adjustments; you click the part of the action you'd turn, and its controls come up beside it (the part card)
+const panelKnobs = () => mode === 'sandbox' || mode === 'learn' || level().live;
 function areaPanel(a) {
-  const tests = a.tests.filter(t => (!TESTS[t].threeOnly || multi()) && !(TESTS[t].noExam && examActive()));
+  const tests = a.tests.filter(testOk);
   const specs = [...new Set(tests.flatMap(t => TESTS[t].specs))];
   const shown = specs.filter(revealed), out = shown.filter(id => !gradeL(id, m).ok);
   const status = out.length ? el('span', { class: 'badc small' }, `${out.length} out of spec`)
     : shown.length === specs.length ? el('span', { class: 'okc small' }, 'all in spec')
     : el('span', { class: 'muted small' }, shown.length ? `${shown.length} of ${specs.length} measured` : 'not measured');
+  // each knob goes under the first test that reads what it sets: run the test, and what you turn is right under it
+  const knobs = panelKnobs() ? a.knobs : [], placed = new Set();
+  const under = t => knobs.filter(k => !placed.has(k) && (KNOB_FOR[k] || []).some(s => TESTS[t].specs.includes(s)) && placed.add(k));
+  const blocks = tests.map(t => {
+    const ks = under(t);
+    return el('div', { class: 'testblock' }, testButton(t), measureTable(TESTS[t].specs, { head: false }),
+      ks.length ? el('div', { class: 'knobs' }, ks.map(id => knobRow(id, { readings: true }))) : null);
+  });
+  const rest = knobs.filter(k => !placed.has(k));
   return fold(a.id, [el('span', { class: 'grow' }, a.name), status],
-    el('div', { class: 'tests' }, tests.map(testButton)),
-    measureTable(specs),
-    el('div', { class: 'knobs' }, a.knobs.map(id => knobRow(id, { readings: true }))),
+    blocks,
+    rest.length ? el('div', { class: 'knobs' }, rest.map(id => knobRow(id, { readings: true }))) : null,
+    panelKnobs() ? null : el('p', { class: 'muted small' }, 'To adjust, click the part of the action you would turn.'),
     examActive() ? null : a.repairs?.());
 }
+// ---------- the part card: click a part of the action to test or adjust it ----------
+// A test sits on the part you'd touch or watch to do it. The key itself plays when clicked, so its tests sit on the rails
+// and punchings it rests on.
+const KEY_TESTS = ['straightedge', 'dipBlock', 'rockKey', 'keyDrop', 'topPlay'];
+const HAMMER_TESTS = ['travelLift', 'alignSight', 'wiggle'];
+const PART_TESTS = {
+  frontrail: KEY_TESTS, frontpunch: KEY_TESTS, balance: KEY_TESTS, balrail: KEY_TESTS, backrail: ['keyDrop'], keybed: ['keyDrop'], neighbor: ['straightedge'],
+  capstan: ['topPlay'], heel: ['topPlay'],
+  hammer: ['blowGauge', 'hammerLine', 'slowPress', ...HAMMER_TESTS], shank: HAMMER_TESTS, flange: HAMMER_TESTS, flangescrew: HAMMER_TESTS,
+  hcenter: ['wiggle'], flangerail: ['travelLift'], string: ['slowPress', 'alignSight', 'hammerLine'], tail: ['strikeHold', 'sightBackcheck'],
+  restrail: ['restRail', 'topPlay'],
+  jack: ['sightJack', 'wink', 'sightJackFront'], tender: ['wink', 'slowPress'], jcenter: ['wink'], knuckle: ['sightJack'], knucklecore: ['sightJack'],
+  jackscrew: ['sightJack'], jackstop: ['wink'], windowfelt: ['wink'],
+  rep: ['wink', 'easeUp'], repscrew: ['wink'], repbutton: ['wink'], support: ['wink'], rcenter: ['easeUp'], repspring: ['easeUp'],
+  letoff: ['slowPress'], regrail: ['slowPress'], drop: ['slowPress'], dropfelt: ['slowPress'],
+  wippen: ['sightJackFront'], wflange: ['sightJackFront'], wcenter: ['sightJackFront'], wippenrail: ['sightJackFront'],
+  backcheck: ['strikeHold', 'sightBackcheck'],
+  damper: ['damperSight', 'damperSlow', 'pedalTest'], damperfelt: ['damperSight'], damperwire: ['damperSight', 'pedalTest'], guiderail: ['pedalTest'],
+  underlever: ['damperSlow'], ulflange: ['damperSlow'], ucenter: ['damperSlow'], damperstop: ['damperSlow'], lifttray: ['pedalTest'],
+};
+// parts that carry another part's adjustment: the flange screw spaces the flange, the rails carry their punchings, the
+// repetition lever's height is set by its screw, the underlever's top flange times the damper, the wippen spaces on its flange
+const KNOB_PART = { flangescrew: 'flange', frontrail: 'frontpunch', balrail: 'balance', dropfelt: 'drop', rep: 'repscrew',
+  ulflange: 'damper', underlever: 'damper', damperfelt: 'damper', wippen: 'wflange' };
+let pop = null;   // the open card: { part, obj, local } (the spot clicked, pinned to the part), and last: where it was drawn
+const popEl = $('#partpop'), popDot = $('#popdot');
+const popKnobs = part => ADJ.filter(d => d.part === (KNOB_PART[part] || part) && !(examActive() && !exam.dampers && DAMPER_KNOBS.includes(d.id))).map(d => d.id);
+function openPop(hit) {
+  pop = { part: hit.part, obj: hit.obj, local: hit.local };
+  S.highlight(KNOB_PART[hit.part] || hit.part, cur);
+  renderPop();
+}
+function closePop() { if (!pop) return; pop = null; popEl.hidden = popDot.hidden = true; S.highlight(null); }
+function renderPop() {
+  if (!pop) return;
+  if (mode === 'tools' || mode === 'drills' || exam.done) { closePop(); return; }
+  const tests = (PART_TESTS[pop.part] || []).filter(testOk), knobs = popKnobs(pop.part);
+  const full = S.PART_NAMES[pop.part] || pop.part, colon = full.indexOf(':');
+  const name = colon < 0 ? full : full.slice(0, colon), about = colon < 0 ? '' : full.slice(colon + 1).trim();
+  // the readings its tests take, and (where the panel lists what sets what) the ones its adjustments set, once measured
+  const specs = [...new Set([...tests.flatMap(t => TESTS[t].specs), ...(panelKnobs() ? knobs.flatMap(k => KNOB_FOR[k] || []).filter(revealed) : [])])];
+  popEl.replaceChildren(...[
+    el('div', { class: 'pop-head' }, el('b', { class: 'grow' }, name),
+      el('button', { class: 'pop-x', title: 'Close', 'aria-label': 'Close', onclick: closePop }, '×')),
+    about ? el('div', { class: 'muted small' }, about[0].toUpperCase() + about.slice(1)) : null,
+    tests.length ? el('div', { class: 'tests' }, tests.map(testButton)) : null,
+    specs.length ? measureTable(specs, { head: false, short: true }) : null,
+    ...knobs.map(id => {
+      const v = knobValue(id);
+      return el('div', { class: 'pop-knob' }, el('div', { class: 'small' }, el('b', {}, ADJ.find(x => x.id === id).name), v ? el('span', { class: 'muted' }, ` · ${v}`) : null),
+        knobButtons(id));
+    }),
+    tests.length || knobs.length ? null : el('div', { class: 'muted small' }, 'Nothing to test or adjust on this part.')].filter(Boolean));
+  popEl.hidden = false;
+  placePop();
+}
+// every screen frame: beside the spot clicked, on whichever side has room, clear of the view buttons and the key buttons
+function placePop() {
+  if (!pop || popEl.hidden) return;
+  const at = S.screenOf(pop.obj, pop.local), stage = $('#stage');
+  popDot.hidden = !at.on;
+  if (at.on) { popDot.style.transform = `translate(${at.x}px, ${at.y}px)`; pop.last = at; }
+  const p = at.on || !pop.last ? at : pop.last;
+  const W = stage.clientWidth, top0 = $('#views').offsetHeight + 16, bottom = stage.clientHeight - $('#keybar').offsetHeight - 16;
+  const mh = `${Math.max(140, bottom - top0)}px`;
+  if (popEl.style.maxHeight !== mh) popEl.style.maxHeight = mh;
+  const w = popEl.offsetWidth, h = popEl.offsetHeight, gap = 22;
+  const x = Math.max(8, Math.min(W - w - 8, p.x + gap + w <= W - 100 ? p.x + gap : p.x - gap - w));
+  const y = Math.max(top0, Math.min(bottom - h, p.y - h / 2));
+  popEl.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+  popEl.classList.toggle('busy', !!busy);   // faded while a test runs, so the action shows through
+}
+popEl.addEventListener('pointerenter', () => { tip.hidden = true; });
 const howTo = () => el('ol', { class: 'how' },
   el('li', {}, el('b', {}, 'Test. '), 'Open a part of the action below and run its tests (▶). The action shows each test, and its readings fill in.',
     level().live ? ' At Apprentice level every reading shows from the start.' : ''),
-  el('li', {}, el('b', {}, 'Adjust. '), 'Press − or + to turn a screw or change a punching. Each adjustment shows the readings it sets, and they change as you turn it.'),
+  el('li', {}, el('b', {}, 'Adjust. '), 'Click the part of the action you would turn (a screw, a spring, a punching): its − and + come up beside it, with the readings, and they change as you turn it.',
+    panelKnobs() ? ' At this level each test here also lists what sets it.' : ''),
   el('li', {}, el('b', {}, 'Check. '), 'Play the key to try it, then press ', el('b', {}, 'Check my work'),
     ' at the bottom. You are told which checks are still out, but not why, until it is right or you ask for the answer.'));
 // a solved verdict no longer holds once anything is turned again
@@ -840,7 +936,7 @@ const sharedOf = a => Object.fromEntries([...SHARED].map(k => [k, a[k]]));
 function putNote(n, a) { n.adj = a; n.sim.setAdj(a); n.sim.reset(); n.m = measure(a); n.tested = new Set(); }
 function setThreeKeys(on) {
   if (on === threeKeys || busy) return;
-  setLoop(false); clearPlan(); clearFrames();
+  setLoop(false); clearPlan(); clearFrames(); closePop();
   NOTES.forEach(n => { if (n.sim.dTarget > 0) n.sim.press(0, 60); });
   store();
   // the neighbors start regulated, on the middle note's rails and as worn as it is
@@ -928,7 +1024,7 @@ const examActive = () => mode === 'exam' && exam.started;
 // three notes in play: the exam model, or the Sandbox's three keys
 const multi = () => examActive() || (mode === 'sandbox' && threeKeys);
 function startExam() {
-  setPaused(false); clearFrames();
+  setPaused(false); clearFrames(); closePop();
   const restRail = deregulated().restRail;
   const shared = deregulated();
   NOTES.forEach(n => {
@@ -952,7 +1048,7 @@ function startExam() {
 }
 // back to one note, from the exam or the Sandbox's three keys
 function toOneNote() {
-  clearFrames();
+  clearFrames(); closePop();
   const wasThree = exam.started || threeKeys;
   exam = { started: false, done: false }; threeKeys = false;
   $('#level').disabled = false;
@@ -964,6 +1060,7 @@ function toOneNote() {
 }
 function handIn() {
   if (exam.done) return;
+  closePop();
   exam.done = true; exam.used = Math.min(Date.now() - exam.t0, exam.minutes * 60000);
   NOTES.forEach(n => n.sim.press(0, 60));
   NOTES.forEach(n => { n.m = measure(n.adj); });
@@ -1007,6 +1104,8 @@ function renderExam(p) {
       el('ul', { class: 'small' },
         el('li', {}, LEVEL.live ? 'At Apprentice level readings show as you work; at Journeyman and RPT they stay hidden until you run the test that measures them.' : 'Readings stay hidden until you run the test that measures them, on that note.'),
         el('li', {}, 'Click a key, or the note buttons, to work on a note. The hammer rest rail is shared.'),
+        el('li', {}, LEVEL.live ? 'Adjust by clicking the part of the action you would turn, or with the controls listed under each test.'
+          : 'Adjust by clicking the part of the action you would turn: its controls come up beside it. The panel lists the tests, not the adjustments; knowing which part to turn is part of the exam.'),
         el('li', {}, 'Assembly is skipped, but aligning is in: travel, space and square each hammer, center each jack and backcheck. The real 50 minutes include assembling the model, so you can set a shorter clock to leave yourself that time.'),
         LEVEL.damage ? el('li', {}, 'At RPT level one note may also have a damaged part to find and repair (on the real exam, repairs are a separate section).') : null,
         el('li', {}, 'Scoring: each spec on each note, plus how even the three notes are. 80% is this practice\'s pass mark, not PTG\'s.')),
@@ -1348,7 +1447,7 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   showCredits = false;
   if (mode === 'drills') { drillsStop?.(); drillsEl = null; }
   if (mode === 'tools') { S.hideTool(); toolSel = null; S.setLabels(labelsOn); }
-  mode = b.dataset.mode; tested = new Set(); verdict = null; S.clearCallouts(); setPaused(false); clearFrames();
+  mode = b.dataset.mode; tested = new Set(); verdict = null; S.clearCallouts(); setPaused(false); clearFrames(); closePop();
   if (mode === 'tools') { S.setLabels(false); if (sim.dTarget > 0) sim.press(0, 60); if (TOOLBAG.length) pickTool(TOOLBAG[0].id); }
   if (mode === 'exam' || mode === 'drills' || mode === 'tools') { exam = { started: false, done: false }; refresh(); return; }
   if (mode === 'learn') { stepIdx = 0; messUp(); focusStep(); }
@@ -1362,7 +1461,7 @@ $('#level').onchange = e => { LEVEL = LEVELS[e.target.value]; hint = false; verd
 $('#credits').onclick = e => { e.preventDefault(); showCredits = true; refresh(); $('aside').scrollTop = 0; };
 window.addEventListener('keydown', e => {
   if (mode === 'tools') return;   // no key on the bench while a tool is out
-  if (e.code === 'Escape') { setLoop(false); letUp(); }
+  if (e.code === 'Escape') { setLoop(false); letUp(); closePop(); }
   if (e.code === 'KeyP' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !busy && e.target === document.body) setPedal(!pedalDown);
   if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); clearPlan(); cue = null; releaseOthers(); sim.press(sim.dip, 250); pausedNote(); }
   // frame keys work wherever focus is (often a button just clicked), but not while typing or choosing in a field
@@ -1387,23 +1486,29 @@ canvas.addEventListener('pointerleave', () => { tip.hidden = true; });
 let keyHeld = null;   // the pointer holding the key down
 canvas.addEventListener('pointerdown', e => {
   const hit = S.pick(e), part = hit?.part;
-  // in the exam a click turns to that note's 3/4 view; in the Sandbox a side view follows it over, and a view of all
-  // three stays put (re-aiming would fight a drag that starts on a neighbor)
+  // a click on a neighbor works on that note: a view of one note follows it over (so a part clicked in a side view
+  // opens its card where you were looking), and a view of all three stays put (re-aiming would fight a drag that starts on a neighbor)
   if (hit && hit.note >= 0 && hit.note !== cur && multi() && !busy) {
     selectNote(hit.note);
-    if (examActive()) view('angle'); else if (focusFor(viewNow) !== null) view(viewNow);
+    if (focusFor(viewNow) !== null) view(viewNow);
   }
   if (part === 'key' && !busy) { keyHeld = e.pointerId; S.controls.enabled = false; setLoop(false); clearPlan(); cue = null; releaseOthers(); sim.press(sim.dip, 250); pausedNote(); }
-  else {
-    // the screw is how the flange is spaced; the damper's timing is set at the underlever's top flange
-    const knob = ADJ.find(a => a.part === ({ flangescrew: 'flange', ulflange: 'damper', damperfelt: 'damper' }[part] || part));
-    if (knob) S.highlight(knob.part, cur);
-  }
+  else clickAt = clickAt || e.button !== 0 || !e.isPrimary ? null   // a second finger, or a right or middle button, turns the view
+    : { x: e.clientX, y: e.clientY, id: e.pointerId, hit, shift: e.shiftKey || e.ctrlKey };
+});
+// a click that didn't turn the view: a part opens its card, empty space closes it
+let clickAt = null;
+canvas.addEventListener('pointerup', e => {
+  const c = clickAt; clickAt = null;
+  if (!c || c.id !== e.pointerId || c.shift || Math.hypot(e.clientX - c.x, e.clientY - c.y) > 6 || mode === 'tools' || mode === 'drills') return;
+  // a neighbor's part clicked while a test runs (the note can't switch then) would open a card working on the wrong note
+  if (c.hit && (c.hit.note < 0 || c.hit.note === cur)) openPop(c.hit); else if (!c.hit) closePop();
 });
 // a touch can end without pointerup (second finger, app switch, long-press menu): let the key up then too. Each hold
 // ends with the pointer that started it, so a second finger tapping a button leaves a held key down; leaving the window ends all.
 const endHold = e => {
   const mine = h => e.pointerId === undefined || h.id === e.pointerId;
+  if (clickAt && mine(clickAt)) clickAt = null;
   if (frameHold && mine(frameHold)) frameHold = null;
   if (moveHold && mine(moveHold)) moveHold = null;
   if (keyHeld !== null && mine({ id: keyHeld })) { keyHeld = null; S.controls.enabled = true; letGo(); }
@@ -1509,6 +1614,7 @@ function frame(now) {
   // a test runs the action itself: the key and frame buttons wait for it
   for (const b of keyButtons) if (b.disabled !== !!busy) b.disabled = !!busy;
   S.render();
+  placePop();
   requestAnimationFrame(frame);
 }
 const keyButtons = [...document.querySelectorAll('#keybar button:not([data-speed])')];
