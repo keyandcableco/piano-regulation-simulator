@@ -54,9 +54,9 @@ export default {
   name: 'Key dip block',
   what: 'A small block exactly as tall as the target key dip, 3/8 in (9.5 mm) for this one. You set it on a white key and press the key down. If the dip is right, the block top comes level with the keys beside it.',
   how: [
-    'Level the keys first. Then set the block on the front of a white key and press that key firmly to the bottom.',
+    'Level the keys first. Then set the block on the front of a white key and press that key to the bottom with moderate pressure, about the weight of your hand.',
     'Look across, or feel with a finger: the block top should be level with the keytops on either side. If it sits above them, the dip is too shallow, so remove punchings. If it sits below, the dip is too deep, so add punchings.',
-    'Use the same firm pressure on every key. Pressing harder squashes the front rail punching and reads deeper.',
+    'Use the same pressure on every key. Pressing harder squashes the front rail punching and reads deeper.',
     'When the dip is even, check aftertouch. Blocks also come in 13/32, 7/16 and 1/2 in for other dip targets.',
   ],
   dims: 'Length 1-7/8 in (47.6 mm), listed by Schaff. Height 3/8 in (9.5 mm), the listed size, the same as the dip it checks. Width about 15/16 in (23.5 mm), about one white key, estimated from the photos. Keytop about 2 mm thick over two wood plies about 4 mm and 3.3 mm, with a groove under it about 14 mm wide and 2 mm deep: all estimated from photos.',

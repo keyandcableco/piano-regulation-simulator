@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { G, NEIGHBOR_H, WEAR, keyAngle, hamPt, repRho } from './model.js';
+import { G, NEIGHBOR_H, WEAR, keyAngle, hamPt, repRho, knuckleBottom } from './model.js';
 
 const COLORS = {
   keybed: 0x6e4c2e, rail: 0xa47a4c, wood: 0xd7b98c, keywood: 0xe6d3ad, keytop: 0xf6f3ea,
@@ -76,6 +76,8 @@ const R_BUTTON_FELT_H = 5;
 const CAP_R = 4.5;                   // capstan screw radius
 const CAP_H = G.capDomeR - Math.sqrt(G.capDomeR ** 2 - CAP_R ** 2);   // height of its dome
 const DROP_TOP = 152;                // the drop screw's head
+const SHANK_R = -G.shankRest[1];     // the shank's radius where the rest rail meets it
+const KNUCKLE_H = G.knuckleR - SHANK_R - G.knuckleC[1];   // shank underside to the knuckle's bottom
 
 // Hammer head and backcheck, side profile, mm: Hirschkorn's Boston GP-178 parts traced full size, the crown on
 // G.crownC / G.crownR and the tail's back face on his measured arc (research/hammer-shape/spec.md §5).
@@ -306,7 +308,7 @@ export function createScene(canvas, overlay) {
     const align = n.align = new THREE.Group(); root.add(align);
     align.position.set(G.H[0], G.H[1], 0);
     const hammer = n.hammer = new THREE.Group(); align.add(hammer);
-    cyl(3.14, 132, 'x', [66, 0, 0], COLORS.wood, 'shank', hammer);   // ends hidden inside the molding
+    cyl(SHANK_R, 132, 'x', [66, 0, 0], COLORS.wood, 'shank', hammer);   // ends hidden inside the molding
     center('hcenter', hammer, [0, 0], 13.6);
     // a split along the shank: only there when the shank is damaged
     n.crack = ext(rect(30, 2.2, 95, 3.6), 1.2, 3.4, COLORS.dark, 'shank', hammer, { noPick: true });
@@ -315,15 +317,17 @@ export function createScene(canvas, overlay) {
     // knuckle: a wooden core glued up into a rabbet in the shank's underside, wrapped round its bottom with felt and
     // buckskin whose edges meet the shank. The bare core shows on each side: the jack lines up with its back edge.
     {
-      const [kx, ky] = G.knuckleC, top = -3.14 - ky;               // the shank's underside, above the knuckle's center
+      const [kx, ky] = G.knuckleC, top = -SHANK_R - ky;             // the shank's underside, above the knuckle's center
+      // the shank is flattened where the knuckle is glued on, so the knuckle's sides meet wood all the way across
+      ext(rect(kx - G.knuckleR - 1, -SHANK_R - 0.2, kx + G.knuckleR + 1, -SHANK_R + 1.6), 8.2, 0, COLORS.wood, 'shank', hammer);
       const U = (rIn, rOut, yTop) => {                             // a U of felt or leather round the core, up to yTop
         const s = new THREE.Shape(); s.moveTo(rOut, yTop); s.lineTo(rOut, 0); s.absarc(0, 0, rOut, 0, Math.PI, true);
         s.lineTo(-rOut, yTop); s.lineTo(-rIn, yTop); s.lineTo(-rIn, 0); s.absarc(0, 0, rIn, Math.PI, 0, false); s.lineTo(rIn, yTop); s.closePath();
         return s;
       };
-      const core = new THREE.Shape(); core.moveTo(G.coreR, -ky - 0.5); core.lineTo(G.coreR, 0); core.absarc(0, 0, G.coreR, 0, Math.PI, true);
-      core.lineTo(-G.coreR, -ky - 0.5); core.closePath();
-      ext(core, 8.6, 0, COLORS.core, 'knucklecore', hammer).position.set(kx, ky, 0);
+      const core = new THREE.Shape(); core.moveTo(G.coreR, top + 1.4); core.lineTo(G.coreR, 0); core.absarc(0, 0, G.coreR, 0, Math.PI, true);
+      core.lineTo(-G.coreR, top + 1.4); core.closePath();
+      ext(core, 8.6, 0, COLORS.core, 'knucklecore', hammer).position.set(kx, ky, 0);   // its top hides inside the shank's pad
       ext(U(G.coreR, G.knuckleR - 0.9, top), 8.2, 0, COLORS.knucklefelt, 'knuckle', hammer).position.set(kx, ky, 0);
       // the buckskin is built down from the shank so wear (the knuckle packing down) lifts only its bottom
       const leather = U(G.knuckleR - 0.9, G.knuckleR, top);
@@ -489,7 +493,7 @@ export function createScene(canvas, overlay) {
     n.wippen.rotation.z = L.phi;
     n.jack.rotation.z = jackOverride ?? sim.psi;
     // repetition lever: horn sits under the knuckle or at its stop/drop limit
-    const kb = hamPt(hammerOverride ?? sim.g, G.knuckleC)[1] - G.knuckleR;
+    const kb = knuckleBottom(hammerOverride ?? sim.g)[1];
     n.rep.rotation.z = -repRho(L, Math.min(L.hornTop, kb));
     n.hammer.rotation.z = hammerOverride ?? sim.g;
     // alignment: spacing, traveling (drift at the string = 47 mm of rise times the tilt), squaring
@@ -516,7 +520,7 @@ export function createScene(canvas, overlay) {
     n.bc.rotation.z = (a.backcheck - (a.wear || 0) * WEAR.backcheck) / 80;
     // packed-down felts
     const w = a.wear || 0;
-    n.knuckle.scale.y = (G.knuckleR - 3.14 - G.knuckleC[1] + WEAR.knuckle * w) / (G.knuckleR - 3.14 - G.knuckleC[1]);
+    n.knuckle.scale.y = (KNUCKLE_H + WEAR.knuckle * w) / KNUCKLE_H;
     n.feltG.scale.y = (G.crownC[1] + G.crownR - H_FELT_FOOT + WEAR.crown * w) / (G.crownC[1] + G.crownR - H_FELT_FOOT);
     n.heelG.scale.y = (2.1 + WEAR.capstan * w) / 2.1;
     // damper: the underlever's felt sits damperGap above the key end; the head rises with it

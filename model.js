@@ -40,12 +40,13 @@ export const G = {
   checkHold: 1.3,                   // net lift the backcheck's grip can resist
   popNet: 1.0,                      // net lift above this is felt as a "pop"
   weakNet: 0.25,                    // net lift below this is sluggish
-  wedge: 0.2,                       // a tripped jack can wedge back under a knuckle this far below its top
+  wedge: 0.4,                       // a tripped jack can wedge back under a knuckle this far below where it would hold it
   bcInPath: 0.6,                    // fraction of dip before the backcheck can catch
+  bcMissLean: 2.2,                  // bent this far away from the hammer, the backcheck misses the tail
   bcScrapeLean: 3.0,                // bent this far toward the hammer, the tail scrapes (the Boston rubs at about +2.5 to +3.6)
   // damper: the key's back end lifts the underlever, the wire carries the head off the strings
   dmpContactLocal: 231,             // where the key end meets the underlever's lift felt
-  dmpRatio: 1.0,                    // head lift per mm of underlever lift at the key
+  dmpRatio: 98 / 135,               // head lift per mm of underlever lift at the key: the wire sits nearer the flange than the lift felt
   dmpGravity: 5000,                 // head falling under its own weight, mm/s^2
   dmpBounceV: 350,                  // a head landing faster than this (mm/s) bobbles on the strings
 };
@@ -61,7 +62,7 @@ export const ADJ = [
   { id: 'repStop', name: 'Repetition lever height screw', part: 'repscrew', unit: 'mm', min: -2, max: 2,
     steps: [0.02, 0.08], stepLabel: ['⅛ turn', '½ turn'], how: 'Sets how high the repetition lever rests relative to the jack top. + raises the lever.' },
   { id: 'capstan', name: 'Capstan screw', part: 'capstan', unit: 'mm', min: 6, max: 20,
-    steps: [0.16, 0.64], stepLabel: ['⅛ turn', '½ turn'], how: 'Raises or lowers the wippen, and with it the hammer. + raises the hammer (shorter blow).' },
+    steps: [0.04, 0.16], stepLabel: ['1/32 turn', '⅛ turn'], how: 'Raises or lowers the wippen, and with it the hammer. + raises the hammer (shorter blow).' },
   { id: 'restRail', name: 'Hammer rest rail', part: 'restrail', unit: 'mm', min: 96, max: 122,
     steps: [0.25], stepLabel: ['shim'], how: 'Raises or lowers the rail the hammer shanks fall back toward.' },
   { id: 'frontPunch', name: 'Front rail punchings', part: 'frontpunch', unit: 'mm', min: 0, max: 8,
@@ -80,8 +81,8 @@ export const ADJ = [
     steps: [0.1, 0.4], stepLabel: ['tap', 'shift'], how: 'Loosen the flange screw and shift the hammer sideways to center it on its unison.' },
   { id: 'hammerSquare', name: 'Burn the shank (heat and twist)', part: 'shank', unit: '°', min: -8, max: 8,
     steps: [0.5], stepLabel: ['twist'], how: 'Warm the shank and twist it so the hammer head stands square to the strings.' },
-  { id: 'damperGap', name: 'Damper lift timing (head on its wire)', part: 'damper', unit: 'mm', min: 0, max: 10,
-    steps: [0.1, 0.4], stepLabel: ['nudge', 'move'], how: 'Slides the damper head on its wire. + leaves more key travel before the key picks up the underlever (later lift).' },
+  { id: 'damperGap', name: 'Damper lift timing (underlever on its wire)', part: 'damper', unit: 'mm', min: 0, max: 10,
+    steps: [0.1, 0.4], stepLabel: ['nudge', 'move'], how: 'Moves the underlever on the damper wire (set screw in the underlever\'s wire block), the head staying on the strings. + leaves more key travel before the key picks up the underlever (later lift).' },
   { id: 'damperStop', name: 'Damper stop rail', part: 'damperstop', unit: 'mm', min: 1, max: 20, shared: true,
     steps: [0.1, 0.4], stepLabel: ['shim', 'shim ×4'], how: 'One rail over every underlever. + raises it: more room before the dampers hit it.' },
   { id: 'pedalLift', name: 'Damper pedal lift', part: 'lifttray', unit: 'mm', min: 0, max: 20, shared: true,
@@ -95,7 +96,8 @@ export const ADJ = [
 export const SPEC = {
   keyHeight:  { name: 'Key height (vs neighbors)', target: 0, tol: 0.4, unit: 'mm' },
   jackPos:    { name: 'Jack: back of jack to back of knuckle core', target: 0, tol: 0.4, unit: 'mm' },
-  wink:       { name: 'Rep lever height (hammer winks when the jack is tripped)', target: IN / 32, tol: IN / 64, unit: 'mm' },
+  // at the hammer: Yamaha's 0.2 mm gap at the lever (David Skolnik) and "about 1/16 in" (David Nereson) both land here
+  wink:       { name: 'Rep lever height (hammer winks when the jack is tripped)', target: IN / 16, tol: IN / 32, unit: 'mm' },
   blow:       { name: 'Blow distance', target: 1.75 * IN, tol: IN / 32, unit: 'mm' },
   restGap:    { name: 'Shank above rest rail', target: IN / 8, tol: IN / 16, unit: 'mm' },
   dip:        { name: 'Key dip', target: IN * 3 / 8, tol: IN / 64, unit: 'mm' },
@@ -105,7 +107,7 @@ export const SPEC = {
   // (Greg, 2026-11-06); the measured Boston gives 1.7
   aftertouch: { name: 'Aftertouch (key travel after let-off)', target: 1.7, tol: 0.5, unit: 'mm' },
   spring:     { name: 'Repetition spring', target: 0.55, tol: 0.25, unit: '' },
-  check:      { name: 'Checking distance', target: IN * 5 / 8, tol: IN / 16, unit: 'mm' },
+  check:      { name: 'Checking distance', target: IN * 9 / 16, tol: IN / 16, unit: 'mm' },   // 1/2 to 5/8 in (Igrec)
   // alignment: done first on a real piano, and part of the PTG exam's "assemble, align and regulate"
   hammerTravel: { name: 'Hammer travels straight (sideways drift at the string)', target: 0, tol: 0.3, unit: 'mm' },
   hammerSpacing: { name: 'Hammer centered on its unison', target: 0, tol: 0.4, unit: 'mm' },
@@ -420,6 +422,8 @@ export function measure(a) {
     springState: a.centerFriction ? 'weak' : net > G.checkHold ? 'jumps' : net > G.popNet ? 'pop' : net < 0 ? 'none' : net < G.weakNet ? 'weak' : 'good',
     check: G.stringY - crownY(gChk),
     scrapes: a.backcheck > G.bcScrapeLean,
+    bcMisses: a.backcheck < -G.bcMissLean,
+    dropAtString: sp.letoff !== null && sp.dropFromString < 0.05,
     noCheck: net > G.checkHold,
     press: sp,
     hammerTravel: a.hammerTravel, hammerSpacing: a.hammerSpace - a.hammerTravel, hammerSquare: a.hammerSquare,
@@ -470,6 +474,8 @@ export function grade(id, m, k = 1) {
   if (id === 'wink' && !m.jackReturns) return { ok: false, v, note: 'jack will not return under the knuckle' };
   if (id === 'restGap' && m.onRail) return { ok: false, v, note: m.lostMotion > 0.05 ? 'hammer sits on the rail: lost motion' : 'hammer sits on the rail' };
   if (id === 'check' && m.scrapes) return { ok: false, v, note: 'tail scrapes the backcheck' };
+  if (id === 'check' && m.bcMisses) return { ok: false, v: null, note: 'the backcheck misses the tail: the hammer bounces back' };
+  if (id === 'drop' && m.dropAtString) return { ok: false, v, note: 'no drop: the lever holds the hammer against the string' };
   if (id === 'check' && m.noCheck) return { ok: false, v, note: 'hammer will not stay checked' };
   if (id === 'damperStop' && v <= 0.05) return { ok: false, v, note: 'dampers hit the stop rail before the key bottoms' };
   if (id === 'pedalLift' && m.pedalIntoStop) return { ok: false, v, note: 'the pedal drives the dampers into the stop rail' };
@@ -595,7 +601,7 @@ export class Sim {
     if (g < gR) { g = gR; w = Math.max(0, w); }
     // backcheck
     const gC = gFromTail(L.bcCatchY);
-    const catchActive = L.depth >= G.bcInPath;
+    const catchActive = L.depth >= G.bcInPath && a.backcheck >= -G.bcMissLean;
     if (catchActive && g > gC + 0.02) st.aboveCheck = true;
     if (!catchActive) st.aboveCheck = false;
     if (catchActive && w > 0 && g < gC && a.backcheck > G.bcScrapeLean && !this.scraped) { this.scraped = true; this.emit('scrape'); }
@@ -636,4 +642,4 @@ export class Sim {
 }
 
 // Factory regulation solved offline with factory() (node), so the page loads fast.
-export const FACTORY = {"balPunch":1.5,"jackScrew":-4.1669,"repStop":-0.5506,"capstan":13.9344,"restRail":110.7759,"frontPunch":2.299,"letoff":96.6636,"drop":139.8784,"repSpring":1.3348,"backcheck":0.0005,"damperGap":3.3882,"damperStop":6.7837,"pedalLift":6.7337,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0};
+export const FACTORY = {"balPunch":1.5,"jackScrew":-4.1669,"repStop":-0.6314,"capstan":13.9344,"restRail":110.7759,"frontPunch":2.299,"letoff":96.6636,"drop":139.8784,"repSpring":1.3555,"backcheck":0.5226,"damperGap":3.5082,"damperStop":5.0549,"pedalLift":5.0049,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0};
