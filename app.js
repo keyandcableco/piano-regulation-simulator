@@ -65,7 +65,7 @@ function selectNote(slot) {
   S.clearCallouts(); letoffMark = checkMark = letoffD = null;
   refresh();
 }
-let mode = 'learn';
+let mode = 'sandbox';   // open on a regulated action: Learn's deliberate faults read as bugs to a first-time visitor
 let timeScale = 0.1;
 let stepIdx = 0;
 // Find the fault: verdict is the last check ({ bad: spec ids still out }); gaveUp shows the answer
@@ -1513,7 +1513,7 @@ function frame(now) {
 }
 const keyButtons = [...document.querySelectorAll('#keybar button:not([data-speed])')];
 applyTheme();
-messUp(); focusStep();
+adj = { ...FACTORY }; applyAdj(); view('angle');
 // the exam clock keeps time even while the tab is in the background
 setInterval(tickExam, 1000);
 requestAnimationFrame(frame);
