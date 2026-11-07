@@ -1220,7 +1220,7 @@ canvas.addEventListener('pointerdown', e => {
   if (hit && hit.note >= 0 && hit.note !== cur && examActive() && !busy) { selectNote(hit.note); view('angle'); }
   if (part === 'key' && !busy) { keyHeld = true; S.controls.enabled = false; setLoop(false); clearPlan(); cue = null; sim.press(sim.dip, 250); pausedNote(); }
   else {
-    const knob = ADJ.find(a => a.part === part);
+    const knob = ADJ.find(a => a.part === (part === 'flangescrew' ? 'flange' : part));   // the screw is how the flange is spaced
     if (knob) S.highlight(knob.part, cur);
   }
 });

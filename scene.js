@@ -21,7 +21,7 @@ const PART_NAMES = {
   capstan: 'Capstan screw', wippen: 'Wippen', heel: 'Wippen heel cushion', wippenrail: 'Wippen rail & flange',
   jack: 'Jack', tender: 'Jack tender (toe)', jackscrew: 'Jack regulating screw', rep: 'Repetition lever',
   repscrew: 'Repetition lever height screw', repspring: 'Repetition spring', shank: 'Hammer shank',
-  knuckle: 'Knuckle (a felt roll in buckskin)', knucklecore: 'Knuckle core: a thin wood tongue through the roll, glued up into a groove in the shank. The back of the jack lines up with its back face', hammer: 'Hammer', flange: 'Hammer flange', flangerail: 'Hammer flange rail',
+  knuckle: 'Knuckle (a felt roll in buckskin)', knucklecore: 'Knuckle core: a thin wood tongue through the roll, glued up into a groove in the shank. The back of the jack lines up with its back face', hammer: 'Hammer', flange: 'Hammer flange', flangescrew: 'Hammer flange screw', flangerail: 'Hammer flange rail',
   wflange: 'Wippen flange', support: 'Repetition lever support', jackstop: 'Jack stop (wire)', repbutton: 'Repetition lever button',
   dropfelt: 'Drop screw felt', windowfelt: 'Jack stop felt in the repetition lever window',
   wcenter: 'Wippen flange center pin (bushed in the flange)', jcenter: 'Jack center pin (bushed in the wippen)',
@@ -91,6 +91,15 @@ const CAP_PITCH = 1.28;              // mm per turn: 1/32 turn is the knob's 0.0
 const LETOFF_LEN = 20;               // the let-off button's screw, button to top: in its rail, clear of the flange rail, over the knob's range
 const DROP_LEN = 16;                 // the drop screw, its end to the foot of its spade head: it stays through the flange over the knob's range
 const DROP_PITCH = 0.4;              // mm per turn: ⅛ turn is the knob's 0.05 mm step
+// the hammer flange screw: a round-head wood screw down through the flange's foot into the flange rail
+const FS_X = 297, FS_SEAT = 145.2;   // its axis, and the flat on the foot its head sits on
+const FS_HEAD = [[0, 0], [2.8, 0], [2.8, 0.9], [2.5, 1.45], [1.9, 1.8], [1, 1.95], [0, 2]];   // head profile, [radius, height]
+const FS_SLOT = (() => {             // the slot across the head: a dark strip following the dome, rim to rim
+  const dome = FS_HEAD.slice(2), across = [...dome.map(([r, h]) => [-r, h]), ...dome.slice(0, -1).reverse().map(([r, h]) => [r, h])];
+  return [...across.map(([x, y]) => [x, y + 0.02]), ...[...across].reverse().map(([x, y]) => [x, y - 0.5])];
+})();
+const FS_R = 1.6, FS_LEN = 19;       // #5, ¾ in: its tip stays inside the rail
+const FS_LOOSE_LIFT = 1.5, FS_LOOSE_LEAN = 0.1;   // loose: backed up off the flange and leaning in its hole (mm, rad)
 const SHANK_R = -G.shankRest[1];     // the shank's radius where the rest rail meets it
 const KNUCKLE_LEATHER = 1.5;         // buckskin round the knuckle's felt roll (proportions from Greg's photo)
 
@@ -243,17 +252,25 @@ export function createScene(canvas, overlay) {
     ext(shapeFrom(W_FLANGE), 3, -4.3, COLORS.wood, 'wflange', wfl);
     ext(shapeFrom(W_FLANGE), 3, 4.3, COLORS.wood, 'wflange', wfl, { opacity: 0.4 });
     // hammer flange: a foot screwed on the flange rail, a body standing over the repetition lever's front end with the
-    // drop screw threaded down through it, and a fork round the shank's center pin
-    ext(shapeFrom([[290, 140], [309, 140], [311.5, 145.5], [322, 145.5], [322, 149.5], [290, 144]]), 11, 0, COLORS.wood, 'flange', root);
-    ext(rect(321, 140, 331, 153.5), 3.5, -5, COLORS.wood, 'flange', root);
-    ext(rect(321, 140, 331, 153.5), 3.5, 5, COLORS.wood, 'flange', root, { opacity: 0.4 });
+    // drop screw threaded down through it, and a fork round the shank's center pin. Spacing shifts it on the rail.
+    const fl = n.flange = new THREE.Group(); root.add(fl);
+    // the top slopes up to the body; the screw's head sits on a level shelf behind it
+    ext(shapeFrom([[290, 140], [309, 140], [311.5, 145.5], [322, 145.5], [322, 149.5], [FS_X + 3.6, 144 + (FS_X + 3.6 - 290) * 5.5 / 32],
+      [FS_X + 3.6, FS_SEAT], [290, FS_SEAT]]), 11, 0, COLORS.wood, 'flange', fl);
+    ext(rect(321, 140, 331, 153.5), 3.5, -5, COLORS.wood, 'flange', fl);
+    ext(rect(321, 140, 331, 153.5), 3.5, 5, COLORS.wood, 'flange', fl, { opacity: 0.4 });
+    // its screw, on the flat behind the body; a loose one stands up off the flange and leans
+    const fs = n.flangeScrew = new THREE.Group(); fs.position.set(FS_X, FS_SEAT, 0); fl.add(fs);
+    lathe(FS_HEAD, COLORS.steel, 'flangescrew', fs, { metal: true });
+    ext(shapeFrom(FS_SLOT), 0.7, 0, COLORS.dark, 'flangescrew', fs);
+    cyl(FS_R, FS_LEN, 'y', [0, -FS_LEN / 2, 0], COLORS.steel, 'flangescrew', fs, { metal: true });
     n.letoffBtn = new THREE.Group(); root.add(n.letoffBtn);
     cyl(5, 3, 'y', [G.letoffX, 1.5, 0], COLORS.redfelt, 'letoff', n.letoffBtn);
     // its screw rides with it, up through the regulating rail, so turning it shows above the rail
     cyl(1.2, LETOFF_LEN, 'y', [G.letoffX, 3 + LETOFF_LEN / 2, 0], COLORS.steel, 'letoff', n.letoffBtn, { metal: true });
-    // drop screw: out of the flange's underside, its rounded, flattened end stopping the felt on the repetition lever's
-    // front end. The whole screw moves when it is regulated, and its spade head turns.
-    const ds = n.dropScrew = new THREE.Group(); ds.position.set(G.dropX, 0, 3.8); root.add(ds);
+    // drop screw: down the middle of the flange's body, its rounded, flattened end stopping the felt on the repetition
+    // lever's front end. The whole screw moves when it is regulated, and its spade head turns.
+    const ds = n.dropScrew = new THREE.Group(); ds.position.set(G.dropX, 0, 0); fl.add(ds);
     lathe([[0, 0], [1.2, 0.05], [1.65, 0.3], [1.8, 0.7], [1.4, 1.3]], COLORS.steel, 'drop', ds, { metal: true });
     cyl(1.4, DROP_LEN - 1.2, 'y', [0, (DROP_LEN + 1.2) / 2, 0], COLORS.steel, 'drop', ds, { metal: true });
     ext(rect(-1.5, DROP_LEN - 0.2, 1.5, DROP_LEN + 2.4), 0.9, 0, COLORS.steel, 'drop', ds, { metal: true });
@@ -551,7 +568,7 @@ export function createScene(canvas, overlay) {
   function highlight(parts, note = null) {
     for (const m of highlighted) m.material.emissive.setHex(0);
     highlighted = [];
-    for (const p of [].concat(parts || [])) for (const m of partMeshes[p] || []) {
+    for (const p of [].concat(parts || []).flatMap(p => p === 'flange' ? [p, 'flangescrew'] : [p])) for (const m of partMeshes[p] || []) {   // the flange knobs work its screw too
       if (note !== null && m.userData.note !== -1 && m.userData.note !== note) continue;
       m.material.emissive.setHex(0x7a4a00); highlighted.push(m);
     }
@@ -591,6 +608,9 @@ export function createScene(canvas, overlay) {
     const tilt = -BASS * (a.hammerTravel || 0) / TRAVEL_RISE;    // + travel drifts toward the treble; the crown rises about 44.5 mm to the strings
     n.align.rotation.x = tilt;
     n.align.position.z = BASS * (a.hammerSpace || 0) - SIDE_K * Math.sin(tilt);   // keep the resting head where spacing puts it (model.js sideZ)
+    n.flange.position.z = BASS * (a.hammerSpace || 0);
+    const loose = a.damage === 'looseFlange';
+    n.flangeScrew.position.y = FS_SEAT + (loose ? FS_LOOSE_LIFT : 0); n.flangeScrew.rotation.z = loose ? FS_LOOSE_LEAN : 0;
     const wob = a.wobble ? a.wobble * ((sim.strikes || 0) % 2 ? 1 : -1) : 0;   // a split shank wobbles blow to blow
     n.headG.rotation.x = ((a.hammerSquare || 0) + wob) * Math.PI / 180;
     n.crack.visible = a.damage === 'splitShank';
