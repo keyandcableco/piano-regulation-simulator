@@ -4,6 +4,7 @@ import { createScene, NOTE_Z, BASS } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
 import { TOOLBAG } from './toolbag.js';
+import { BUSHINGS, KEY } from './model.js';
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -49,7 +50,7 @@ const gradeL = (id, mm) => grade(id, mm, level().tolK);
 
 // ---------- state ----------
 // Three note slots (0 = middle, 1 = toward the bass, 2 = toward the treble). The one-note modes
-// use slot 0; exam mode uses all three. adj, sim, m and tested always point at the current slot.
+// use slot 0; exam mode and the Sandbox's three keys use all three. adj, sim, m and tested always point at the current slot.
 const NOTES = [0, 1, 2].map(() => { const a = { ...FACTORY }; return { adj: a, sim: new Sim(a), m: measure(a), tested: new Set() }; });
 let cur = 0;
 let adj = NOTES[0].adj, sim = NOTES[0].sim, m = NOTES[0].m, tested = NOTES[0].tested;
@@ -57,14 +58,14 @@ function store() { Object.assign(NOTES[cur], { adj, sim, m, tested }); }
 function selectNote(slot) {
   if (slot === cur || busy) return;
   clearPlan(); clearFrames();   // the frames carry the other note's markers
-  if (sim.dTarget > 0) sim.press(0, 60);
+  NOTES.forEach(n => { if (n.sim.dTarget > 0) n.sim.press(0, 60); });   // a chord comes up too: its plan to let it up is gone
   store(); cur = slot;
   ({ adj, sim, m, tested } = NOTES[slot]);
-  S.setFocus(examActive() ? slot : null);
+  S.setFocus(focusFor(viewNow));
   S.clearCallouts(); letoffMark = checkMark = letoffD = null;
   refresh();
 }
-let mode = 'learn';
+let mode = 'sandbox';   // open on a regulated action: Learn's deliberate faults read as bugs to a first-time visitor
 let timeScale = 0.1;
 let stepIdx = 0;
 // Find the fault: verdict is the last check ({ bad: spec ids still out }); gaveUp shows the answer
@@ -87,10 +88,13 @@ catch (err) {
   throw err;
 }
 
-// side views follow the current note; sighting the hammer line shows all three at full strength
+// side views follow the current note and fade the other two; sighting the hammer line shows all three at full strength,
+// and so do the Sandbox's views where the three stand side by side
 let viewNow = 'action';
 let travelRestG = null;   // the hammer's rest angle in the traveling view, held while a test lifts it
-const view = name => { viewNow = name; travelRestG = null; S.setFocus(name !== 'hammerline' && examActive() && !exam.done ? cur : null); S.setView(name, NOTE_Z[cur]); };
+const TOGETHER = new Set(['angle', 'damperline', 'damperrow']);
+const focusFor = name => !multi() || name === 'hammerline' || (examActive() ? exam.done : TOGETHER.has(name)) ? null : cur;
+const view = name => { viewNow = name; travelRestG = null; S.setFocus(focusFor(name)); S.setView(name, NOTE_Z[cur]); };
 
 // ---------- learn steps (standard grand order) ----------
 // The order follows the published grand sequences (Randy Potter School checklist, Steinway and
@@ -100,13 +104,14 @@ const view = name => { viewNow = name; travelRestG = null; S.setFocus(name !== '
 const STEPS = [
   { info: true, id: 'prep', title: 'Before you regulate: prepare the action',
     what: 'Regulating over loose screws, tight centers or sticky keys is wasted work. Tighten the action and keyframe screws, check that the centers swing freely but not loosely, ease any tight key bushings, and shape or file worn hammers and fit them to the strings: both change blow and let-off, so they come first.',
-    how: 'None of this is in the sim: its parts are clean, free and tight. On a real piano it comes first.' },
+    how: 'Key bushings are on the card after next; the rest of this isn\'t in the sim. On a real piano it comes first.' },
   { info: true, id: 'bedding', title: 'Bed the keyframe',
     what: 'The keyframe has to sit flat on the keybed at the front rail, balance rail and back rail. If it rocks, it knocks, and the key dip and height wander.',
     how: 'Knock test with the action in: press on the rails and listen. Sand the front rail where it doesn\'t touch; set the balance rail glide bolts so they just touch, never lifting the rail.' },
-  { info: true, id: 'keys', title: 'Square, space and ease the keys',
-    what: 'Keys should sit square and evenly spaced, with slight side play at the bushings and none that binds.',
-    how: 'Square a key by bending the balance rail pin to one side with a soft drift; space it by bending the front rail pin, the tool under the punching so the pin isn\'t marked.' },
+  { spec: 'keyBushings', id: 'keys', title: 'Square, space and ease the keys', knobs: [], bushings: true, test: 'rockKey', tests: ['rockKey', 'keyDrop'],
+    what: 'Each key has to work freely yet firmly before anything else is regulated. Steinway: "A tight key will make other adjustments virtually useless." Rocked side to side at the front, at rest and held down, the key should have slight play at its front rail bushing; twisted at its front, a little at the balance pin. With the stack lifted off, a key raised and let go should drop easily.',
+    how: 'A tight bushing (no play, or a key that drops slowly or stays up) is eased: squeeze the mortise with key easing pliers. A worn one (a knock each way, often a click) is rebushed with new cloth sized to the pin; easing it only makes it looser. Square a key by bending the balance rail pin to one side with a soft drift; space it by bending the front rail pin, the tool under the punching so the pin isn\'t marked. The sim keeps its keys square and spaced.',
+    note: 'No technician standard gives key side play in millimetres: Steinway asks for slight play, even across the keyboard, and techs say you should feel it but not see it. The sim\'s band is its own. A key that drops freely with the stack off but comes up slowly with it on has its friction in the action, not the key.' },
   { spec: 'hammerTravel', title: 'Travel the hammers', knobs: ['hammerTravel'], test: 'travelLift',
     what: 'Lift the hammer slowly to the strings: it should rise straight, without drifting sideways. A hammer that travels off its path ends up striking a different spot than where it rests.',
     how: 'Put a strip of thin paper under one side of the hammer flange to tilt its path: under the side the hammer drifts toward as it rises. That side of the flange lifts and the path swings back. Paper on the wrong side makes the drift worse. Travel before spacing, since traveling moves the hammer at the strings.',
@@ -234,7 +239,7 @@ const TESTS = {
       landed = new Map();
       setPedal(false); await waitSim(0.25); await waitReal(0.6);
       // report landing times for the notes that are in play
-      const slots = examActive() ? EXAM_ORDER : [cur];
+      const slots = multi() ? EXAM_ORDER : [cur];
       const ms = slots.map((slot, i) => landed.has(slot) ? Math.round(1000 * (landed.get(slot) - t0[slot])) : null);
       toast(slots.length > 1 ? `Dampers landed after ${ms.map((v, i) => `note ${i + 1}: ${v ?? '—'} ms`).join(', ')}` : `Damper landed after ${ms[0] ?? '—'} ms`);
       landed = null;
@@ -245,7 +250,7 @@ const TESTS = {
     run: async () => { await releaseKey(); sim.press(sim.dip, 6); await waitSim(2.2); await waitReal(1.2); } },
   strikeHold: { label: 'Strike and hold', specs: ['check'], view: 'backcheck', scale: 0.12,
     run: async () => { await releaseKey(); sim.press(sim.dip, 250); await waitSim(0.5); await waitReal(1); } },
-  hammerLine: { label: 'Sight the hammer line', specs: ['blow'], view: 'hammerline', examOnly: true,
+  hammerLine: { label: 'Sight the hammer line', specs: ['blow'], view: 'hammerline', threeOnly: true,
     run: async () => { await releaseKey(); await waitReal(1.5); } },
   easeUp: { label: 'Strike, hold, then ease up', specs: ['spring'], view: 'hammer', scale: 0.25,
     run: async () => { await releaseKey(); sim.press(sim.dip, 250); await waitSim(0.4); await waitReal(0.6);
@@ -265,7 +270,45 @@ const TESTS = {
     } },
   damperSight: { label: 'Sight the damper heads on their strings', specs: ['damperSeat'], view: 'damperline', damper: true,
     run: async () => { await releaseKey(); await waitReal(1.6); view('dampers'); await waitReal(1.6); } },
+  // key bushings (not in the exam: its keys are given): rocked side to side at the front (the front rail bushing) and
+  // twisted (the balance rail bushing), at rest and held down, as Steinway's guide checks them
+  rockKey: { label: 'Rock the key at the front', specs: ['keyBushings'], view: 'keytop', noExam: true,
+    run: async () => {
+      await releaseKey(); await waitReal(0.6);
+      const rock = async () => {
+        const half = m.keyBushings / 2, tw = m.balPlay / KEY.balTwist / 2, lean = sim.a.keyLean;
+        sim.keyRock = lean;
+        for (const s of [-half, half, -half, half, lean]) await sway('keyRock', sim.keyRock, s);
+        sim.keyTwist = 0;
+        for (const t of [-tw, tw, -tw, tw, 0]) await sway('keyTwist', sim.keyTwist, t);
+        sim.keyRock = sim.keyTwist = null;
+      };
+      const p = m.keyBushings, s = SPEC.keyBushings, bad = p < 0.05 || p > s.target + s.tol || m.balPlay < 0.05;
+      const feel = `side to side, ${p < 0.05 ? 'no play: it binds on the front pin' : p > s.target + s.tol ? `a knock each way, about ${fmt(p)}` : `slight play, smooth (about ${fmt(p)})`}; `
+        + `twisted, ${m.balPlay < 0.05 ? 'no play: it binds on the balance pin' : 'a little play at the balance pin'}`;
+      await rock(); say(`At rest: ${feel}`, bad ? 'warn' : '');
+      sim.press(sim.dip, 20); await waitSim(sim.dip / 20 + 0.15);
+      await rock(); say(`Held down: ${feel}`, bad ? 'warn' : '');
+      await waitReal(0.6);
+      await releaseKey();
+    } },
+  // Don Dalton's check (PTG, 2022): stack off, lift the key, it should drop easily
+  keyDrop: { label: 'Stack off: lift the key and let it drop', specs: ['keyBushings'], view: 'action', noExam: true,
+    run: async () => {
+      await releaseKey();
+      const stack = on => NOTES.forEach(n => { n.sim.stackOff = on; });   // one stack over all the keys
+      stack(true); sim.keyShown = 0; await waitReal(0.8);
+      if (m.keyFall === 'hangs') { say('Let go, the key stays up: a tight bushing holds it', 'warn'); await waitReal(1.6); }
+      else {
+        await sway('keyShown', 0, sim.dip, Math.round(15 / m.keyFallShare));
+        say(m.keyFall === 'slow' ? 'Let go, the key drops, but slowly: a bushing is tight' : 'Let go, the key drops freely', m.keyFall === 'slow' ? 'warn' : '');
+        await waitReal(1);
+      }
+      sim.keyShown = null; stack(false);
+    } },
 };
+// move one of the key tests' drawn values (sim.keyRock, keyTwist, keyShown) from a to b over a few screen frames
+const sway = async (field, a, b, steps = 8) => { for (let i = 1; i <= steps; i++) { sim[field] = a + (b - a) * i / steps; await waitReal(0.03); } };
 const waitReal = s => new Promise(r => setTimeout(r, s * 1000));
 let landed = null; // pedal test: when each note's damper seated
 async function releaseKey() {
@@ -284,6 +327,7 @@ async function runTest(id) {
   const gen = generation;
   clearPlan(); cue = null; recentWarn.clear();   // a test's own press stays down; its warnings always show
   setPaused(false);                     // a test runs the action itself
+  releaseOthers();
   busy++;
   view(t.view);
   if (mode === 'diagnose' || examActive()) testsUsed++;
@@ -316,7 +360,10 @@ function setAdj(id, v) {
   m = measure(adj);
   unsolve();
   store();
-  if (SHARED.has(id)) NOTES.forEach((n, i) => { if (i !== cur) { n.adj[id] = adj[id]; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); } });
+  // a neighbor's key held down (a chord) stays down, as this one does
+  if (SHARED.has(id)) NOTES.forEach((n, i) => { if (i !== cur) {
+    n.adj[id] = adj[id]; n.sim.setAdj(n.adj); if (n.sim.d < 0.01 && !n.sim.st.checked) n.sim.reset(); n.m = measure(n.adj);
+  } });
   refresh();
 }
 // what each adjustment is for: the readings its card shows, so you see them move as you turn it
@@ -329,13 +376,13 @@ const KNOB_FOR = {
   damperDrag: ['damperFall'], damperCenter: ['damperSeat'], damperLevel: ['damperSeat'],
 };
 const SHORT = {
-  keyHeight: 'Key height', dip: 'Dip', aftertouch: 'Aftertouch', blow: 'Blow', lostMotion: 'Lost motion', restGap: 'Rail gap',
+  keyBushings: 'Key bushings', keyHeight: 'Key height', dip: 'Dip', aftertouch: 'Aftertouch', blow: 'Blow', lostMotion: 'Lost motion', restGap: 'Rail gap',
   hammerTravel: 'Travel', hammerSpacing: 'Spacing', hammerSquare: 'Square', jackPos: 'Jack position', wippenSpacing: 'Jack centered',
   wink: 'Wink', letoff: 'Let-off', drop: 'Drop', spring: 'Spring', check: 'Checking', backcheckAlign: 'Centered, square',
   damperTiming: 'Lift timing', damperStop: 'Stop rail', pedalLift: 'Pedal lift', damperFall: 'Fall', damperSeat: 'Seat',
 };
 // an unmeasured reading names its test, which may sit in another part of the action (aftertouch: the slow press)
-const testFor = s => TESTS[Object.keys(TESTS).find(k => !TESTS[k].examOnly && TESTS[k].specs.includes(s))]?.label;
+const testFor = s => TESTS[Object.keys(TESTS).find(k => !TESTS[k].threeOnly && TESTS[k].specs.includes(s))]?.label;
 function knobReadings(id) {
   const ids = KNOB_FOR[id] || [];
   return el('div', { class: 'sets small' }, el('span', { class: 'muted' }, 'Sets'), ids.map(s => {
@@ -358,7 +405,7 @@ function knobRow(id, { readings = false } = {}) {
   return el('div', { class: 'knob' },
     el('div', { class: 'knob-head' },
       el('button', { class: 'linkish', onclick: () => { S.highlight(d.part, cur); view(id === 'hammerTravel' ? 'travel' : viewFor(d.part)); } }, d.name),
-      el('span', { class: 'muted small' }, examActive() && SHARED.has(id) ? 'shared by all three notes' : valTxt)),
+      el('span', { class: 'muted small' }, multi() && SHARED.has(id) ? [valTxt, 'shared by all three notes'].filter(Boolean).join(' · ') : valTxt)),
     el('div', { class: 'knob-btns' },
       // a shim goes under one side or the other: the choice of side is the adjustment
       d.sides ? d.sides.map((s, i) => btn(`${s[0].toUpperCase()}${s.slice(1)} side`, i ? -fine : +fine, `${i ? 'right' : 'left'} from the keys · add ${d.stepLabel[0]}`)) : [
@@ -392,6 +439,7 @@ function specTarget(id) {
   if (id === 'backcheckAlign') return 'centered, square';
   if (id === 'lostMotion') return 'none';
   if (id === 'damperSeat') return 'centered, flat';
+  if (id === 'keyBushings') return 'slight play, drops freely';
   return fmt(s.target);
 }
 const side = v => Math.abs(v) < 0.05 ? 'centered' : `${fmt(Math.abs(v))} toward the ${v > 0 ? 'bass' : 'treble'}`;
@@ -409,6 +457,7 @@ function reading(id, mm = m) {
   else if (id === 'backcheckAlign') txt = `${side(r.v)}, ${Math.abs(mm.backcheckSquare) < 0.25 ? 'square' : `${Math.abs(mm.backcheckSquare).toFixed(1)}° out of square`}`;
   else if (id === 'lostMotion') txt = r.v < 0.01 ? 'none' : `${fmt(r.v)} of free play at the key`;
   else if (id === 'damperSeat') txt = `${side(r.v)}, ${Math.abs(mm.damperLevel) < 0.02 ? 'seated flat' : `${mm.damperLevel > 0 ? 'back' : 'front'} end ${fmt(Math.abs(mm.damperLevel))} up`}`;
+  else if (id === 'keyBushings') txt = r.v < 0.05 ? r.note : `${fmt(r.v)} side play at the front` + (r.note ? ` · ${r.note}` : ', drops freely');
   else if (r.v == null) txt = r.note || '—';
   else if (id === 'keyHeight') txt = Math.abs(r.v) < 0.05 ? 'level' : `${fmt(Math.abs(r.v))} ${r.v > 0 ? 'high' : 'low'}`;
   else if (id === 'jackPos') txt = Math.abs(r.v) < 0.05 ? 'aligned' : `${fmt(Math.abs(r.v))} ${r.v > 0 ? 'too far back' : 'too far forward'}`;
@@ -462,6 +511,12 @@ const SCENARIOS = [
     answer: 'A broken jack spring: nothing pushes the jack back under the knuckle until the key is fully up. Replace the spring.' },
   { complaint: 'It was regulated when we bought it eight years ago. Now there\'s a click at the top of the key, soft notes are hard to control, and it feels like it bottoms out.', faults: { wear: 0.8 }, alone: true,
     answer: 'Nothing was turned: eight years of playing packed down the felts and cloth. Blow grew, the hammer settled onto the rest rail (lost motion), and aftertouch shrank. The fix is a touch-up of the whole sequence.' },
+  { complaint: 'This key wobbles from side to side, and it clicks when I play it.', faults: { bushing: 'frontWorn' }, alone: true,
+    answer: 'A worn front rail bushing: the cloth in the key\'s front mortise has packed down, so the key knocks side to side on its front pin and clicks. Rebush the front mortise with new cloth sized to the pin; easing only makes it looser. Turning an oval front pin takes up a little play for a while, but it crushes the rail\'s wood.' },
+  { complaint: 'Since the summer this key stays down after I play it, and I have to lift it back up.', faults: { bushing: 'frontTight' }, alone: true,
+    answer: 'A tight front rail bushing: the cloth swelled in the humid months and grips the front pin, so the key has no side play and the action\'s weight can\'t bring it back up. Ease it with key easing pliers. Rebushing would work too, but the cloth is sound.' },
+  { complaint: 'This key comes back up slowly, lazier than the ones next to it.', faults: { bushing: 'balTight' }, alone: true,
+    answer: 'A tight balance rail bushing: the key still has its side play at the front, but twisted at its front it has none at the balance pin, and with the stack off it drops slowly. Ease the balance bushing with key easing pliers.' },
 ];
 function newScenario() {
   const pool = [...SCENARIOS].sort(() => Math.random() - 0.5);
@@ -493,7 +548,12 @@ function deregulated() {
   a.damperDrag = Math.random() < 0.4 ? rnd(0.3, 0.6) : FACTORY.damperDrag;
   return a;
 }
-function messUp() { adj = deregulated(); applyAdj(); }
+function messUp() {
+  adj = deregulated();
+  // in Learn, one key in three also has a key bushing to ease or rebush
+  if (mode === 'learn' && Math.random() < 1 / 3) { const k = Object.keys(BUSHINGS); adj.bushing = k[Math.floor(Math.random() * k.length)]; }
+  applyAdj();
+}
 function applyAdj() { generation++; clearFrames(); sim.setAdj(adj); sim.reset(); m = measure(adj); store(); S.clearCallouts(); refresh(); }
 
 // ---------- panel ----------
@@ -556,7 +616,8 @@ function renderLearn(p) {
     el('div', { class: 'row' }, (st.tests || [st.test]).map(testButton)),
     measureTable(stepSpecs(st)),
     el('div', { class: 'knobs' }, st.knobs.map(knobRow)),
-    benchTips(st.spec),
+    st.bushings ? bushingRepairs() : null,
+    benchTips(st.id ?? st.spec),
     nav(stepDone(st)),
     earlier.length ? el('details', {}, el('summary', {}, 'Earlier steps'), measureTable(earlier)) : null,
   );
@@ -614,12 +675,33 @@ function repairs() {
       sim.setAdj(adj); sim.reset(); m = measure(adj); store(); refresh();
     } }, d.repair))));
 }
+// key bushings are eased or rebushed, never regulated; the wrong one says why it didn't help
+const BUSHING_FIXES = {
+  easeFront: { label: 'Ease the front rail bushing', fixes: { frontTight: 'Eased with key easing pliers: the key has its play again and drops freely.' },
+    wrong: { frontWorn: 'Easing a worn bushing only makes it looser: this one needs new cloth.', balTight: 'The front bushing already has its play: easing it would only make it sloppy.' } },
+  rebushFront: { label: 'Rebush the front rail mortise', fixes: { frontWorn: 'Rebushed: new cloth sized to the pin, and the key has slight play again.',
+    frontTight: 'Rebushed, and it works, but the cloth was sound, only swollen: key easing pliers would have done it in a minute.' } },
+  easeBal: { label: 'Ease the balance rail bushing', fixes: { balTight: 'Eased: the key has a little play at its balance pin and drops freely.' },
+    wrong: { frontTight: 'The balance bushing already has its play: the key binds at the front.' } },
+};
+function bushingChanged() { generation++; clearFrames(); sim.setAdj(adj); sim.reset(); m = measure(adj); store(); refresh(); }
+function bushingRepairs() {
+  return el('div', {}, el('p', { class: 'muted small' }, 'Key bushings: eased or rebushed, not regulated.'),
+    el('div', { class: 'tests' }, Object.values(BUSHING_FIXES).map(f => el('button', { class: 'test', disabled: busy ? '' : false, onclick: () => {
+      const msg = f.fixes[adj.bushing];
+      if (!msg) {
+        if (mode === 'diagnose') testsUsed++;
+        toast(f.wrong?.[adj.bushing] || `${f.label}: nothing wrong there, so nothing changed.`); refresh(); return;
+      }
+      adj.bushing = null; unsolve(); toast(msg); bushingChanged();
+    } }, f.label))));
+}
 const damageLabel = k => ({ splitShank: 'Split shank', looseFlange: 'Loose flange screw', looseHead: 'Loose hammer head',
   tightCenter: 'Tight flange center', brokenJackSpring: 'Broken jack spring' })[k];
 // Find the fault, Sandbox and Exam work part by part: each part of the action with its tests, readings and adjustments together
-// (hammerLine shows only in the exam, where there are three hammers to sight)
+// (hammerLine shows only with three notes, the exam's or the Sandbox's, where there are three hammers to sight)
 const AREAS = [
-  { id: 'key', name: 'Key', tests: ['straightedge', 'dipBlock'], knobs: ['balPunch', 'frontPunch'] },
+  { id: 'key', name: 'Key', tests: ['straightedge', 'dipBlock', 'rockKey', 'keyDrop'], knobs: ['balPunch', 'frontPunch'], repairs: bushingRepairs },
   { id: 'hammer', name: 'Hammer, blow and rest rail', tests: ['travelLift', 'alignSight', 'wiggle', 'blowGauge', 'hammerLine', 'restRail', 'topPlay'],
     knobs: ['hammerTravel', 'hammerSpace', 'hammerSquare', 'capstan', 'restRail'] },
   { id: 'jack', name: 'Jack and repetition lever', tests: ['sightJack', 'sightJackFront', 'wink', 'slowPress', 'easeUp'],
@@ -633,7 +715,7 @@ const openFolds = new Set(['how']);
 const fold = (key, summary, ...kids) => el('details', { class: 'fold', open: openFolds.has(key) ? '' : false,
   ontoggle: e => { e.target.open ? openFolds.add(key) : openFolds.delete(key); } }, el('summary', {}, summary), el('div', { class: 'fold-body' }, ...kids));
 function areaPanel(a) {
-  const tests = a.tests.filter(t => !TESTS[t].examOnly || examActive());
+  const tests = a.tests.filter(t => (!TESTS[t].threeOnly || multi()) && !(TESTS[t].noExam && examActive()));
   const specs = [...new Set(tests.flatMap(t => TESTS[t].specs))];
   const shown = specs.filter(revealed), out = shown.filter(id => !gradeL(id, m).ok);
   const status = out.length ? el('span', { class: 'badc small' }, `${out.length} out of spec`)
@@ -642,7 +724,8 @@ function areaPanel(a) {
   return fold(a.id, [el('span', { class: 'grow' }, a.name), status],
     el('div', { class: 'tests' }, tests.map(testButton)),
     measureTable(specs),
-    el('div', { class: 'knobs' }, a.knobs.map(id => knobRow(id, { readings: true }))));
+    el('div', { class: 'knobs' }, a.knobs.map(id => knobRow(id, { readings: true }))),
+    examActive() ? null : a.repairs?.());
 }
 const howTo = () => el('ol', { class: 'how' },
   el('li', {}, el('b', {}, 'Test. '), 'Open a part of the action below and run its tests (▶). The action shows each test, and its readings fill in.',
@@ -691,14 +774,18 @@ function renderDiagnose(p) {
         : el('button', { class: 'primary', onclick: checkWork }, checks ? 'Check again' : 'Check my work'));
 }
 // felt and cloth packing down with playing: punchings, back rail cloth, wippen heel,
-// knuckle, hammer felt, button felts, backcheck felt, and a tiring repetition spring
+// knuckle, hammer felt, button felts, backcheck felt, and a tiring repetition spring (one piano: all three keys wear alike)
 function wearControl() {
   const yrs = Math.round((adj.wear || 0) * 10);
   return el('div', { class: 'wear' },
     el('div', { class: 'knob-head' }, el('b', {}, 'Felt & cloth wear'), el('span', { class: 'muted small' }, yrs ? `about ${yrs} year${yrs > 1 ? 's' : ''} of daily playing` : 'new felt')),
     el('input', { type: 'range', min: 0, max: 10, step: 1, value: yrs,
       oninput: e => { const y = +e.target.value; e.target.closest('.wear').querySelector('.muted').textContent = y ? `about ${y} year${y > 1 ? 's' : ''} of daily playing` : 'new felt'; },
-      onchange: e => { adj.wear = +e.target.value / 10; applyAdj(); } }),
+      onchange: e => {
+        const w = +e.target.value / 10;
+        if (multi()) NOTES.forEach((n, i) => { if (i !== cur) putNote(n, { ...n.adj, wear: w }); });
+        adj.wear = w; applyAdj();
+      } }),
     el('div', { class: 'muted small' }, 'Punchings, cloth, cushions, knuckles and hammer felt pack down. Watch blow, lost motion and aftertouch drift, then regulate it back.'));
 }
 // ---------- tool bag ----------
@@ -746,17 +833,82 @@ function renderDrills(p) {
   }
   p.append(drillsEl);
 }
+// ---------- sandbox ----------
+// One key, or three neighbors on the same rails (the exam's three notes), to see the dampers lift and land together
+let threeKeys = false;
+const sharedOf = a => Object.fromEntries([...SHARED].map(k => [k, a[k]]));
+function putNote(n, a) { n.adj = a; n.sim.setAdj(a); n.sim.reset(); n.m = measure(a); n.tested = new Set(); }
+function setThreeKeys(on) {
+  if (on === threeKeys || busy) return;
+  setLoop(false); clearPlan(); clearFrames();
+  NOTES.forEach(n => { if (n.sim.dTarget > 0) n.sim.press(0, 60); });
+  store();
+  // the neighbors start regulated, on the middle note's rails and as worn as it is
+  const a0 = NOTES[0].adj;
+  for (const i of [1, 2]) putNote(NOTES[i], on ? { ...FACTORY, wear: a0.wear || 0, ...sharedOf(a0) } : { ...FACTORY });
+  threeKeys = on; cur = 0;
+  ({ adj, sim, m, tested } = NOTES[0]);
+  S.setNoteCount(on ? 3 : 1); S.clearCallouts();
+  view(on ? 'damperrow' : viewNow === 'damperrow' ? 'dampers' : viewNow);   // the row of three has no button of its own
+  refresh();
+}
+// all three keys at once: a blow comes back up as Play's does; a slow press stays down until Let key up
+function chord(slow) {
+  if (busy) return;
+  setLoop(false); clearPlan(); cue = null;
+  NOTES.forEach(n => n.sim.press(n.sim.dip, slow ? 6 : 250));
+  if (!slow) { plan = 'all'; planAt = null; }
+  pausedNote();
+}
+// as worn as before, like Factory regulation; with three keys each knocked out on its own, the rails they share set once
+function messUpSandbox() {
+  const rails = sharedOf(deregulated()), w = adj.wear || 0;
+  const one = () => ({ ...deregulated(), wear: w, ...rails });
+  if (multi()) NOTES.forEach((n, i) => { if (i !== cur) putNote(n, one()); });
+  adj = one(); applyAdj();
+}
+function factoryAll() {
+  const w = adj.wear || 0;
+  if (multi()) NOTES.forEach((n, i) => { if (i !== cur) putNote(n, { ...FACTORY, wear: w }); });
+  adj = { ...FACTORY, wear: w }; applyAdj();
+}
+// the three dampers side by side: when each starts to lift on its key, and how long each takes to land off the pedal
+function damperCompare() {
+  const cell = (id, txt) => s => el('td', { class: gradeL(id, NOTES[s].m).ok ? 'okc' : 'badc' }, txt(NOTES[s].m));
+  const rows = [
+    ['Starts lifting (share of hammer travel)', 'damperTiming', mm => mm.damperTiming == null ? 'never' : `${Math.round(100 * mm.damperTiming)}%`],
+    ['Lands after the pedal', 'damperFall', mm => `${Math.round(mm.fallMs)} ms`]];
+  return el('table', { class: 'specs score' },
+    el('thead', {}, el('tr', {}, el('th', {}, 'Dampers'), EXAM_ORDER.map((s, i) => el('th', {}, `Note ${i + 1}`)))),
+    el('tbody', {}, rows.map(([name, id, txt]) => el('tr', {}, el('td', {}, name), EXAM_ORDER.map(cell(id, txt))))));
+}
 function renderSandbox(p) {
+  const three = multi(), dis = busy ? '' : false;
   put(p, el('h2', {}, 'Sandbox'),
     el('p', { class: 'muted' }, 'Every reading is live. Open a part of the action, turn anything, and watch what else moves.'),
-    el('div', { class: 'row' }, el('button', { onclick: () => { adj = { ...FACTORY, wear: adj.wear || 0 }; applyAdj(); } }, 'Factory regulation'),
-      el('button', { onclick: messUp }, 'Mess it all up')),
+    el('div', { class: 'row notes' }, el('button', { class: three ? '' : 'on', disabled: dis, onclick: () => setThreeKeys(false) }, 'One key'),
+      el('button', { class: three ? 'on' : '', disabled: dis, onclick: () => setThreeKeys(true) }, 'Three keys')),
+    three ? [
+      el('p', { class: 'muted small' }, 'Three neighbors, bass to treble, on the same rest rail, damper stop rail and pedal. The neighbors start regulated. Pick the note to work on here, or click its key.'),
+      el('div', { class: 'row notes' }, EXAM_ORDER.map((slot, i) =>
+        el('button', { class: slot === cur ? 'on' : '', disabled: dis, onclick: () => { selectNote(slot); view(viewNow); } }, `Note ${i + 1}`))),
+      el('div', { class: 'row' }, el('button', { disabled: dis, onclick: () => chord(false) }, 'Play all three'),
+        el('button', { disabled: dis, onclick: () => chord(true) }, 'Press all three slowly'),
+        el('button', { onclick: () => view('damperrow') }, 'Watch the dampers')),
+      damperCompare(),
+      el('h3', {}, `Note ${EXAM_ORDER.indexOf(cur) + 1}`)] : null,
+    el('div', { class: 'row' }, el('button', { onclick: factoryAll }, 'Factory regulation'),
+      el('button', { onclick: messUpSandbox }, 'Mess it all up')),
     wearControl(),
     AREAS.map(areaPanel),
     el('label', { class: 'row small' }, 'Break something: ',
       el('select', { onchange: e => { adj.damage = e.target.value || null; clearFrames(); sim.setAdj(adj); sim.reset(); m = measure(adj); store(); refresh(); } },
         el('option', { value: '' }, 'nothing'),
         Object.keys(DAMAGE).map(k => el('option', { value: k, ...(adj.damage === k ? { selected: '' } : {}) }, damageLabel(k))))),
+    el('label', { class: 'row small' }, 'Key bushings: ',
+      el('select', { disabled: busy ? '' : false, onchange: e => { adj.bushing = e.target.value || null; bushingChanged(); } },
+        el('option', { value: '' }, 'healthy'),
+        Object.entries(BUSHINGS).map(([k, b]) => el('option', { value: k, ...(adj.bushing === k ? { selected: '' } : {}) }, b.name)))),
     repairs());
 }
 
@@ -770,9 +922,11 @@ const EXAM_ORDER = [1, 0, 2];                 // note 1, 2, 3 from bass to trebl
 const EVEN = ['keyHeight', 'dip', 'blow', 'letoff', 'drop', 'check'];
 let examDampers = false;
 const DAMPER_KNOBS = ['damperGap', 'damperStop', 'pedalLift', 'damperDrag', 'damperCenter', 'damperLevel'];
-const examSpecs = () => Object.keys(SPEC).filter(id => exam.dampers || !SPEC[id].damper);
+const examSpecs = () => Object.keys(SPEC).filter(id => (exam.dampers || !SPEC[id].damper) && !SPEC[id].noExam);
 let exam = { started: false, done: false };
 const examActive = () => mode === 'exam' && exam.started;
+// three notes in play: the exam model, or the Sandbox's three keys
+const multi = () => examActive() || (mode === 'sandbox' && threeKeys);
 function startExam() {
   setPaused(false); clearFrames();
   const restRail = deregulated().restRail;
@@ -796,14 +950,15 @@ function startExam() {
   refresh();
   view('angle');
 }
-function leaveExam() {
+// back to one note, from the exam or the Sandbox's three keys
+function toOneNote() {
   clearFrames();
-  const wasExam = exam.started;
-  exam = { started: false, done: false };
+  const wasThree = exam.started || threeKeys;
+  exam = { started: false, done: false }; threeKeys = false;
   $('#level').disabled = false;
-  if (sim.dTarget > 0) sim.press(0, 60);
+  NOTES.forEach(n => { if (n.sim.dTarget > 0) n.sim.press(0, 60); });
   store(); cur = 0;
-  if (wasExam) NOTES.forEach(n => { n.adj = { ...FACTORY }; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); n.tested = new Set(); });
+  if (wasThree) NOTES.forEach(n => putNote(n, { ...FACTORY }));
   ({ adj, sim, m, tested } = NOTES[0]);
   S.setNoteCount(1); S.setFocus(null);
 }
@@ -891,7 +1046,7 @@ function renderExamResult(p) {
       el('tr', {}, el('td', {}, e.ms ? 'Dampers land together' : SPEC[e.id].name), el('td', { class: e.ok ? 'okc' : 'badc' },
         e.spread == null ? 'not all working' : e.ms ? `${Math.round(e.spread)} ms apart` : e.id === 'damperTiming' ? `spread ${Math.round(e.spread * 100)}%` : `spread ${fmt(e.spread)}`))))),
     el('p', { class: 'muted small' }, `Evenness passes when the three notes are within each spec's tolerance of each other. Practice scoring, not PTG's.`),
-    el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { leaveExam(); refresh(); } }, 'New exam')));
+    el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { toOneNote(); refresh(); } }, 'New exam')));
 }
 
 // ---------- events from the simulation ----------
@@ -952,12 +1107,16 @@ function handleEvents() {
     // (in Learn, only once the dampers are being worked on, so it doesn't nag through the earlier steps)
     if (e.type === 'seated' && !gradeL('damperSeat', m).ok && (show('damperSeat') || mode === 'diagnose')) say('The damper is down, but a string goes on ringing', 'warn');
     if (e.type === 'click') say('A dry click on the blow', 'warn');
+    if (e.type === 'keyclick') say('A click from the key as it bottoms: it knocks on its pins', 'warn');
+    // a test lifts the key itself; Loop can't go on with it down
+    if (e.type === 'keystuck' && !busy) { setLoop(false); say('The key stayed down: a tight bushing holds it. Press Let key up to lift it by hand', 'warn'); }
   }
   // the pedal test listens for every damper landing, on every note
   NOTES.forEach((n, slot) => { if (landed) for (const e of n.sim.events) if (e.type === 'seated' && !landed.has(slot)) landed.set(slot, e.t); n.sim.events = []; });
 }
 const FRONT_VIEWS = new Set(['jackfront', 'checkfront', 'checktop', 'hammerline', 'damperline']);
 function updateCallouts() {
+  if (sim.stackOff) { S.clearCallouts(); return; }   // the key drop test: nothing on the keys to measure
   const nz = NOTE_Z[cur], z = 9 + nz, L = sim.L, g = hammerOverride ?? sim.g;
   const atRest = sim.d < 0.01;
   const show = id => revealed(id);
@@ -1049,6 +1208,9 @@ $('#k-loop').onclick = () => {
   setLoop(!looping);
 };
 for (const id of ['#k-strike', '#k-slow', '#k-ease', '#k-release']) $(id).addEventListener('click', () => setLoop(false));
+// the key buttons play the note being worked on: the other keys of a chord come up first
+const releaseOthers = () => NOTES.forEach(n => { if (n.sim !== sim && n.sim.dTarget > 0) n.sim.press(0, 60); });
+for (const id of ['#k-play', '#k-loop', '#k-strike', '#k-slow', '#k-letoff']) $(id).addEventListener('click', () => { if (!busy) releaseOthers(); });
 $('#k-slow').onclick = () => { if (!busy) { clearPlan(); cue = null; sim.press(sim.dip, 6); pausedNote(); } };
 $('#k-strike').onclick = () => { if (!busy) { clearPlan(); cue = null; sim.press(sim.dip, 250); pausedNote(); } };
 // Ease up lets a held key up a little. Pressed while the key is still going down (a blow, or any press while paused),
@@ -1062,7 +1224,8 @@ $('#k-ease').onclick = () => {
   if (goingDown) plan = 'ease'; else easeNow();
   pausedNote();
 };
-const letUp = () => { if (!busy) { clearPlan(); cue = null; sim.press(0, 60); pausedNote(); } };
+// (and any other key a chord left down)
+const letUp = () => { if (!busy) { clearPlan(); cue = null; NOTES.forEach(n => { if (n.sim === sim || n.sim.dTarget > 0) n.sim.press(0, 60); }); pausedNote(); } };
 $('#k-release').onclick = letUp;
 // letting go of Space or the key on screen: paused, before the key has got down, it goes down and comes back up as
 // Play does (a tap can't be stepped through otherwise)
@@ -1072,6 +1235,12 @@ const setPedal = down => { pedalDown = down; NOTES.forEach(n => n.sim.setPedal(d
 $('#k-pedal').onclick = () => { if (!busy) { setPedal(!pedalDown); pausedNote(); } };
 let labelsOn = false;
 $('#labels').onclick = () => { labelsOn = !labelsOn; S.setLabels(labelsOn); $('#labels').classList.toggle('on', labelsOn); };   // hidden in Tools
+// the key front in a corner, so the key's travel shows beside whatever part of the action the main view is on;
+// on from the start where the stage has room for it
+const setInset = on => { S.setInset(on); $('#inset-btn').classList.toggle('on', on); };
+$('#inset-btn').onclick = () => setInset(!$('#inset-btn').classList.contains('on'));
+S.insetEl.onclick = () => view('keyfront');
+setInset($('#stage').clientWidth >= 700);
 // ---------- frame by frame ----------
 // Pause freezes the action. Frame ▶ moves it on by what one screen frame shows at the chosen speed (press a key
 // button while paused, then step through the stroke); ◀ Frame steps back through the frames already played.
@@ -1080,7 +1249,7 @@ let paused = false, stepFrames = 0, frameNo = 0, frameHold = null;
 const FRAME_S = 1 / 60, H_STEP = 0.0002;   // 0.2 ms steps keep the escapement timing stable
 const frameHistory = [], HISTORY_MAX = 900;   // about 15 s of frames
 const clearFrames = () => { frameHistory.length = 0; cue = null; };
-const SNAP_SKIP = new Set(['a', 'L', 'events', 'dip']), SNAP_LAZY = ['strikes', 'popped', 'buzzing'];   // fields a Sim sets only later
+const SNAP_SKIP = new Set(['a', 'L', 'events', 'dip', 'keyRock', 'keyTwist', 'keyShown', 'stackOff']), SNAP_LAZY = ['strikes', 'popped', 'buzzing'];   // fields a Sim sets only later
 const snapSim = s => Object.fromEntries(Object.entries(s).filter(([k]) => !SNAP_SKIP.has(k)).map(([k, v]) => [k, v && typeof v === 'object' ? structuredClone(v) : v]));
 // nothing moving: keys up, hammers and dampers still (a damper can rest up on the pedal's tray), the pedal not moving
 // (a hammer at rest can keep a speed of 1e-16 or so from the last step's rounding)
@@ -1128,7 +1297,7 @@ const frameBack = () => {
 $('#k-pause').onclick = () => { if (!busy) setPaused(!paused); };
 for (const [id, dir] of [['#k-fwd', 1], ['#k-back', -1]]) {
   const b = $(id), step = () => (dir > 0 ? frameFwd() : frameBack());
-  b.addEventListener('pointerdown', e => { if (e.button !== 0 || busy) return; step(); frameHold = { dir, t0: performance.now() }; });
+  b.addEventListener('pointerdown', e => { if (e.button !== 0 || busy) return; step(); frameHold = { dir, t0: performance.now(), id: e.pointerId }; });
   b.addEventListener('click', e => { if (e.detail === 0) step(); });   // Enter on the focused button (a mouse click stepped on pointerdown)
 }
 function setSpeed(s) {
@@ -1175,7 +1344,7 @@ for (const b of document.querySelectorAll('[data-view]')) b.onclick = () => view
 for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   if (b.dataset.mode === mode) return;
   if (mode === 'exam' && exam.started && !exam.done && b.dataset.mode !== 'exam' && !confirm('Leave the exam? Your progress will be lost.')) return;
-  leaveExam();
+  toOneNote();
   showCredits = false;
   if (mode === 'drills') { drillsStop?.(); drillsEl = null; }
   if (mode === 'tools') { S.hideTool(); toolSel = null; S.setLabels(labelsOn); }
@@ -1195,7 +1364,7 @@ window.addEventListener('keydown', e => {
   if (mode === 'tools') return;   // no key on the bench while a tool is out
   if (e.code === 'Escape') { setLoop(false); letUp(); }
   if (e.code === 'KeyP' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !busy && e.target === document.body) setPedal(!pedalDown);
-  if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); clearPlan(); cue = null; sim.press(sim.dip, 250); pausedNote(); }
+  if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); clearPlan(); cue = null; releaseOthers(); sim.press(sim.dip, 250); pausedNote(); }
   // frame keys work wherever focus is (often a button just clicked), but not while typing or choosing in a field
   if (!/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && !e.ctrlKey && !e.metaKey && !e.altKey) {
     // by the character typed, so the keys named in the titles work on any keyboard layout
@@ -1210,26 +1379,74 @@ window.addEventListener('keyup', e => { if (mode !== 'tools' && e.code === 'Spac
 const tip = $('#tip');
 canvas.addEventListener('pointermove', e => {
   const part = S.pick(e)?.part;
+  canvas.style.cursor = part === 'key' ? 'pointer' : '';   // the key plays; anywhere else drags the view
   if (part) { tip.textContent = S.PART_NAMES[part] || part; tip.style.transform = `translate(${e.offsetX + 14}px, ${e.offsetY + 10}px)`; tip.hidden = false; }
   else tip.hidden = true;
 });
 canvas.addEventListener('pointerleave', () => { tip.hidden = true; });
-let keyHeld = false;
+let keyHeld = null;   // the pointer holding the key down
 canvas.addEventListener('pointerdown', e => {
   const hit = S.pick(e), part = hit?.part;
-  if (hit && hit.note >= 0 && hit.note !== cur && examActive() && !busy) { selectNote(hit.note); view('angle'); }
-  if (part === 'key' && !busy) { keyHeld = true; S.controls.enabled = false; setLoop(false); clearPlan(); cue = null; sim.press(sim.dip, 250); pausedNote(); }
+  // in the exam a click turns to that note's 3/4 view; in the Sandbox a side view follows it over, and a view of all
+  // three stays put (re-aiming would fight a drag that starts on a neighbor)
+  if (hit && hit.note >= 0 && hit.note !== cur && multi() && !busy) {
+    selectNote(hit.note);
+    if (examActive()) view('angle'); else if (focusFor(viewNow) !== null) view(viewNow);
+  }
+  if (part === 'key' && !busy) { keyHeld = e.pointerId; S.controls.enabled = false; setLoop(false); clearPlan(); cue = null; releaseOthers(); sim.press(sim.dip, 250); pausedNote(); }
   else {
-    const knob = ADJ.find(a => a.part === (part === 'flangescrew' ? 'flange' : part));   // the screw is how the flange is spaced
+    // the screw is how the flange is spaced; the damper's timing is set at the underlever's top flange
+    const knob = ADJ.find(a => a.part === ({ flangescrew: 'flange', ulflange: 'damper', damperfelt: 'damper' }[part] || part));
     if (knob) S.highlight(knob.part, cur);
   }
 });
-// a touch can end without pointerup (second finger, app switch, long-press menu): let the key up then too
-const endHold = () => { frameHold = null; if (keyHeld) { keyHeld = false; S.controls.enabled = true; letGo(); } };
+// a touch can end without pointerup (second finger, app switch, long-press menu): let the key up then too. Each hold
+// ends with the pointer that started it, so a second finger tapping a button leaves a held key down; leaving the window ends all.
+const endHold = e => {
+  const mine = h => e.pointerId === undefined || h.id === e.pointerId;
+  if (frameHold && mine(frameHold)) frameHold = null;
+  if (moveHold && mine(moveHold)) moveHold = null;
+  if (keyHeld !== null && mine({ id: keyHeld })) { keyHeld = null; S.controls.enabled = true; letGo(); }
+};
 window.addEventListener('pointerup', endHold);
 window.addEventListener('pointercancel', endHold);
 window.addEventListener('blur', endHold);
 canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// ---------- moving the view with buttons ----------
+// Dragging turns the view, but sliding (Shift, Ctrl or right-drag) and zooming are easy to miss, so the picture has
+// buttons for them too, and a card on the first visit says how. A click is one step; held, a button keeps going.
+const ZOOM_STEP = 0.85, SLIDE_STEP = 0.08;   // a click: 15% closer, or 8% of the picture's height across
+let moveHold = null;   // { zoom } or { dx, dy } while a move button is held down, and when it was pressed
+function moveStep(m, k = 1) {   // k: fraction of one click's step
+  if (m.zoom) S.zoomBy(Math.pow(ZOOM_STEP, -m.zoom * k));
+  else S.slideBy(m.dx * SLIDE_STEP * k, m.dy * SLIDE_STEP * k);
+}
+for (const b of document.querySelectorAll('[data-zoom], [data-slide]')) {
+  const [dx, dy] = (b.dataset.slide || '0,0').split(',').map(Number), m = b.dataset.zoom ? { zoom: +b.dataset.zoom } : { dx, dy };
+  b.addEventListener('pointerdown', e => { if (e.button !== 0) return; moveStep(m); moveHold = { ...m, t0: performance.now(), id: e.pointerId }; });
+  b.addEventListener('click', e => { if (e.detail === 0) moveStep(m); });   // Enter on the focused button
+  b.addEventListener('contextmenu', e => e.preventDefault());   // a long press on a phone
+}
+$('#nav-reset').onclick = () => S.resetView();
+// a clicked button lets go of the keyboard, so Space goes back to striking the key
+$('#navpad').addEventListener('click', e => { if (e.detail) e.target.closest('button')?.blur(); });
+const moveHelp = $('#movehelp');
+let helpSeen = false;
+try { helpSeen = localStorage.getItem('regsim-movehelp') === 'seen'; } catch {}
+moveHelp.hidden = helpSeen;
+$('#nav-help').onclick = () => { moveHelp.hidden = !moveHelp.hidden; };
+$('#movehelp-ok').onclick = () => { moveHelp.hidden = true; try { localStorage.setItem('regsim-movehelp', 'seen'); } catch {} };
+// the arrow keys slide and + and − zoom, when the picture was the last thing clicked (else they scroll the panel)
+let viewKeys = true;
+window.addEventListener('pointerdown', e => { viewKeys = $('#stage').contains(e.target); }, true);
+const MOVE_KEYS = { ArrowLeft: { dx: -1, dy: 0 }, ArrowRight: { dx: 1, dy: 0 }, ArrowUp: { dx: 0, dy: 1 }, ArrowDown: { dx: 0, dy: -1 },
+  '+': { zoom: -1 }, '=': { zoom: -1 }, '-': { zoom: 1 }, '_': { zoom: 1 } };
+window.addEventListener('keydown', e => {
+  const m = MOVE_KEYS[e.key];
+  if (!m || !viewKeys || e.ctrlKey || e.metaKey || e.altKey || !(e.target === document.body || $('#stage').contains(e.target))) return;
+  e.preventDefault(); moveStep(m, 0.5);
+});
 
 // ---------- theme ----------
 const mq = matchMedia('(prefers-color-scheme: dark)');
@@ -1250,11 +1467,14 @@ function advance(dtSim) {
   const did = sim.events.map(e => e.type);
   for (let i = waits.length - 1; i >= 0; i--) if (simTime >= waits[i].at) { waits[i].r(); waits.splice(i, 1); }
   handleEvents();
-  // Play lets the key up a moment after it gets down (0.12 s of screen time at the chosen speed); Ease up pressed on
-  // the way down eases it 0.15 s of action time after, by when a struck hammer has checked. Both are counted in the
-  // action's own time so a paused or stepped stroke does the same on the same frame every time.
-  if (plan && planAt === null && (sim.d >= sim.dTarget - 0.01 || sim.blocked)) planAt = simTime + (plan === 'up' ? 0.12 * (forcedScale ?? timeScale) : 0.15);
-  if (planAt !== null && simTime >= planAt) { const p = plan; clearPlan(); if (p === 'up') sim.press(0, 60); else easeNow(); }
+  // Play (and Play all three, 'all') lets the key up a moment after it gets down (0.12 s of screen time at the chosen
+  // speed); Ease up pressed on the way down eases it 0.15 s of action time after, by when a struck hammer has checked.
+  // Both are counted in the action's own time so a paused or stepped stroke does the same on the same frame every time.
+  if (plan && planAt === null && (sim.d >= sim.dTarget - 0.01 || sim.blocked)) planAt = simTime + (plan === 'ease' ? 0.15 : 0.12 * (forcedScale ?? timeScale));
+  if (planAt !== null && simTime >= planAt) {
+    const p = plan; clearPlan();
+    if (p === 'up') sim.press(0, 60); else if (p === 'all') NOTES.forEach(n => n.sim.press(0, 60)); else easeNow();
+  }
   if (looping && (busy || mode === 'tools')) setLoop(false);
   if (looping && !plan && sim.d === 0 && sim.dTarget === 0) {
     if (restSince === null) restSince = simTime;
@@ -1270,20 +1490,22 @@ function frame(now) {
   const scale = forcedScale ?? timeScale;
   // a frame button held down steps on (or back) every screen frame, after a moment so a click is one step
   if (frameHold && now - frameHold.t0 > 350) { if (frameHold.dir > 0) stepFrames = Math.max(stepFrames, 1); else if (frameHistory.length) frameBack(); else frameHold = null; }
+  if (moveHold && now - moveHold.t0 > 350) moveStep(moveHold, dtReal * 6);   // held: about six clicks a second, smoothly
   let dtSim = Math.min(dtReal * scale, 120 * H_STEP);
   if (paused) { dtSim = stepFrames ? Math.min(FRAME_S * scale, 120 * H_STEP) : 0; stepFrames = Math.max(0, stepFrames - 1); }
   if (cue?.run) runCue();
   else if (dtSim > 0) advance(dtSim);
-  NOTES.forEach((n, i) => { if (i === 0 || examActive()) S.update(i, n.sim, eff(n.adj), i === cur ? hammerOverride : null, i === cur ? jackOverride : null, i === cur); });
+  NOTES.forEach((n, i) => { if (i === 0 || multi()) S.update(i, n.sim, eff(n.adj), i === cur ? hammerOverride : null, i === cur ? jackOverride : null, i === cur); });
   tickExam();
   if (mode !== 'tools') updateCallouts();
   const down = sim.d > 0.05 || sim.dTarget > 0.05;
   const toLetoff = !cue ? '' : cue.run ? 'going to let-off · ' : frameNo < cue.letoff ? `let-off in ${frames(cue.letoff - frameNo)} · `
     : frameNo === cue.letoff ? 'let-off · ' : `${frames(frameNo - cue.letoff)} after let-off · `;
   $('#keypos').textContent = `${paused ? 'paused · ' : ''}${toLetoff}key ${fmt(sim.d)} down`;
-  $('#keystate').textContent = !down ? 'Key at rest' : sim.dTarget > sim.d + 0.01 ? 'Key going down' : sim.dTarget > 0.05 ? 'Key held down' : 'Key coming up';
+  S.setInsetText(`Key front · ${fmt(sim.d)} down${sim.d >= sim.dip - 0.01 ? ' (dip)' : ''}`);
+  $('#keystate').textContent = !down ? 'Key at rest' : sim.dTarget > sim.d + 0.01 ? 'Key going down' : sim.dTarget > 0.05 ? 'Key held down' : sim.stuck && !sim.lifting ? 'Key stuck down' : 'Key coming up';
   $('#keystate').classList.toggle('down', down);
-  $('#k-release').classList.toggle('attn', sim.dTarget > 0.05 && plan !== 'up' && !busy);
+  $('#k-release').classList.toggle('attn', sim.dTarget > 0.05 && plan !== 'up' && plan !== 'all' && !busy);
   // a test runs the action itself: the key and frame buttons wait for it
   for (const b of keyButtons) if (b.disabled !== !!busy) b.disabled = !!busy;
   S.render();
@@ -1291,7 +1513,7 @@ function frame(now) {
 }
 const keyButtons = [...document.querySelectorAll('#keybar button:not([data-speed])')];
 applyTheme();
-messUp(); focusStep();
+adj = { ...FACTORY }; applyAdj(); view('angle');
 // the exam clock keeps time even while the tab is in the background
 setInterval(tickExam, 1000);
 requestAnimationFrame(frame);
