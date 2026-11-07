@@ -137,6 +137,8 @@ export function createScene(canvas, overlay) {
   const camera = new THREE.PerspectiveCamera(30, 1, 5, 5000);
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
+  // never zoom through the point looked at, nor so far out the action is lost (a tall phone's action view is ~2400 out)
+  controls.minDistance = 40; controls.maxDistance = 3000;
 
   const hemi = new THREE.HemisphereLight(0xffffff, 0x554433, 1.6);
   scene.add(hemi);
@@ -552,8 +554,9 @@ export function createScene(canvas, overlay) {
     return new THREE.Vector3(...v.p).sub(t).multiplyScalar(k).add(t);
   }
   // side views follow the note being worked on; the hammer-line view stays centered
+  let home = { name: 'action', z: 0 };   // the view Reset view goes back to
   function setView(name, z = viewZ) {
-    viewZ = z;
+    viewZ = z; home = { name, z };
     const v = VIEWS[name] || VIEWS.action;
     setClip(v.clip);
     const dz = name === 'hammerline' ? 0 : z;
@@ -562,6 +565,25 @@ export function createScene(canvas, overlay) {
     viewAnim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(), toT, toP };
   }
   camera.position.copy(viewPos(VIEWS.action)); controls.target.set(...VIEWS.action.t);
+  // the on-screen move buttons: zoom toward or away from the point looked at, slide across the screen, or go back
+  function zoomBy(f) {   // f < 1 steps in
+    viewAnim = null;
+    const d = THREE.MathUtils.clamp(camera.position.distanceTo(controls.target) * f, controls.minDistance, controls.maxDistance);
+    camera.position.sub(controls.target).setLength(d).add(controls.target);
+  }
+  const sideV = new THREE.Vector3(), upV = new THREE.Vector3();
+  function slideBy(dx, dy) {   // in screen heights: +dx sees more to the right, +dy more above
+    viewAnim = null;
+    const h = 2 * camera.position.distanceTo(controls.target) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    sideV.setFromMatrixColumn(camera.matrix, 0).multiplyScalar(dx * h);
+    upV.setFromMatrixColumn(camera.matrix, 1).multiplyScalar(dy * h);
+    sideV.add(upV); camera.position.add(sideV); controls.target.add(sideV);
+  }
+  function resetView() {
+    if (!toolStage.visible) { setView(home.name, home.z); return; }
+    viewAnim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(),
+      toT: toolHome.t.clone(), toP: toolHome.off.clone().multiplyScalar(toolDistance() / toolHome.d).add(toolHome.t) };
+  }
 
   // ---------- highlight & hover ----------
   let highlighted = [];
@@ -713,7 +735,7 @@ export function createScene(canvas, overlay) {
   const toolHolder = new THREE.Group(); toolStage.add(toolHolder);
   const AX = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
   const axis = s => { const m = /([+-]?)\s*([xyz])/i.exec(s || ''); if (!m) return null; const v = new THREE.Vector3(...AX[m[2].toLowerCase()]); return m[1] === '-' ? v.negate() : v; };
-  let savedView = null, savedClip = null, spin = true, roomEnv = null, toolR = 0;
+  let savedView = null, savedClip = null, spin = true, roomEnv = null, toolR = 0, toolHome = null;
   // obj: a THREE.Object3D built for the tool (models of real tools, added one at a time)
   async function showTool(obj, opts = {}) {
     // polished steel and brass need something to reflect: a soft room, only while a tool is out
@@ -741,6 +763,7 @@ export function createScene(canvas, overlay) {
     toolR = Math.max(size.x, size.z, size.y * 1.5, 30);
     viewAnim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(),
       toT: new THREE.Vector3(0, size.y / 2, 0), toP: new THREE.Vector3(0.2, 0.9, 1.9).setLength(toolDistance()).add(new THREE.Vector3(0, size.y, 0)) };
+    toolHome = { t: viewAnim.toT.clone(), off: viewAnim.toP.clone().sub(viewAnim.toT), d: toolDistance() };
     spin = !opts.still;
     return { size: { x: size.x, y: size.y, z: size.z } };
   }
@@ -770,6 +793,6 @@ export function createScene(canvas, overlay) {
   }
 
   setNoteCount(1);
-  return { render, update, setView, showTool, hideTool, spinTool, highlight, pick, setCallout, clearCallouts, backcheckGap, setBackground, controls, camera, setLabels,
+  return { render, update, setView, zoomBy, slideBy, resetView, showTool, hideTool, spinTool, highlight, pick, setCallout, clearCallouts, backcheckGap, setBackground, controls, camera, setLabels,
            setNoteCount, setFocus, straightedge, PART_NAMES, VIEWS };
 }

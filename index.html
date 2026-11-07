@@ -70,6 +70,24 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -app
 #k-loop.on, #k-pause.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 @keyframes nudge { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); } }
 #k-release.attn { background: var(--accent); border-color: var(--accent); color: #fff; animation: nudge 1.6s ease-in-out infinite; }
+#c { cursor: grab; }
+#c:active { cursor: grabbing; }
+/* move buttons down the right edge of the picture, and the card that says how to move around */
+#navpad { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); width: 116px; display: grid; gap: 4px;
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-areas: "zcap zcap zcap zcap zcap zcap" "zin zin zin zout zout zout" "scap scap scap scap scap scap"
+    ". . up up . ." "left left . . right right" ". . down down . ." "reset reset reset reset reset reset" "help help help help help help";
+  background: color-mix(in srgb, var(--panel) 80%, transparent); border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+#navpad .cap { font-size: 11px; color: var(--muted); text-align: center; line-height: 1; }
+#navpad button { padding: 0; min-height: 32px; font-size: 18px; line-height: 1; }
+#nav-reset, #nav-help { font-size: 12px !important; }
+#movehelp { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(380px, calc(100% - 32px));
+  max-height: calc(100% - 24px); overflow-y: auto; background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,.2); padding: 12px 16px; font-size: 15px; }
+#movehelp ul { margin: 8px 0 12px; padding-left: 18px; }
+#movehelp li { margin: 4px 0; }
+#movehelp .touch { display: none; }
+@media (pointer: coarse) { #movehelp .touch { display: list-item; } #movehelp .mouse { display: none; } }
 #examclock { position: absolute; top: 10px; right: 12px; font: 700 22px/1 system-ui; font-variant-numeric: tabular-nums;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
 #examclock.low { color: var(--bad); border-color: var(--bad); }
@@ -96,7 +114,7 @@ button.on, button.primary { background: var(--accent); border-color: var(--accen
 button.linkish { background: none; border: 0; padding: 0; color: var(--ink); font-weight: 600; text-align: left; }
 button.linkish:hover { color: var(--accent); }
 #stage button { background: color-mix(in srgb, var(--panel) 88%, transparent); }
-#stage button.on { background: var(--accent); }
+#stage button.on, #stage button.primary { background: var(--accent); }
 /* a column, so the check bar (its last child) sits at the bottom edge even when the panel's content is short;
    no bottom padding, so it pins flush to that edge. Empty, the bar is just the panel's bottom spacing. */
 aside { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 14px 16px 0; display: flex; flex-direction: column; }
@@ -180,10 +198,15 @@ a { color: var(--accent); }
   #keystate { display: none; }
   #lastevent { max-width: 30ch; }
   #examclock { top: auto; bottom: 52px; right: 10px; font-size: 16px; }
+  /* a short picture: zoom, reset and help only (two fingers slide) */
+  #navpad { width: 64px; grid-template-columns: 1fr; grid-template-areas: "zin" "zout" "reset" "help"; padding: 0; background: none; border: 0; }
+  #navpad .cap, #navpad [data-slide], #movehelp .wide { display: none; }
+  #movehelp { font-size: 14px; }
 }
 /* fingers, at any width (most phones are wider than 820px on their side) */
 @media (pointer: coarse) {
   .nudge { min-height: 44px; }
+  #navpad button { min-height: 40px; }
   button.test, details.fold > summary { min-height: 42px; }
   button.test { padding: 8px 10px; }
 }
@@ -220,6 +243,32 @@ a { color: var(--accent); }
     </div>
     <div id="toasts"></div>
     <div id="examclock" hidden></div>
+    <div id="navpad">
+      <span class="cap" style="grid-area: zcap">Zoom</span>
+      <button data-zoom="-1" style="grid-area: zin" title="Zoom in (+ key); hold to keep going" aria-label="Zoom in">+</button>
+      <button data-zoom="1" style="grid-area: zout" title="Zoom out (− key); hold to keep going" aria-label="Zoom out">−</button>
+      <span class="cap" style="grid-area: scap">Slide</span>
+      <button data-slide="0,1" style="grid-area: up" title="See more above (up arrow key); hold to keep going" aria-label="Slide up">↑</button>
+      <button data-slide="-1,0" style="grid-area: left" title="See more to the left (left arrow key); hold to keep going" aria-label="Slide left">←</button>
+      <button data-slide="1,0" style="grid-area: right" title="See more to the right (right arrow key); hold to keep going" aria-label="Slide right">→</button>
+      <button data-slide="0,-1" style="grid-area: down" title="See more below (down arrow key); hold to keep going" aria-label="Slide down">↓</button>
+      <button id="nav-reset" style="grid-area: reset" title="Back to where this view started, if you get lost">Reset view</button>
+      <button id="nav-help" style="grid-area: help" title="How to move around">?&nbsp;Help</button>
+    </div>
+    <div id="movehelp" hidden>
+      <b>Moving around the action</b>
+      <ul>
+        <li class="mouse"><b>Turn it:</b> drag with the mouse.</li>
+        <li class="mouse"><b>Slide it:</b> hold down Shift (or Ctrl) while you drag, or drag with the right mouse button.</li>
+        <li class="mouse"><b>Zoom:</b> roll the mouse wheel.</li>
+        <li class="touch"><b>Turn it:</b> drag one finger.</li>
+        <li class="touch"><b>Slide it:</b> drag two fingers.</li>
+        <li class="touch"><b>Zoom:</b> pinch with two fingers.</li>
+        <li><b>Play the key:</b> press and hold on the key itself.</li>
+        <li>Or use the buttons on the right: <b>+</b> and <b>−</b> zoom<span class="wide"> and the arrows slide</span>. <b>Reset view</b> puts it back if you get lost, and <b>?&nbsp;Help</b> brings this back.</li>
+      </ul>
+      <button id="movehelp-ok" class="primary">Got it</button>
+    </div>
     <div id="keybar">
       <button id="k-play" title="Strike the key and let it come back up">Play</button>
       <button id="k-loop" title="Keep playing the key, one normal blow after another, so you can watch the action work">Loop</button>
@@ -258,7 +307,7 @@ a { color: var(--accent); }
       <button class="tab" data-mode="tools">Tools</button>
     </div>
     <div id="mode"><p class="muted">Loading the action… If nothing appears, this simulator needs a current browser: Chrome, Edge, Firefox, or Safari 16.4 or newer.</p></div>
-    <p class="muted small foot">Targets are generic textbook numbers, not one maker's specs. Hover a part to name it; press and hold on the key to strike it; drag to look around.</p>
+    <p class="muted small foot">Targets are generic textbook numbers, not one maker's specs. Hover a part to name it; press and hold on the key to strike it. Drag to turn the view, Shift-drag (or right-drag) to slide it, and roll the wheel to zoom, or use the buttons at the right of the picture.</p>
     <p class="muted small"><a href="#" id="credits">From the bench: tips, tools and credits</a></p>
     <p class="muted small">Made by <a href="https://keyandcable.com/">The Key &amp; Cable Company</a>. Spotted something a real action wouldn't do? <a href="https://keyandcable.com/feedback.html">Tell me</a>.</p>
     <div id="actionbar" class="actionbar"></div>

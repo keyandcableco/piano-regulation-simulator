@@ -1210,6 +1210,7 @@ window.addEventListener('keyup', e => { if (mode !== 'tools' && e.code === 'Spac
 const tip = $('#tip');
 canvas.addEventListener('pointermove', e => {
   const part = S.pick(e)?.part;
+  canvas.style.cursor = part === 'key' ? 'pointer' : '';   // the key plays; anywhere else drags the view
   if (part) { tip.textContent = S.PART_NAMES[part] || part; tip.style.transform = `translate(${e.offsetX + 14}px, ${e.offsetY + 10}px)`; tip.hidden = false; }
   else tip.hidden = true;
 });
@@ -1225,11 +1226,42 @@ canvas.addEventListener('pointerdown', e => {
   }
 });
 // a touch can end without pointerup (second finger, app switch, long-press menu): let the key up then too
-const endHold = () => { frameHold = null; if (keyHeld) { keyHeld = false; S.controls.enabled = true; letGo(); } };
+const endHold = () => { frameHold = null; moveHold = null; if (keyHeld) { keyHeld = false; S.controls.enabled = true; letGo(); } };
 window.addEventListener('pointerup', endHold);
 window.addEventListener('pointercancel', endHold);
 window.addEventListener('blur', endHold);
 canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// ---------- moving the view with buttons ----------
+// Dragging turns the view, but sliding (Shift, Ctrl or right-drag) and zooming are easy to miss, so the picture has
+// buttons for them too, and a card on the first visit says how. A click is one step; held, a button keeps going.
+const ZOOM_STEP = 0.85, SLIDE_STEP = 0.08;   // a click: 15% closer, or 8% of the picture's height across
+let moveHold = null;   // { zoom } or { dx, dy } while a move button is held down, and when it was pressed
+function moveStep(m, k = 1) {   // k: fraction of one click's step
+  if (m.zoom) S.zoomBy(Math.pow(ZOOM_STEP, -m.zoom * k));
+  else S.slideBy(m.dx * SLIDE_STEP * k, m.dy * SLIDE_STEP * k);
+}
+for (const b of document.querySelectorAll('[data-zoom], [data-slide]')) {
+  const [dx, dy] = (b.dataset.slide || '0,0').split(',').map(Number), m = b.dataset.zoom ? { zoom: +b.dataset.zoom } : { dx, dy };
+  b.addEventListener('pointerdown', e => { if (e.button !== 0) return; moveStep(m); moveHold = { ...m, t0: performance.now() }; });
+  b.addEventListener('click', e => { if (e.detail === 0) moveStep(m); });   // Enter on the focused button
+  b.addEventListener('contextmenu', e => e.preventDefault());   // a long press on a phone
+}
+$('#nav-reset').onclick = () => S.resetView();
+const moveHelp = $('#movehelp');
+let helpSeen = false;
+try { helpSeen = localStorage.getItem('regsim-movehelp') === 'seen'; } catch {}
+moveHelp.hidden = helpSeen;
+$('#nav-help').onclick = () => { moveHelp.hidden = !moveHelp.hidden; };
+$('#movehelp-ok').onclick = () => { moveHelp.hidden = true; try { localStorage.setItem('regsim-movehelp', 'seen'); } catch {} };
+// the arrow keys slide and + and − zoom, when no field or panel button has the keyboard
+const MOVE_KEYS = { ArrowLeft: { dx: -1, dy: 0 }, ArrowRight: { dx: 1, dy: 0 }, ArrowUp: { dx: 0, dy: 1 }, ArrowDown: { dx: 0, dy: -1 },
+  '+': { zoom: -1 }, '=': { zoom: -1 }, '-': { zoom: 1 }, '_': { zoom: 1 } };
+window.addEventListener('keydown', e => {
+  const m = MOVE_KEYS[e.key];
+  if (!m || e.ctrlKey || e.metaKey || e.altKey || !(e.target === document.body || $('#stage').contains(e.target))) return;
+  e.preventDefault(); moveStep(m, 0.5);
+});
 
 // ---------- theme ----------
 const mq = matchMedia('(prefers-color-scheme: dark)');
@@ -1270,6 +1302,7 @@ function frame(now) {
   const scale = forcedScale ?? timeScale;
   // a frame button held down steps on (or back) every screen frame, after a moment so a click is one step
   if (frameHold && now - frameHold.t0 > 350) { if (frameHold.dir > 0) stepFrames = Math.max(stepFrames, 1); else if (frameHistory.length) frameBack(); else frameHold = null; }
+  if (moveHold && now - moveHold.t0 > 350) moveStep(moveHold, dtReal * 6);   // held: about six clicks a second, smoothly
   let dtSim = Math.min(dtReal * scale, 120 * H_STEP);
   if (paused) { dtSim = stepFrames ? Math.min(FRAME_S * scale, 120 * H_STEP) : 0; stepFrames = Math.max(0, stepFrames - 1); }
   if (cue?.run) runCue();
