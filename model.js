@@ -28,7 +28,8 @@ export const G = {
   horn: [-33.5, 16.5], tip: [-51.6, 22.1],
   windowFelt: [[-43.3, 12.6], [-42.8, 19.0]],   // face of the jack stop felt on the window's front wall, bottom to top
   // hammer (local to the shank centre pin, +x along the shank): the knuckle, the crown's arc, the tail
-  H: [323.3, 146.1], knuckleC: [16.96, -9.08], knuckleR: 4.4, coreR: 2.6,
+  H: [323.3, 146.1], knuckleC: [16.96, -9.08], knuckleR: 4.4,
+  coreT: 1.2, coreEnd: 1.2,         // the knuckle's wood core: a thin tongue through the roll's middle, ending this far past its centre (Greg's photo)
   crownC: [132.13, 35.6], crownR: 10.2,  // felt top 45.8 above the shank, 140 out from the centre pin
   tail: [133.26, -21.1],            // the point on the tail's scored back face that the backcheck catches
   shankRest: [110.0, -3.14],        // underside of the shank where it meets the rest rail
@@ -68,9 +69,9 @@ export const ADJ = [
     steps: [0.25], stepLabel: ['shim'], how: 'Raises or lowers the rail the hammer shanks fall back toward.' },
   { id: 'frontPunch', name: 'Front rail punchings', part: 'frontpunch', unit: 'mm', min: 0, max: 8,
     steps: [0.1, 0.25], stepLabel: ['0.004" paper', '0.010" card'], how: 'Thicker punchings stop the key sooner: less dip.' },
-  { id: 'letoff', name: 'Let-off button', part: 'letoff', unit: 'mm', min: 84, max: 102,
+  { id: 'letoff', name: 'Let-off button', part: 'letoff', unit: 'mm', min: 86, max: 100,
     steps: [0.05, 0.2], stepLabel: ['⅛ turn', '½ turn'], how: 'Where the jack tender hits and trips the jack. + raises the button (later let-off, closer to the string).' },
-  { id: 'drop', name: 'Drop screw', part: 'drop', unit: 'mm', min: 128, max: 152,
+  { id: 'drop', name: 'Drop screw', part: 'drop', unit: 'mm', min: 134, max: 145,
     steps: [0.05, 0.2], stepLabel: ['⅛ turn', '½ turn'], how: 'Stops the repetition lever. + raises the screw (hammer drops less after let-off).' },
   { id: 'repSpring', name: 'Repetition spring tension', part: 'repspring', unit: '', min: 0.3, max: 2.4,
     steps: [0.02], stepLabel: ['bend'], how: 'How hard the repetition lever pushes up on the knuckle.' },
@@ -253,6 +254,9 @@ export function linkage(a, d) {
 
 // hammer helpers
 export const hamPt = (g, p) => add(G.H, rot(p, g));
+// the back face of the knuckle's tongue at the knuckle's centre height: what the jack's back edge is sighted against
+// (sighting at the tongue's lower end puts the jack where this model's let-off and wink can no longer be set)
+export const coreBack = g => hamPt(g, [G.knuckleC[0] + G.coreT / 2, G.knuckleC[1]])[0];
 export const knuckleBottom = g => { const c = hamPt(g, G.knuckleC); return [c[0], c[1] - (G.knuckleR + WEAR.knuckle * wearNow)]; };
 // the top of the crown's arc at this angle: the felt that meets the string
 export const crownTop = g => { const c = hamPt(g, G.crownC); return [c[0], c[1] + G.crownR + WEAR.crown * wearNow]; };
@@ -433,7 +437,7 @@ export function measure(a) {
   const pyTail = hamPt(gChk, G.tail)[1] - G.H[1];
   return {
     keyHeight: keyHeightOf(a) - NEIGHBOR_H,
-    jackPos: jg.backX - (kc[0] + G.coreR),
+    jackPos: jg.backX - coreBack(g),
     jackUnder: jg.backX > kb[0],
     wippenSpacing: a.wippenSpace - sideZ(a, kc[1] - G.H[1]),
     // trip the jack at rest: the hammer settles onto the repetition lever. That small drop is the wink.
@@ -698,4 +702,4 @@ export class Sim {
 }
 
 // Factory regulation solved offline with factory() (node), so the page loads fast.
-export const FACTORY = {"balPunch":1.5,"jackScrew":-4.1669,"repStop":-0.6314,"capstan":13.9344,"restRail":110.7759,"frontPunch":2.299,"letoff":96.6636,"drop":139.8784,"repSpring":1.3555,"backcheck":0.5226,"damperGap":3.5082,"damperStop":5.0549,"pedalLift":5.0049,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0,"wippenSpace":0,"backcheckSpace":0,"backcheckSquare":0,"damperCenter":0,"damperLevel":0};
+export const FACTORY = {"balPunch":1.5,"jackScrew":-1.9852,"repStop":-0.5555,"capstan":13.8785,"restRail":110.7759,"frontPunch":2.299,"letoff":96.6682,"drop":139.8941,"repSpring":1.3554,"backcheck":0.5226,"damperGap":3.503,"damperStop":5.0586,"pedalLift":5.0086,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0,"wippenSpace":0,"backcheckSpace":0,"backcheckSquare":0,"damperCenter":0,"damperLevel":0};

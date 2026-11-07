@@ -1,5 +1,5 @@
 import { G, IN, ADJ, SPEC, DAMPER_SPECS, DAMAGE, FACTORY, NEIGHBOR_H, Sim, measure, grade, hamPt, crownY, crownTop, keyAngle, keyPt,
-         jackGeom, knuckleBottom, eff, repSupportZ, gString as gStringNow } from './model.js';
+         jackGeom, knuckleBottom, coreBack, eff, repSupportZ, gString as gStringNow } from './model.js';
 import { createScene, NOTE_Z } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
@@ -122,7 +122,7 @@ const STEPS = [
     how: 'Add or remove punchings under the key at the balance rail. The key rocks on the back rail, so the front moves about twice the punching thickness.',
     note: 'Key height also changes dip and aftertouch, which you set later.' },
   { spec: 'jackPos', also: ['wippenSpacing'], title: 'Jack position under the knuckle', knobs: ['jackScrew', 'wippenSpace'], test: 'sightJack', tests: ['sightJack', 'sightJackFront'],
-    what: 'Line up the back of the jack with the back of the knuckle core (the wood inside the buckskin). Seen from the front, the jack should also stand centered under the knuckle.',
+    what: 'Line up the back of the jack with the back of the knuckle core: the thin wood tongue through the middle of the felt roll, which runs up into the shank. Seen from the front, the jack should also stand centered under the knuckle.',
     how: 'Turn the jack regulating screw to move it front to back. Too far back and the jack drags as it escapes and is slow to get back under the knuckle; too far forward and it has less of the knuckle to push on. To center it side to side, loosen the wippen flange screw and shift the wippen, or tilt it with traveling paper under the flange.',
     note: 'Jack position changes how let-off feels (forward lightens the bump) more than where it happens. The sim models where, not the feel. Spacing the hammers moves the knuckles sideways, so center the jacks after the hammers. Steinway\'s guide (written for its uprights) also centers the jack\'s toe on its button, and calls for a compromise when the two disagree.' },
   { spec: 'wink', title: 'Repetition lever height', knobs: ['repStop'], test: 'wink',
@@ -880,8 +880,8 @@ function updateCallouts() {
   }
   // the jack's front-to-back line from the side; seen from the front, how far it sits off the knuckle's center
   if (show('jackPos') && atRest && viewNow !== 'jackfront') {
-    const jg = jackGeom(L, sim.psi), kc = hamPt(g, G.knuckleC);
-    S.setCallout('jack', [jg.backX, jg.topY, 8 + nz], [kc[0] + G.coreR, jg.topY, 8 + nz], reading('jackPos').txt); keep.push('jack');
+    const jg = jackGeom(L, sim.psi);
+    S.setCallout('jack', [jg.backX, jg.topY, 8 + nz], [coreBack(g), jg.topY, 8 + nz], reading('jackPos').txt); keep.push('jack');
   }
   if (show('wippenSpacing') && atRest && viewNow === 'jackfront') {
     const jg = jackGeom(L, sim.psi), zj = nz + (adj.wippenSpace || 0);

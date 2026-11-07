@@ -5,11 +5,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { G, NEIGHBOR_H, WEAR, TRAVEL_RISE, SIDE_K, keyAngle, hamPt, repRho, knuckleBottom } from './model.js';
+import { G, FACTORY, NEIGHBOR_H, WEAR, TRAVEL_RISE, SIDE_K, keyAngle, hamPt, repRho, knuckleBottom } from './model.js';
 
 const COLORS = {
   keybed: 0x6e4c2e, rail: 0xa47a4c, wood: 0xd7b98c, keywood: 0xe6d3ad, keytop: 0xf6f3ea,
-  felt: 0x2f6e46, redfelt: 0x9b2f2f, hammerfelt: 0xeee6d2, buckskin: 0xb38b55, core: 0xdcbc8a, knucklefelt: 0xe6ddca,
+  felt: 0x2f6e46, redfelt: 0x9b2f2f, hammerfelt: 0xeee6d2, buckskin: 0xb38b55, core: 0x8f6446, knucklefelt: 0xeeeae2,
   jack: 0xc9a06a,
   brass: 0xc9a24a, steel: 0xa9afb6, string: 0xcfd3d8, dark: 0x3a2c22, ghost: 0xf2efe7,
 };
@@ -20,8 +20,8 @@ const PART_NAMES = {
   capstan: 'Capstan screw', wippen: 'Wippen', heel: 'Wippen heel cushion', wippenrail: 'Wippen rail & flange',
   jack: 'Jack', tender: 'Jack tender (toe)', jackscrew: 'Jack regulating screw', rep: 'Repetition lever',
   repscrew: 'Repetition lever height screw', repspring: 'Repetition spring', shank: 'Hammer shank',
-  knuckle: 'Knuckle (buckskin over felt)', knucklecore: 'Knuckle core (wood), glued into the shank: the back of the jack lines up with its back edge', hammer: 'Hammer', flange: 'Hammer flange', flangerail: 'Hammer flange rail',
-  wflange: 'Wippen flange', support: 'Repetition lever support', jackstop: 'Jack stop (spoon)', repbutton: 'Repetition lever button',
+  knuckle: 'Knuckle (a felt roll in buckskin)', knucklecore: 'Knuckle core: a thin wood tongue through the roll, glued up into a groove in the shank. The back of the jack lines up with its back face', hammer: 'Hammer', flange: 'Hammer flange', flangerail: 'Hammer flange rail',
+  wflange: 'Wippen flange', support: 'Repetition lever support', jackstop: 'Jack stop (wire)', repbutton: 'Repetition lever button',
   dropfelt: 'Drop screw felt', windowfelt: 'Jack stop felt in the repetition lever window',
   wcenter: 'Wippen flange center pin (bushed in the flange)', jcenter: 'Jack center pin (bushed in the wippen)',
   rcenter: 'Repetition lever center pin (bushed in the support)', hcenter: 'Hammer flange center pin (bushed in the flange)',
@@ -50,7 +50,7 @@ const W_HEEL = [[-48.5, -7.6], [-51, -17.5], [-52.5, -19.2], [-54.5, -19.8], [-5
 const W_HEEL_FELT = [[-52.5, -19.2], [-54.5, -19.8], [-56.5, -20.1], [-59.5, -20.3], [-62.5, -20.1], [-64.5, -19.8], [-66.5, -19.2],
   [-66.5, -21.3], [-64.5, -21.8], [-62.5, -22.1], [-59.5, -22.3], [-56.5, -22.1], [-54.5, -21.8], [-52.5, -21.3]];
 const W_SUPPORT = [[-44.3, -0.7], [-51.7, -0.7], [-51.7, 27.9], [-51.2, 29.8], [-49.9, 31.1], [-48, 31.6], [-46.1, 31.1], [-44.8, 29.8], [-44.3, 27.9]];
-const W_JACK_POST = [[-80.6, -7.6], [-82.6, -7.6], [-76.4, 21.6], [-74.4, 21.6]];
+const W_JACK_POST = [[-81.56, -7.4], [-75.4, 21.6]];   // the jack stop wire's axis, foot to end (Ø2: its front face is W_STOP_FACE)
 const W_FLANGE = [[3.2, -24.7], [-4, -24.7], [-4, 1.4], [-3.5, 3.2], [-2.2, 4.5], [-0.4, 5], [1.4, 4.5], [2.7, 3.2], [3.2, 1.4]];
 const W_STOP_FACE = { p: [-76.87, 19.15], n: [-0.969, 0.247] };   // where the jack button rests: the stop wire's face
 const W_SPRING_COIL = [-49.1, 17.0];
@@ -76,9 +76,12 @@ const R_BUTTON_C = [31.8, -26.8];    // bottom of the height screw's felt button
 const R_BUTTON_FELT_H = 5;
 const CAP_R = 4.5;                   // capstan screw radius
 const CAP_H = G.capDomeR - Math.sqrt(G.capDomeR ** 2 - CAP_R ** 2);   // height of its dome
-const DROP_TOP = 152;                // the drop screw's head
+const CAP_PITCH = 1.28;              // mm per turn: 1/32 turn is the knob's 0.04 mm step
+const LETOFF_LEN = 20;               // the let-off button's screw, button to top: in its rail, clear of the flange rail, over the knob's range
+const DROP_LEN = 16;                 // the drop screw, its end to the foot of its spade head: it stays through the flange over the knob's range
+const DROP_PITCH = 0.4;              // mm per turn: ⅛ turn is the knob's 0.05 mm step
 const SHANK_R = -G.shankRest[1];     // the shank's radius where the rest rail meets it
-const KNUCKLE_H = G.knuckleR - SHANK_R - G.knuckleC[1];   // shank underside to the knuckle's bottom
+const KNUCKLE_LEATHER = 1.5;         // buckskin round the knuckle's felt roll (proportions from Greg's photo)
 
 // Hammer head and backcheck, side profile, mm: Hirschkorn's Boston GP-178 parts traced full size, the crown on
 // G.crownC / G.crownR and the tail's back face on his measured arc (research/hammer-shape/spec.md §5).
@@ -147,6 +150,12 @@ export function createScene(canvas, overlay) {
     if (axis === 'z') geo.rotateX(Math.PI / 2);
     const m = new THREE.Mesh(geo, mat(color, opts));
     m.position.set(...pos);
+    parent.add(m); register(m, part, opts);
+    return m;
+  }
+  // a turned part about +y, from [radius, height] points listed bottom to top
+  function lathe(profile, color, part, parent, opts = {}) {
+    const m = new THREE.Mesh(new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), 24), mat(color, opts));
     parent.add(m); register(m, part, opts);
     return m;
   }
@@ -222,17 +231,21 @@ export function createScene(canvas, overlay) {
     const wfl = n.wfl = new THREE.Group(); wfl.position.set(G.W[0], G.W[1], 0); root.add(wfl);
     ext(shapeFrom(W_FLANGE), 3, -4.3, COLORS.wood, 'wflange', wfl);
     ext(shapeFrom(W_FLANGE), 3, 4.3, COLORS.wood, 'wflange', wfl, { opacity: 0.4 });
-    // hammer flange: a foot screwed on the flange rail, and a fork round the shank's center pin
-    ext(rect(290, 140, 322, 144), 11, 0, COLORS.wood, 'flange', root);
+    // hammer flange: a foot screwed on the flange rail, a body standing over the repetition lever's front end with the
+    // drop screw threaded down through it, and a fork round the shank's center pin
+    ext(shapeFrom([[290, 140], [309, 140], [311.5, 145.5], [322, 145.5], [322, 149.5], [290, 144]]), 11, 0, COLORS.wood, 'flange', root);
     ext(rect(321, 140, 331, 153.5), 3.5, -5, COLORS.wood, 'flange', root);
     ext(rect(321, 140, 331, 153.5), 3.5, 5, COLORS.wood, 'flange', root, { opacity: 0.4 });
     n.letoffBtn = new THREE.Group(); root.add(n.letoffBtn);
     cyl(5, 3, 'y', [G.letoffX, 1.5, 0], COLORS.redfelt, 'letoff', n.letoffBtn);
-    n.letoffStem = cyl(1.2, 1, 'y', [G.letoffX, 0, 0], COLORS.steel, 'letoff', root, { metal: true });
-    // drop screw: beside the hammer flange, down onto the felt on the repetition lever's front end
-    n.dropScrew = cyl(1.4, 1, 'y', [G.dropX, 0, 4.5], COLORS.steel, 'drop', root, { metal: true });
-    cyl(2.6, 1.6, 'y', [G.dropX, DROP_TOP + 0.8, 4.5], COLORS.steel, 'drop', root, { metal: true });
-    cyl(2.4, 4, 'y', [G.dropX, 146, 4.5], COLORS.wood, 'flange', root);
+    // its screw rides with it, up through the regulating rail, so turning it shows above the rail
+    cyl(1.2, LETOFF_LEN, 'y', [G.letoffX, 3 + LETOFF_LEN / 2, 0], COLORS.steel, 'letoff', n.letoffBtn, { metal: true });
+    // drop screw: out of the flange's underside, its rounded, flattened end stopping the felt on the repetition lever's
+    // front end. The whole screw moves when it is regulated, and its spade head turns.
+    const ds = n.dropScrew = new THREE.Group(); ds.position.set(G.dropX, 0, 3.8); root.add(ds);
+    lathe([[0, 0], [1.2, 0.05], [1.65, 0.3], [1.8, 0.7], [1.4, 1.3]], COLORS.steel, 'drop', ds, { metal: true });
+    cyl(1.4, DROP_LEN - 1.2, 'y', [0, (DROP_LEN + 1.2) / 2, 0], COLORS.steel, 'drop', ds, { metal: true });
+    ext(rect(-1.5, DROP_LEN - 0.2, 1.5, DROP_LEN + 2.4), 0.9, 0, COLORS.steel, 'drop', ds, { metal: true });
     for (const z of [-3.5, 0, 3.5]) cyl(0.55, 420, 'x', [440, G.stringY + 0.55, z], COLORS.string, 'string', root, { metal: true });
 
     // key, with capstan and backcheck
@@ -245,6 +258,12 @@ export function createScene(canvas, overlay) {
     n.capstan = cyl(CAP_R, 1, 'y', [G.capstanLocal, 0, 0], COLORS.brass, 'capstan', key, { metal: true });
     n.capDome = new THREE.Mesh(new THREE.SphereGeometry(G.capDomeR, 24, 6, 0, Math.PI * 2, 0, Math.asin(CAP_R / G.capDomeR)), mat(COLORS.brass, { metal: true }));
     key.add(n.capDome); register(n.capDome, 'capstan', {});
+    // the wrench holes round its top, which turn as it is regulated
+    n.capHoles = new THREE.Group(); key.add(n.capHoles);
+    for (let i = 0; i < 4; i++) {
+      const t = i * Math.PI / 2, h = cyl(0.75, 0.6, 'x', [0, 0, 0], COLORS.dark, 'capstan', n.capHoles);
+      h.position.set(Math.cos(t) * (CAP_R - 0.2), 0, -Math.sin(t) * (CAP_R - 0.2)); h.rotation.y = t;
+    }
     // grand backcheck: a block glued on the key, a wire bent back toward the strings, and a wooden head whose
     // buckskin face leans back to meet the falling tail. Bending the wire turns the head about the bend.
     ext(shapeFrom(BC_BLOCK), 12, 0, COLORS.wood, 'backcheck', key);
@@ -270,7 +289,9 @@ export function createScene(canvas, overlay) {
     ext(shapeFrom(W_HEEL_FELT.map(([x, y]) => [x, y + 19.2])), 12.4, 0, COLORS.redfelt, 'heel', n.heelG);
     ext(shapeFrom(W_SUPPORT), 2.4, -3.95, COLORS.wood, 'support', wippen);
     ext(shapeFrom(W_SUPPORT), 2.4, 3.95, COLORS.wood, 'support', wippen, { opacity: 0.4 });
-    ext(shapeFrom(W_JACK_POST), 2, 0, COLORS.steel, 'jackstop', wippen, { metal: true });
+    // jack stop: a round wire (Renner), the jack button's felt bearing on its side and its end rounded off
+    rodBetween(W_JACK_POST[0], W_JACK_POST[1], 1, COLORS.steel, 'jackstop', wippen);
+    lathe([[0, -1], [0.7, -0.7], [1, 0], [0.7, 0.7], [0, 1]], COLORS.steel, 'jackstop', wippen, { metal: true }).position.set(...W_JACK_POST[1], 0);
     cyl(1.6, 4.4, 'z', [...W_SPRING_COIL, 0], COLORS.steel, 'repspring', wippen, { metal: true });
     tube(W_SPRING_UPPER.map(([x, y]) => [x, y, -1.2]), 0.5, COLORS.steel, 'repspring', wippen);
     tube(W_SPRING_LOWER.map(([x, y]) => [x, y, 1.6]), 0.5, COLORS.steel, 'repspring', wippen);
@@ -319,25 +340,27 @@ export function createScene(canvas, overlay) {
     n.crack = ext(rect(30, 2.2, 95, 3.6), 1.2, 3.4, COLORS.dark, 'shank', hammer, { noPick: true });
     // the head twists about the shank's axis when the shank is out of square
     const headG = n.headG = new THREE.Group(); hammer.add(headG);
-    // knuckle: a wooden core glued up into a rabbet in the shank's underside, wrapped round its bottom with felt and
-    // buckskin whose edges meet the shank. The bare core shows on each side: the jack lines up with its back edge.
+    // knuckle (the common modern kind, from Greg's photo): a felt roll in buckskin, built round a thin wood tongue
+    // through its middle. The tongue stands out of the roll and is glued up into a groove across the shank's underside;
+    // its end grain shows on each side of the knuckle, and the back of the jack lines up with its back face.
     {
-      const [kx, ky] = G.knuckleC, top = -SHANK_R - ky;             // the shank's underside, above the knuckle's center
-      // the shank is flattened where the knuckle is glued on, so the knuckle's sides meet wood all the way across
-      ext(rect(kx - G.knuckleR - 1, -SHANK_R - 0.2, kx + G.knuckleR + 1, -SHANK_R + 1.6), 8.2, 0, COLORS.wood, 'shank', hammer);
-      const U = (rIn, rOut, yTop) => {                             // a U of felt or leather round the core, up to yTop
-        const s = new THREE.Shape(); s.moveTo(rOut, yTop); s.lineTo(rOut, 0); s.absarc(0, 0, rOut, 0, Math.PI, true);
-        s.lineTo(-rOut, yTop); s.lineTo(-rIn, yTop); s.lineTo(-rIn, 0); s.absarc(0, 0, rIn, Math.PI, 0, false); s.lineTo(rIn, yTop); s.closePath();
+      const [kx, ky] = G.knuckleC, R = G.knuckleR, t = G.coreT, rollTop = ky + R;
+      // the shank's underside at the knuckle, flat where the roll is glued on (the drawn shank is thinner than a real one)
+      const pad = new THREE.Shape();
+      pad.moveTo(kx - R + 0.6, -SHANK_R + 1.6); pad.lineTo(kx + R - 0.6, -SHANK_R + 1.6);
+      pad.lineTo(kx + 2.4, rollTop - 0.15); pad.lineTo(kx - 2.4, rollTop - 0.15); pad.closePath();
+      ext(pad, 8, 0, COLORS.wood, 'shank', hammer);
+      // the tongue: from just past the roll's centre, up through the roll and 1.8 mm into the groove
+      ext(rect(kx - t / 2, ky - G.coreEnd, kx + t / 2, rollTop + 1.8), 8.4, 0, COLORS.core, 'knucklecore', hammer);
+      // felt and buckskin hang from the roll's top, so wear (the knuckle packing down) flattens only its bottom
+      n.knuckle = new THREE.Group(); n.knuckle.position.set(kx, rollTop, 0); hammer.add(n.knuckle);
+      const ring = (r0, r1) => {
+        const s = new THREE.Shape(); s.absarc(0, -R, r1, 0, 2 * Math.PI, false);
+        if (r0) { const h = new THREE.Path(); h.absarc(0, -R, r0, 0, 2 * Math.PI, true); s.holes.push(h); }
         return s;
       };
-      const core = new THREE.Shape(); core.moveTo(G.coreR, top + 1.4); core.lineTo(G.coreR, 0); core.absarc(0, 0, G.coreR, 0, Math.PI, true);
-      core.lineTo(-G.coreR, top + 1.4); core.closePath();
-      ext(core, 8.6, 0, COLORS.core, 'knucklecore', hammer).position.set(kx, ky, 0);   // its top hides inside the shank's pad
-      ext(U(G.coreR, G.knuckleR - 0.9, top), 8.2, 0, COLORS.knucklefelt, 'knuckle', hammer).position.set(kx, ky, 0);
-      // the buckskin is built down from the shank so wear (the knuckle packing down) lifts only its bottom
-      const leather = U(G.knuckleR - 0.9, G.knuckleR, top);
-      n.knuckle = ext(leather, 8, 0, COLORS.buckskin, 'knuckle', hammer);
-      n.knuckle.geometry.translate(0, -top, 0); n.knuckle.position.set(kx, ky + top, 0);
+      ext(ring(0, R - KNUCKLE_LEATHER), 8.2, 0, COLORS.knucklefelt, 'knuckle', n.knuckle);
+      ext(ring(R - KNUCKLE_LEATHER, R), 8.2, 0, COLORS.buckskin, 'knuckle', n.knuckle);
     }
     // head: molding and tail in one piece, the underfelt round the molding's tip, the top felt over it, and the
     // scored seat on the tail's back face that the backcheck's buckskin grips
@@ -535,6 +558,7 @@ export function createScene(canvas, overlay) {
     const cap = Math.max(0.5, a.capstan);
     n.capstan.scale.y = Math.max(0.1, cap - CAP_H); n.capstan.position.y = G.keyThick + (cap - CAP_H) / 2;
     n.capDome.position.set(G.capstanLocal, G.keyThick + cap - G.capDomeR, 0);
+    n.capHoles.position.set(G.capstanLocal, G.keyThick + cap - CAP_H - 2.2, 0); n.capHoles.rotation.y = 2 * Math.PI * (a.capstan - WEAR.capstan * (a.wear || 0)) / CAP_PITCH;   // turned by the knob, not by wear
     // the jack screw moves its button along the screw so the felt meets the stop at the jack's rest angle
     n.jackBtn.position.set(...jackBtnShift(L.psiRest), 0);
     // the height screw moves its button down the tail until it sits on the wippen with the lever at its stop
@@ -542,13 +566,12 @@ export function createScene(canvas, overlay) {
     n.balPunch.scale.y = Math.max(0.3, a.balPunch); n.balPunch.position.y = G.balRailY + Math.max(0.3, a.balPunch) / 2 - Math.max(0, 0.3 - a.balPunch);
     n.frontPunch.scale.y = Math.max(0.3, a.frontPunch); n.frontPunch.position.y = G.frontRailY + Math.max(0.3, a.frontPunch) / 2;
     n.letoffBtn.position.y = a.letoff;
-    n.letoffStem.scale.y = Math.max(0.1, 106 - (a.letoff + 3)); n.letoffStem.position.y = (106 + a.letoff + 3) / 2;
-    n.dropScrew.scale.y = Math.max(0.1, DROP_TOP - a.drop); n.dropScrew.position.y = (DROP_TOP + a.drop) / 2;
+    n.dropScrew.position.y = a.drop; n.dropScrew.rotation.y = 2 * Math.PI * (a.drop - FACTORY.drop) / DROP_PITCH;   // right-hand thread: up turns it anticlockwise
     if (drawShared) restRail.position.y = a.restRail;
     n.bc.rotation.z = (a.backcheck - (a.wear || 0) * WEAR.backcheck) / 80;
     // packed-down felts
     const w = a.wear || 0;
-    n.knuckle.scale.y = (KNUCKLE_H + WEAR.knuckle * w) / KNUCKLE_H;
+    n.knuckle.scale.y = (2 * G.knuckleR + WEAR.knuckle * w) / (2 * G.knuckleR);
     n.feltG.scale.y = (G.crownC[1] + G.crownR - H_FELT_FOOT + WEAR.crown * w) / (G.crownC[1] + G.crownR - H_FELT_FOOT);
     n.heelG.scale.y = (2.1 + WEAR.capstan * w) / 2.1;
     // damper: the underlever's felt sits damperGap above the key end; the head rises with it
