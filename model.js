@@ -46,6 +46,7 @@ export const G = {
   bcMissLean: 2.2,                  // bent this far away from the hammer, the backcheck misses the tail
   bcScrapeLean: 3.0,                // bent this far toward the hammer, the tail scrapes (the Boston rubs at about +2.5 to +3.6)
   jackD: 4.694,                     // damping factor of the jack-knuckle contact, s/m (Hirschkorn Table A.8, contact 7)
+  jackMu: 0.177,                    // sliding friction of the knuckle on the jack top (Hirschkorn Table A.8, contact 7)
   // damper: the key's back end lifts the underlever, the wire carries the head off the strings
   dmpContactLocal: 231,             // where the key end meets the underlever's lift felt
   dmpRatio: 98 / 135,               // head lift per mm of underlever lift at the key: the wire sits nearer the flange than the lift felt
@@ -254,9 +255,12 @@ export function linkage(a, d) {
 
 // hammer helpers
 export const hamPt = (g, p) => add(G.H, rot(p, g));
-// the back face of the knuckle's tongue at the knuckle's centre height: what the jack's back edge is sighted against
-// (sighting at the tongue's lower end puts the jack where this model's let-off and wink can no longer be set)
-export const coreBack = g => hamPt(g, [G.knuckleC[0] + G.coreT / 2, G.knuckleC[1]])[0];
+// Brown's sight: the back face of the knuckle's tongue, followed down along its lean to height y, where the back of
+// the jack should meet it
+export function coreBack(g, y) {
+  const x = G.knuckleC[0] + G.coreT / 2, p = hamPt(g, [x, G.knuckleC[1]]), q = hamPt(g, [x, G.knuckleC[1] - 1]);
+  return p[0] + (y - p[1]) * (q[0] - p[0]) / (q[1] - p[1]);
+}
 export const knuckleBottom = g => { const c = hamPt(g, G.knuckleC); return [c[0], c[1] - (G.knuckleR + WEAR.knuckle * wearNow)]; };
 // the top of the crown's arc at this angle: the felt that meets the string
 export const crownTop = g => { const c = hamPt(g, G.crownC); return [c[0], c[1] + G.crownR + WEAR.crown * wearNow]; };
@@ -288,7 +292,7 @@ export function repSupportZ(a, L) {
 // the jack's top-back corner is a small arc: its back edge escapes past the knuckle
 export function jackGeom(L, psi) {
   const c = L.jackPt(psi, G.jackTop);
-  return { topY: c[1] + G.jackTopR, backX: c[0] + G.jackTopR };
+  return { topY: c[1] + G.jackTopR, backX: c[0] + G.jackTopR, backY: c[1] };   // backY: the height of its back edge
 }
 // The knuckle rests on the jack's top: the face running forward from the corner (square to the leaning arm,
 // so it rises toward the front) or the corner's arc. Gap between the knuckle and that profile, mm.
@@ -311,6 +315,19 @@ function jackGap(L, psi, g) {
 }
 // hammer angle with the knuckle sitting on the jack
 export const gOnJackAt = (L, psi) => solve(g => jackGap(L, psi, g), 0, -0.6, 0.7);
+// When does the knuckle come off the jack? With the jack set by Brown's rule the knuckle rests on the jack's rounded
+// back corner, just past where the top face (which rises toward the front) runs into it. As the jack is tripped
+// forward the knuckle rolls back over the corner; once its contact leans back further than the face's slope plus the
+// friction angle of buckskin on the jack top (Hirschkorn's measured sliding friction; the tops are kept slick so it
+// slips), it slides off. That is a modelling criterion built from those two angles, not a force balance.
+const SLIP_FRICTION = Math.atan(G.jackMu), RESET_CLEAR = 0.1;   // mm the jack must be clear of the slip point to count as back under
+// the x the jack's back edge has to stay behind for the knuckle (hammer at g) to stay on the jack at angle psi
+export function slipBack(L, psi, g) {
+  const t = L.jackPt(psi, JACK_FACE_T), f = L.jackPt(psi, G.jackFront);
+  const slope = Math.atan2(f[1] - t[1], t[0] - f[0]);
+  const R = G.knuckleR + WEAR.knuckle * wearNow + G.jackTopR;
+  return hamPt(g, G.knuckleC)[0] - (R * Math.sin(slope + SLIP_FRICTION) - G.jackTopR);
+}
 
 // Update escape/reset state from the jack geometry. Returns jack angle.
 // repetition lever angle that puts the horn at height y
@@ -335,22 +352,28 @@ export function updateJack(a, L, st, g) {
 function jackFree(a, L, st, g) {
   const kb = knuckleBottom(g);
   if (!st.escaped) {
+    // it lets off once the knuckle slips off its back, when the let-off button has tripped it or it is carrying the
+    // knuckle (set too far forward); a knuckle the lever has lifted clear of an untripped jack, as the key comes up,
+    // doesn't take it out
     const jg = jackGeom(L, L.psiBtn);
-    if (jg.backX < kb[0]) st.escaped = true;
+    if (jg.backX < slipBack(L, L.psiBtn, g) && (L.psiBtn > L.psiRest + 1e-9 || gOnJackAt(L, L.psiBtn) >= g - 1e-4)) st.escaped = true;
     else return L.psiBtn;
   }
   // escaped: the jack spring pushes it back as far as the button and knuckle allow
   const tgt = Math.max(L.psiRest, L.psiBtn);
   const jt = jackGeom(L, tgt);
-  if (a.noJackSpring && L.depth > 0.02) return Math.max(tgt, solve(s => jackGeom(L, s).backX, kb[0] - 0.4, tgt, tgt + 0.8));
-  // the jack spring can push a rounded jack top back under a knuckle sitting a hair below where the jack would hold it
-  if (knuckleBottom(gOnJackAt(L, tgt))[1] < kb[1] + G.wedge) {
-    if (jt.backX >= kb[0]) st.escaped = false;
+  // the jack angle that puts its back edge just past the point the knuckle slipped off (its spring holds it there,
+  // up against the front of the knuckle)
+  const pastSlip = () => solve(s => jackGeom(L, s).backX - slipBack(L, s, g), -0.1, tgt, tgt + 0.8);
+  if (a.noJackSpring && L.depth > 0.02) return Math.max(tgt, pastSlip());
+  // the jack spring can push a rounded jack top back under a knuckle sitting a hair below where the jack would hold it,
+  // once the knuckle sitting there would be clear of the slipping point (judged where it would sit, so it can't flicker)
+  const gS = gOnJackAt(L, tgt);
+  if (knuckleBottom(gS)[1] < kb[1] + G.wedge) {
+    if (jt.backX >= slipBack(L, tgt, gS) + RESET_CLEAR) st.escaped = false;
     return tgt;
   }
-  // jack top is still up against the front of the knuckle
-  const held = solve(s => jackGeom(L, s).backX, kb[0] - 0.4, tgt, tgt + 0.8);
-  return Math.max(tgt, held);
+  return Math.max(tgt, pastSlip());
 }
 
 // Quasi-static hammer angle for the current state.
@@ -385,13 +408,14 @@ export function slowPress(a, step = 0.01) {
   a = eff(a);
   const dip = dipOf(a);
   const st = { escaped: false, checked: false };
-  let g = rest(a).g, dEsc = null, letoff = null, blockedAt = null, maxCrown = -Infinity;
+  let g = rest(a).g, dEsc = null, letoff = null, blockedAt = null, maxCrown = -Infinity, slipped = false;
   for (let d = 0; d <= dip + 1e-9; d += step) {
     const L = linkage(a, d);
     const wasEsc = st.escaped;
     const r = staticHammer(a, L, st, g);
     if (r.blocked) { blockedAt = d; g = r.g; break; }
-    if (!wasEsc && st.escaped && dEsc === null) { dEsc = d; letoff = G.stringY - crownY(g); }
+    // let off before the button tripped the jack: a jack set too far forward lets the knuckle slip off its back
+    if (!wasEsc && st.escaped && dEsc === null) { dEsc = d; letoff = G.stringY - crownY(g); slipped = L.psiBtn <= L.psiRest + 1e-9; }
     g = r.g;
     maxCrown = Math.max(maxCrown, crownY(g));
   }
@@ -401,7 +425,7 @@ export function slowPress(a, step = 0.01) {
     letoff, // distance from string at the moment the jack trips
     dropFromString: G.stringY - crownY(g),
     aftertouch: dEsc === null ? 0 : bottomD - dEsc,
-    escaped: st.escaped, gBottom: g, closest: G.stringY - maxCrown,
+    escaped: st.escaped, gBottom: g, closest: G.stringY - maxCrown, slipped,
   };
 }
 
@@ -437,8 +461,9 @@ export function measure(a) {
   const pyTail = hamPt(gChk, G.tail)[1] - G.H[1];
   return {
     keyHeight: keyHeightOf(a) - NEIGHBOR_H,
-    jackPos: jg.backX - coreBack(g),
-    jackUnder: jg.backX > kb[0],
+    jackPos: jg.backX - coreBack(g, jg.backY),
+    jackUnder: jg.backX >= slipBack(L, L.psiRest, gJ) + RESET_CLEAR,   // the sim's own test for a jack back under the knuckle
+    jackSlips: sp.slipped,
     wippenSpacing: a.wippenSpace - sideZ(a, kc[1] - G.H[1]),
     // trip the jack at rest: the hammer settles onto the repetition lever. That small drop is the wink.
     // Negative means the lever is already holding the hammer off the jack.
@@ -508,6 +533,7 @@ export function grade(id, m, k = 1) {
   if (id === 'damperTiming' && v == null) return { ok: false, v: null, note: 'the key never lifts the damper' };
   if (v === null || v === undefined) return { ok: false, v: null, note: 'no let-off' };
   if (id === 'jackPos' && !m.jackUnder) return { ok: false, v, note: 'jack is not under the knuckle' };
+  if (id === 'jackPos' && m.jackSlips) return { ok: false, v, note: 'too far forward: the knuckle slips off it before let-off' };
   if (id === 'wink' && v < 0) return { ok: false, v, note: 'no wink: the lever holds the hammer off the jack' };
   if (id === 'wink' && !m.jackReturns) return { ok: false, v, note: 'jack will not return under the knuckle' };
   if (id === 'restGap' && m.onRail) return { ok: false, v, note: m.lostMotion > 0.05 ? 'hammer sits on the rail: lost motion' : 'hammer sits on the rail' };
@@ -634,7 +660,8 @@ export class Sim {
     let g = this.g + w * dt;
     const jackDriving = jackG >= this.g - 1e-6;
     if (onRep && g > gHorn && !jackDriving) {
-      if (w > POP_W) { if (!this.popped) this.emit('pop'); this.popped = true; }
+      // a pop is the spring kicking the hammer up as the key comes up or holds; on the way down the blow just leaves the lever
+      if (w > POP_W) { if (!this.popped && this.dTarget <= this.d) this.emit('pop'); this.popped = true; }
       else { g = gHorn; w = Math.min(w, (gHorn - this.g) / dt); }
     }
     if (jackG > g) {
@@ -688,7 +715,7 @@ export class Sim {
         g = gString(); w = -REST_E * Math.abs(w);
       } else {
         // pushed up to the string by the repetition lever: it rests there and buzzes, no blow
-        if (!this.buzzing) this.emit('buzz');
+        if (!this.buzzing) this.emit('buzz', { held: onRep });   // held: the lever holds it there; else a blow too soft to sound
         this.buzzing = true; g = gString(); w = Math.min(0, w);
       }
     }
@@ -702,4 +729,4 @@ export class Sim {
 }
 
 // Factory regulation solved offline with factory() (node), so the page loads fast.
-export const FACTORY = {"balPunch":1.5,"jackScrew":-1.9852,"repStop":-0.5555,"capstan":13.8785,"restRail":110.7759,"frontPunch":2.299,"letoff":96.6682,"drop":139.8941,"repSpring":1.3554,"backcheck":0.5226,"damperGap":3.503,"damperStop":5.0586,"pedalLift":5.0086,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0,"wippenSpace":0,"backcheckSpace":0,"backcheckSquare":0,"damperCenter":0,"damperLevel":0};
+export const FACTORY = {"balPunch":1.5,"jackScrew":-0.5732,"repStop":-0.4591,"capstan":13.8078,"restRail":110.7759,"frontPunch":2.299,"letoff":95.6693,"drop":139.9278,"repSpring":1.3553,"backcheck":0.5226,"damperGap":3.5071,"damperStop":5.0557,"pedalLift":5.0057,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0,"wippenSpace":0,"backcheckSpace":0,"backcheckSquare":0,"damperCenter":0,"damperLevel":0};

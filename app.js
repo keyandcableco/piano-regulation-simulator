@@ -122,9 +122,9 @@ const STEPS = [
     how: 'Add or remove punchings under the key at the balance rail. The key rocks on the back rail, so the front moves about twice the punching thickness.',
     note: 'Key height also changes dip and aftertouch, which you set later.' },
   { spec: 'jackPos', also: ['wippenSpacing'], title: 'Jack position under the knuckle', knobs: ['jackScrew', 'wippenSpace'], test: 'sightJack', tests: ['sightJack', 'sightJackFront'],
-    what: 'Line up the back of the jack with the back of the knuckle core: the thin wood tongue through the middle of the felt roll, which runs up into the shank. Seen from the front, the jack should also stand centered under the knuckle.',
+    what: 'Line up the back of the jack with the back of the knuckle core: the thin wood tongue through the middle of the felt roll, which runs up into the shank. Follow the line of the tongue\'s back face down: it should meet the back of the jack\'s top corner. Seen from the front, the jack should also stand centered under the knuckle.',
     how: 'Turn the jack regulating screw to move it front to back. Too far back and the jack drags as it escapes and is slow to get back under the knuckle; too far forward and it has less of the knuckle to push on. To center it side to side, loosen the wippen flange screw and shift the wippen, or tilt it with traveling paper under the flange.',
-    note: 'Jack position changes how let-off feels (forward lightens the bump) more than where it happens. The sim models where, not the feel. Spacing the hammers moves the knuckles sideways, so center the jacks after the hammers. Steinway\'s guide (written for its uprights) also centers the jack\'s toe on its button, and calls for a compromise when the two disagree.' },
+    note: 'Near its mark, jack position changes how let-off feels (forward lightens the bump) more than where it happens; the sim models where, not the feel. Set too far forward, the knuckle slips off the back of the jack before the button trips it: let-off comes early and the blow is weak. The knuckle rides on the jack\'s rounded, slick back corner, so moving the jack also moves the hammer a little: recheck the wink and blow after. Spacing the hammers moves the knuckles sideways, so center the jacks after the hammers. Steinway\'s guide (written for its uprights) also centers the jack\'s toe on its button, and calls for a compromise when the two disagree.' },
   { spec: 'wink', title: 'Repetition lever height', knobs: ['repStop'], test: 'wink',
     what: 'Trip the jack with the key at rest: the hammer should "wink", dropping a little (about 1/16") onto the repetition lever, and the jack should slip back under the knuckle when you let it go. Put another way, the top of the lever sits just below the top of the jack, about the thickness of a thin front punching.',
     how: 'Turn the repetition lever height screw. If the hammer doesn\'t move, the lever is too high: it holds the hammer off the jack (lost motion, uneven hammer line). If it drops and the jack can\'t get back under, the lever is too low and the note won\'t repeat.',
@@ -404,9 +404,9 @@ const SCENARIOS = [
   { complaint: 'There\'s a little bump in the key when I let it up slowly, and loud notes bounce.', faults: { repSpring: +0.7 }, answer: 'Repetition spring too strong.' },
   { complaint: 'When I play loud and hold the key down, the hammer doesn\'t stay back: it bounces up and sits right under the string.', faults: { backcheck: -3.0 }, alone: true, answer: 'Backcheck bent too far back: it misses the tail, so nothing catches the hammer and it comes back up on the repetition lever.' },
   { complaint: 'There\'s free play at the top of the key and the tone is weak.', faults: { capstan: -0.4 }, answer: 'Capstan too low: the hammer rests on the rail, so the key moves before it lifts anything (lost motion), and the blow is too long.' },
-  { complaint: 'The hammer on this key sits higher than its neighbors, and the key goes on down a long way after the note sounds.', faults: { capstan: +0.5 }, answer: 'Capstan too high: the blow is short, so aftertouch grows and drop shrinks. Let-off doesn\'t move: the button still trips the jack at the same point.' },
+  { complaint: 'The hammer on this key sits higher than its neighbors, and the key goes on down a long way after the note sounds.', faults: { capstan: +0.5 }, answer: 'Capstan too high: the blow is short, so aftertouch grows and drop shrinks. Let-off doesn\'t move: the button still trips the jack at the same point. The jack position reading shifts a little with the hammer\'s height and comes right with the capstan.' },
   { complaint: 'This key sits higher than the others.', faults: { balPunch: +0.5 }, answer: 'Too many balance rail punchings: key too high (and the dip changed with it).' },
-  { complaint: 'Soft repeated notes on this key feel draggy compared with its neighbors.', faults: { jackScrew: -1.4 }, answer: 'Jack set too far back under the knuckle: it drags as it escapes and is slow to get back under. Sight the back of the jack against the back of the knuckle core.' },
+  { complaint: 'Soft repeated notes on this key feel draggy compared with its neighbors.', faults: { jackScrew: -1.4 }, answer: 'Jack set too far back under the knuckle: it drags as it escapes and is slow to get back under. Sight the back of the jack against the back of the knuckle core. Moving it shifts the hammer\'s height a little too, so blow and wink come right once it is back in place.' },
   { complaint: 'Soft notes on this key buzz, as if something is touching the string.', faults: { drop: +2.0 }, alone: true, answer: 'Drop screw too high: after let-off the repetition lever carries the hammer back up against the string on a soft blow.' },
   { complaint: 'Trills and fast repeated notes on this key feel unreliable.', faults: { repStop: -0.3 }, answer: 'Repetition lever too low: tripped at rest, the hammer drops so far that the jack can\'t get back under the knuckle. A strong spring can still throw the hammer up for it in play, which is why the wink test is how you find it.' },
   { complaint: 'The hammer on this key sits a little higher than its neighbors.', faults: { repStop: +0.25 }, answer: 'Repetition lever too high above the jack: it holds the hammer off the jack (no wink), so the hammer line is uneven.' },
@@ -843,7 +843,8 @@ function handleEvents() {
     if (e.type === 'checked') { checkMark = e.g; say(show('check') ? `Checked ${fmt(e.dist)} from the string` : 'Hammer checked'); }
     if (e.type === 'reset') say(`Jack back under the knuckle (key ${Math.round(100 * (1 - e.d / sim.dip))}% up)`);
     if (e.type === 'blocked') say('Blocked: the jack never let off and the hammer is jammed against the string', 'warn');
-    if (e.type === 'buzz') say('The hammer is held up against the string: it buzzes instead of striking', 'warn');
+    if (e.type === 'buzz') e.held ? say('The hammer is held up against the string: it buzzes instead of striking', 'warn')
+      : say('Too soft to sound: the hammer only just reached the string');
     if (e.type === 'jackjam') say('The jack is jammed against its stop felt in the repetition lever: too much aftertouch, or let-off set too early', 'warn');
     if (e.type === 'pop') say('Pop: you would feel a bump in the key', 'warn');
     if (e.type === 'scrape') say('The hammer tail scraped the backcheck', 'warn');
@@ -881,7 +882,7 @@ function updateCallouts() {
   // the jack's front-to-back line from the side; seen from the front, how far it sits off the knuckle's center
   if (show('jackPos') && atRest && viewNow !== 'jackfront') {
     const jg = jackGeom(L, sim.psi);
-    S.setCallout('jack', [jg.backX, jg.topY, 8 + nz], [coreBack(g), jg.topY, 8 + nz], reading('jackPos').txt); keep.push('jack');
+    S.setCallout('jack', [jg.backX, jg.backY, 8 + nz], [coreBack(g, jg.backY), jg.backY, 8 + nz], reading('jackPos').txt); keep.push('jack');
   }
   if (show('wippenSpacing') && atRest && viewNow === 'jackfront') {
     const jg = jackGeom(L, sim.psi), zj = nz + (adj.wippenSpace || 0);
