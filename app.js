@@ -1,5 +1,5 @@
 import { G, IN, ADJ, SPEC, DAMPER_SPECS, DAMAGE, FACTORY, NEIGHBOR_H, Sim, measure, grade, hamPt, crownY, crownTop, keyAngle, keyPt,
-         jackGeom, knuckleBottom, coreBack, eff, repSupportZ, sideZ, gString as gStringNow } from './model.js';
+         jackGeom, knuckleBottom, coreBack, eff, repSupportZ, sideZ, linkage, gString as gStringNow } from './model.js';
 import { createScene, NOTE_Z, BASS } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
@@ -56,7 +56,7 @@ let adj = NOTES[0].adj, sim = NOTES[0].sim, m = NOTES[0].m, tested = NOTES[0].te
 function store() { Object.assign(NOTES[cur], { adj, sim, m, tested }); }
 function selectNote(slot) {
   if (slot === cur || busy) return;
-  autoUp = false;
+  autoUp = false; releaseAt = null;
   if (sim.dTarget > 0) sim.press(0, 60);
   store(); cur = slot;
   ({ adj, sim, m, tested } = NOTES[slot]);
@@ -282,7 +282,8 @@ async function runTest(id) {
   const t = TESTS[id];
   if (busy) return;
   const gen = generation;
-  autoUp = false; recentWarn.clear();   // a test's own press stays down; its warnings always show
+  autoUp = false; releaseAt = null; recentWarn.clear();   // a test's own press stays down; its warnings always show
+  setPaused(false);                     // a test runs the action itself
   busy++;
   view(t.view);
   if (mode === 'diagnose' || examActive()) testsUsed++;
@@ -307,6 +308,7 @@ function revealed(id) {
 // rails that serve every note: one setting for all three on the exam model
 const SHARED = new Set(['restRail', ...ADJ.filter(d => d.shared).map(d => d.id)]);
 function setAdj(id, v) {
+  frameHistory.length = 0;   // frames played before the change can't be stepped back into
   const d = ADJ.find(x => x.id === id);
   adj[id] = Math.max(d.min, Math.min(d.max, v));
   sim.setAdj(adj);
@@ -492,7 +494,7 @@ function deregulated() {
   return a;
 }
 function messUp() { adj = deregulated(); applyAdj(); }
-function applyAdj() { generation++; sim.setAdj(adj); sim.reset(); m = measure(adj); store(); S.clearCallouts(); refresh(); }
+function applyAdj() { generation++; frameHistory.length = 0; sim.setAdj(adj); sim.reset(); m = measure(adj); store(); S.clearCallouts(); refresh(); }
 
 // ---------- panel ----------
 // append children, skipping the nulls left by conditionals
@@ -601,7 +603,7 @@ function repairs() {
     el('p', { class: 'muted small' }, 'For a part that is broken or loose. Regulation can\'t fix these.'),
     el('div', { class: 'tests' }, Object.entries(DAMAGE).map(([key, d]) => el('button', { class: 'test', disabled: busy ? '' : false, onclick: () => {
       if (adj.damage !== key) { if (mode === 'diagnose' || examActive()) testsUsed++; toast(`${d.repair}: nothing wrong there, so nothing changed.`); refresh(); return; }
-      adj.damage = null;
+      adj.damage = null; clearFrames();
       unsolve();
       // a new shank arrives untraveled and unspaced
       if (key === 'splitShank') {
@@ -752,7 +754,7 @@ function renderSandbox(p) {
     wearControl(),
     AREAS.map(areaPanel),
     el('label', { class: 'row small' }, 'Break something: ',
-      el('select', { onchange: e => { adj.damage = e.target.value || null; sim.setAdj(adj); sim.reset(); m = measure(adj); store(); refresh(); } },
+      el('select', { onchange: e => { adj.damage = e.target.value || null; clearFrames(); sim.setAdj(adj); sim.reset(); m = measure(adj); store(); refresh(); } },
         el('option', { value: '' }, 'nothing'),
         Object.keys(DAMAGE).map(k => el('option', { value: k, ...(adj.damage === k ? { selected: '' } : {}) }, damageLabel(k))))),
     repairs());
@@ -772,6 +774,7 @@ const examSpecs = () => Object.keys(SPEC).filter(id => exam.dampers || !SPEC[id]
 let exam = { started: false, done: false };
 const examActive = () => mode === 'exam' && exam.started;
 function startExam() {
+  setPaused(false); clearFrames();
   const restRail = deregulated().restRail;
   const shared = deregulated();
   NOTES.forEach(n => {
@@ -794,6 +797,7 @@ function startExam() {
   view('angle');
 }
 function leaveExam() {
+  clearFrames();
   const wasExam = exam.started;
   exam = { started: false, done: false };
   $('#level').disabled = false;
@@ -1010,23 +1014,62 @@ function updateCallouts() {
 }
 
 // ---------- key controls ----------
-let autoUp = false; // Play: let the key up once it reaches the bottom
+let autoUp = false, releaseAt = null; // Play: let the key up once it reaches the bottom (at releaseAt, in action time)
 $('#k-play').onclick = () => { if (!busy) { sim.press(sim.dip, 250); autoUp = true; } };
 // Loop: play the key over and over, a normal blow each time it has come back up and settled
 let looping = false, restSince = null;
 const setLoop = on => { looping = on; restSince = null; $('#k-loop').classList.toggle('on', on); };
 $('#k-loop').onclick = () => { if (!busy) setLoop(!looping); };
 for (const id of ['#k-strike', '#k-slow', '#k-ease', '#k-release']) $(id).addEventListener('click', () => setLoop(false));
-$('#k-slow').onclick = () => { if (!busy) { autoUp = false; sim.press(sim.dip, 6); } };
-$('#k-strike').onclick = () => { if (!busy) { autoUp = false; sim.press(sim.dip, 250); } };
-$('#k-ease').onclick = () => { if (!busy) { autoUp = false; sim.press(Math.max(0, Math.min(sim.d, sim.dip) - 1.2), 10); } };
-const letUp = () => { if (!busy) { autoUp = false; sim.press(0, 60); } };
+$('#k-slow').onclick = () => { if (!busy) { autoUp = false; releaseAt = null; sim.press(sim.dip, 6); } };
+$('#k-strike').onclick = () => { if (!busy) { autoUp = false; releaseAt = null; sim.press(sim.dip, 250); } };
+$('#k-ease').onclick = () => { if (!busy) { autoUp = false; releaseAt = null; sim.press(Math.max(0, Math.min(sim.d, sim.dip) - 1.2), 10); } };
+const letUp = () => { if (!busy) { autoUp = false; releaseAt = null; sim.press(0, 60); } };
 $('#k-release').onclick = letUp;
 let pedalDown = false;
 const setPedal = down => { pedalDown = down; NOTES.forEach(n => n.sim.setPedal(down)); $('#k-pedal').classList.toggle('on', down); };
 $('#k-pedal').onclick = () => { if (!busy) setPedal(!pedalDown); };
 let labelsOn = false;
 $('#labels').onclick = () => { labelsOn = !labelsOn; S.setLabels(labelsOn); $('#labels').classList.toggle('on', labelsOn); };   // hidden in Tools
+// ---------- frame by frame ----------
+// Pause freezes the action. Frame ▶ moves it on by what one screen frame shows at the chosen speed (press a key
+// button while paused, then step through the stroke); ◀ Frame steps back through the frames already played.
+let paused = false, stepFrames = 0;
+const FRAME_S = 1 / 60;
+const frameHistory = [], HISTORY_MAX = 900;   // about 15 s of frames
+const clearFrames = () => { frameHistory.length = 0; };
+const SNAP_SKIP = new Set(['a', 'L', 'events', 'dip']), SNAP_LAZY = ['strikes', 'popped', 'buzzing'];   // fields a Sim sets only later
+const snapSim = s => Object.fromEntries(Object.entries(s).filter(([k]) => !SNAP_SKIP.has(k)).map(([k, v]) => [k, v && typeof v === 'object' ? structuredClone(v) : v]));
+const idleNow = () => NOTES.every(n => n.sim.d === 0 && n.sim.dTarget === 0 && n.sim.w === 0 && n.sim.yd === 0 && n.sim.vd === 0);
+let lastIdle = false;
+// each frame the action moves: every note's state, and what the panel was marking (so markers and messages step back too)
+function snapshot() {
+  const idle = idleNow();
+  if (idle && lastIdle) return;   // a long wait at rest doesn't push the blow you want out of the history
+  lastIdle = idle;
+  frameHistory.push({ simTime, releaseAt, autoUp, letoffMark, letoffD, checkMark, contactD: { ...contactD }, line: $('#lastevent').textContent,
+    notes: NOTES.map(n => snapSim(n.sim)) });
+  if (frameHistory.length > HISTORY_MAX) frameHistory.shift();
+}
+function restoreFrame(h) {
+  ({ simTime, releaseAt, autoUp, letoffMark, letoffD, checkMark } = h); contactD = { ...h.contactD };
+  $('#lastevent').textContent = h.line; recentWarn.clear();   // a warning shows again when its frame is replayed
+  NOTES.forEach((n, i) => {
+    for (const k of SNAP_LAZY) if (!(k in h.notes[i])) n.sim[k] = undefined;
+    Object.assign(n.sim, h.notes[i]); n.sim.L = linkage(n.sim.a, n.sim.d); n.sim.events = [];
+  });
+  pedalDown = NOTES[0].sim.pedalTarget > 0; $('#k-pedal').classList.toggle('on', pedalDown);
+  lastIdle = false;
+}
+function setPaused(on) {
+  paused = on; if (on) setLoop(false);
+  $('#k-pause').classList.toggle('on', on); $('#k-pause').textContent = on ? 'Run' : 'Pause';
+}
+const frameFwd = () => { if (busy) return; setPaused(true); stepFrames++; };
+const frameBack = () => { if (busy) return; setPaused(true); const h = frameHistory.pop(); if (h) restoreFrame(h); };
+$('#k-pause').onclick = () => { if (!busy) setPaused(!paused); };
+$('#k-fwd').onclick = frameFwd;
+$('#k-back').onclick = frameBack;
 for (const b of document.querySelectorAll('[data-speed]')) b.onclick = () => {
   timeScale = +b.dataset.speed;
   document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b));
@@ -1039,7 +1082,7 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   showCredits = false;
   if (mode === 'drills') { drillsStop?.(); drillsEl = null; }
   if (mode === 'tools') { S.hideTool(); toolSel = null; S.setLabels(labelsOn); }
-  mode = b.dataset.mode; tested = new Set(); verdict = null; S.clearCallouts();
+  mode = b.dataset.mode; tested = new Set(); verdict = null; S.clearCallouts(); setPaused(false); clearFrames();
   if (mode === 'tools') { S.setLabels(false); if (sim.dTarget > 0) sim.press(0, 60); if (TOOLBAG.length) pickTool(TOOLBAG[0].id); }
   if (mode === 'exam' || mode === 'drills' || mode === 'tools') { exam = { started: false, done: false }; refresh(); return; }
   if (mode === 'learn') { stepIdx = 0; messUp(); focusStep(); }
@@ -1055,7 +1098,14 @@ window.addEventListener('keydown', e => {
   if (mode === 'tools') return;   // no key on the bench while a tool is out
   if (e.code === 'Escape') { setLoop(false); letUp(); }
   if (e.code === 'KeyP' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !busy && e.target === document.body) setPedal(!pedalDown);
-  if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); autoUp = false; sim.press(sim.dip, 250); }
+  if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); autoUp = false; releaseAt = null; sim.press(sim.dip, 250); }
+  // frame keys work wherever focus is (often a button just clicked), but not while typing or choosing in a field
+  if (!/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    // by the character typed, so the keys named in the titles work on any keyboard layout
+    if ((e.key === 'k' || e.key === 'K' || e.code === 'Pause') && !e.repeat && !busy) setPaused(!paused);
+    if (e.key === '.') frameFwd();
+    if (e.key === ',') frameBack();
+  }
 });
 window.addEventListener('keyup', e => { if (mode !== 'tools' && e.code === 'Space' && !busy && e.target === document.body) sim.press(0, 60); });
 
@@ -1071,7 +1121,7 @@ let keyHeld = false;
 canvas.addEventListener('pointerdown', e => {
   const hit = S.pick(e), part = hit?.part;
   if (hit && hit.note >= 0 && hit.note !== cur && examActive() && !busy) { selectNote(hit.note); view('angle'); }
-  if (part === 'key' && !busy) { keyHeld = true; S.controls.enabled = false; setLoop(false); autoUp = false; sim.press(sim.dip, 250); }
+  if (part === 'key' && !busy) { keyHeld = true; S.controls.enabled = false; setLoop(false); autoUp = false; releaseAt = null; sim.press(sim.dip, 250); }
   else {
     const knob = ADJ.find(a => a.part === part);
     if (knob) S.highlight(knob.part, cur);
@@ -1095,7 +1145,10 @@ function frame(now) {
   const dtReal = Math.min(0.05, (now - last) / 1000); last = now;
   // 0.2 ms steps keep the escapement timing stable; on a slow device cap the work per
   // frame (the action then runs a little slower than real time rather than stuttering)
-  const h = 0.0002, dtSim = Math.min(dtReal * (forcedScale ?? timeScale), 120 * h);
+  const h = 0.0002, scale = forcedScale ?? timeScale;
+  let dtSim = Math.min(dtReal * scale, 120 * h);
+  if (paused) { dtSim = stepFrames ? Math.min(FRAME_S * scale, 120 * h) : 0; stepFrames = Math.max(0, stepFrames - 1); }
+  if (dtSim > 0 && mode !== 'tools') snapshot();
   for (const n of NOTES) {
     const s2 = n.sim;
     if (s2 !== sim && s2.d === 0 && s2.dTarget === 0 && s2.w === 0 && s2.yd === 0 && s2.vd === 0 && s2.pedal === s2.pedalTarget) continue;
@@ -1107,17 +1160,21 @@ function frame(now) {
   NOTES.forEach((n, i) => { if (i === 0 || examActive()) S.update(i, n.sim, eff(n.adj), i === cur ? hammerOverride : null, i === cur ? jackOverride : null, i === cur); });
   tickExam();
   if (mode !== 'tools') updateCallouts();
-  if (autoUp && (sim.d >= sim.dip - 0.01 || sim.blocked)) { autoUp = false; setTimeout(() => sim.press(0, 60), 120); }
+  // Play lets the key up a moment after it bottoms (0.12 s of screen time at the chosen speed), counted in the action's
+  // own time so a paused or stepped stroke releases on the same frame every time
+  if (autoUp && (sim.d >= sim.dip - 0.01 || sim.blocked)) { autoUp = false; releaseAt = simTime + 0.12 * (forcedScale ?? timeScale); }
+  if (releaseAt !== null && simTime >= releaseAt) { releaseAt = null; sim.press(0, 60); }
   if (looping && (busy || mode === 'tools')) setLoop(false);
   if (looping && !autoUp && sim.d === 0 && sim.dTarget === 0) {
     if (restSince === null) restSince = simTime;
     else if (simTime - restSince > 0.35) { sim.press(sim.dip, 250); autoUp = true; restSince = null; }
   } else restSince = null;
   const down = sim.d > 0.05 || sim.dTarget > 0.05;
-  $('#keypos').textContent = `key ${fmt(sim.d)} down`;
+  $('#keypos').textContent = `${paused ? 'paused · ' : ''}key ${fmt(sim.d)} down`;
   $('#keystate').textContent = down ? (sim.dTarget > 0.05 ? 'Key held down' : 'Key coming up') : 'Key at rest';
   $('#keystate').classList.toggle('down', down);
   $('#k-release').classList.toggle('attn', sim.dTarget > 0.05 && !autoUp && !busy);
+  for (const id of ['#k-pause', '#k-back', '#k-fwd']) if ($(id).disabled !== !!busy) $(id).disabled = !!busy;   // a test runs the action itself
   S.render();
   requestAnimationFrame(frame);
 }

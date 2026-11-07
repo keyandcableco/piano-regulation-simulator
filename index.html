@@ -67,7 +67,7 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -app
 #keystate { font-size: 12px; color: var(--muted); }
 #keystate.down { color: var(--accent); font-weight: 600; }
 #lastevent { font-size: 12px; color: var(--muted); max-width: 26ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#k-loop.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+#k-loop.on, #k-pause.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 @keyframes nudge { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); } }
 #k-release.attn { background: var(--accent); border-color: var(--accent); color: #fff; animation: nudge 1.6s ease-in-out infinite; }
 #examclock { position: absolute; top: 10px; right: 12px; font: 700 22px/1 system-ui; font-variant-numeric: tabular-nums;
@@ -235,6 +235,9 @@ a { color: var(--accent); }
       <button data-speed="1">Real speed</button>
       <button data-speed="0.1" class="on">Slow ×10</button>
       <button data-speed="0.02">Slow ×50</button>
+      <button id="k-pause" title="Freeze the action, then step it a frame at a time (Pause or K; comma and full stop step)">Pause</button>
+      <button id="k-back" title="Back one frame (comma)">◀ Frame</button>
+      <button id="k-fwd" title="Forward one frame (full stop)">Frame ▶</button>
     </div>
   </div>
   <aside>
