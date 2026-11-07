@@ -26,6 +26,7 @@ export const G = {
   jackTop: [16.5, 46.7], jackTopR: 1, jackFront: [11.9, 48.9], toe: [-25.0, 5.1],   // jackFront: front end of the top face
   // repetition lever (local to its centre pin): where the knuckle sits on the horn, top of the drop screw's felt
   horn: [-33.5, 16.5], tip: [-51.6, 22.1],
+  windowFelt: [[-43.3, 12.6], [-42.8, 19.0]],   // face of the jack stop felt on the window's front wall, bottom to top
   // hammer (local to the shank centre pin, +x along the shank): the knuckle, the crown's arc, the tail
   H: [323.3, 146.1], knuckleC: [16.96, -9.08], knuckleR: 4.4, coreR: 2.6,
   crownC: [132.13, 35.6], crownR: 10.2,  // felt top 45.8 above the shank, 140 out from the centre pin
@@ -280,7 +281,26 @@ function jackGap(L, psi, g) {
 export const gOnJackAt = (L, psi) => solve(g => jackGap(L, psi, g), 0, -0.6, 0.7);
 
 // Update escape/reset state from the jack geometry. Returns jack angle.
+// repetition lever angle that puts the horn at height y
+export const repRho = (L, y) => solve(r => L.repPt(r, G.horn)[1], y, L.rhoStop - 0.6, L.rhoStop);
+// gap between the jack's top-front corner and the stop felt in the lever's window (> 0: clear)
+function feltGap(L, psi, rho) {
+  const [p, q] = G.windowFelt.map(v => L.repPt(rho, v)), c = L.jackPt(psi, G.jackFront);
+  const ux = q[0] - p[0], uy = q[1] - p[1];
+  return ((c[0] - p[0]) * uy - (c[1] - p[1]) * ux) / Math.hypot(ux, uy);
+}
+// Jack angle for the current state. A tripped jack is stopped by the felt in the repetition lever's window;
+// pushed past that (too much aftertouch, or let-off too early) it jams there and st.jammed is set.
 export function updateJack(a, L, st, g) {
+  const psi = jackFree(a, L, st, g);
+  st.jammed = false;
+  if (psi <= L.psiRest + 1e-9) return psi;
+  const rho = repRho(L, Math.min(L.hornTop, knuckleBottom(g)[1]));
+  if (feltGap(L, psi, rho) >= 0) return psi;
+  st.jammed = true;
+  return feltGap(L, L.psiRest, rho) <= 0 ? L.psiRest : solve(s => feltGap(L, s, rho), 0, L.psiRest, psi);
+}
+function jackFree(a, L, st, g) {
   const kb = knuckleBottom(g);
   if (!st.escaped) {
     const jg = jackGeom(L, L.psiBtn);
@@ -549,6 +569,8 @@ export class Sim {
     this.psi = updateJack(a, L, st, this.g);
     if (!wasEsc && st.escaped) this.emit('letoff', { dist: G.stringY - crownY(this.g) });
     if (wasEsc && !st.escaped) this.emit('reset');
+    if (st.jammed && !this.jammed) this.emit('jackjam');
+    this.jammed = st.jammed;
     const jackG = st.escaped ? -Infinity : gOnJackAt(L, this.psi);
     const gHorn = gFromKnuckle(L.hornTop);
     const kz = knuckleBottom(this.g)[1];

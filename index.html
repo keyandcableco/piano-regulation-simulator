@@ -66,6 +66,8 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -app
   background: color-mix(in srgb, var(--panel) 85%, transparent); border: 1px solid var(--line); padding: 2px 5px; border-radius: 4px; margin: -8px 0 0 4px; pointer-events: none; }
 #keystate { font-size: 12px; color: var(--muted); }
 #keystate.down { color: var(--accent); font-weight: 600; }
+#lastevent { font-size: 12px; color: var(--muted); max-width: 26ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#k-loop.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 @keyframes nudge { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); } }
 #k-release.attn { background: var(--accent); border-color: var(--accent); color: #fff; animation: nudge 1.6s ease-in-out infinite; }
 #examclock { position: absolute; top: 10px; right: 12px; font: 700 22px/1 system-ui; font-variant-numeric: tabular-nums;
@@ -149,7 +151,7 @@ a { color: var(--accent); }
   #toasts { top: 52px; font-size: 13px; width: calc(100% - 32px); }
   #views, #keybar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   #views button, #keybar button { font-size: 12px; padding: 4px 8px; white-space: nowrap; flex: none; }
-  #keystate { display: none; }
+  #keystate, #lastevent { display: none; }
   #examclock { top: auto; bottom: 52px; right: 10px; font-size: 16px; }
 }
 </style>
@@ -183,12 +185,14 @@ a { color: var(--accent); }
     <div id="examclock" hidden></div>
     <div id="keybar">
       <button id="k-play" title="Strike the key and let it come back up">Play</button>
+      <button id="k-loop" title="Keep playing the key, one normal blow after another, so you can watch the action work">Loop</button>
       <button id="k-strike" title="Strike and keep holding the key down (or hold Space, or press and hold on the key)">Strike &amp; hold</button>
       <button id="k-slow" title="Press the key slowly to the bottom and hold it there">Press slowly</button>
       <button id="k-ease" title="Let the key up a little while still holding it">Ease up</button>
       <button id="k-release" title="Let the key all the way up (Esc)">Let key up</button>
       <button id="k-pedal" title="Damper pedal down or up (P)">Pedal</button>
       <span id="keystate"></span>
+      <span id="lastevent"></span>
       <span class="sep"></span>
       <span id="keypos"></span>
       <button data-speed="1">Real speed</button>

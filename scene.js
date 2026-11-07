@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { G, NEIGHBOR_H, WEAR, keyAngle, hamPt } from './model.js';
+import { G, NEIGHBOR_H, WEAR, keyAngle, hamPt, repRho } from './model.js';
 
 const COLORS = {
   keybed: 0x6e4c2e, rail: 0xa47a4c, wood: 0xd7b98c, keywood: 0xe6d3ad, keytop: 0xf6f3ea,
@@ -67,7 +67,7 @@ const J_BTN_CONTACT = [23.4, 23.9];   // middle of the button's felt face
 const R_BODY = [[38.7, -12.6], [3.8, 2.9], [-3.3, 5.3], [-21.7, 11.8], [-32.6, 16.2], [-36.3, 17.5], [-40, 18.5], [-43.6, 19.2], [-46.6, 19.5],
   [-56.8, 19.9], [-58.6, 15.8], [-51.7, 12.5], [-45.5, 12.5], [-3.3, -2], [3.8, -5.3], [28.5, -15.1], [40, -15.5]];
 const R_DROP_FELT = [[-46.6, 19.5], [-56.8, 19.9], [-56.8, 22], [-46.6, 21.5]];
-const R_WINDOW_FELT = [[-45.5, 12.6], [-43.3, 12.6], [-42.8, 19.0], [-45, 19.3]];   // glued on the window's front wall, facing the jack
+const R_WINDOW_FELT = [[-45.5, 12.6], ...G.windowFelt, [-45, 19.3]];   // glued on the window's front wall, facing the jack
 // solid between the cheeks at the tail and the front end; open in the window between
 const R_TAIL = [[38.7, -12.6], [3.8, 2.9], [-3.3, 5.3], [-21.7, 11.8], [-25, 13.13], [-25, 5.46], [-3.3, -2], [3.8, -5.3], [28.5, -15.1], [40, -15.5]];
 const R_FRONT = [[-45, 19.35], [-46.6, 19.5], [-56.8, 19.9], [-58.6, 15.8], [-51.7, 12.5], [-45.5, 12.5]];
@@ -476,7 +476,7 @@ export function createScene(canvas, overlay) {
     n.jack.rotation.z = jackOverride ?? sim.psi;
     // repetition lever: horn sits under the knuckle or at its stop/drop limit
     const kb = hamPt(hammerOverride ?? sim.g, G.knuckleC)[1] - G.knuckleR;
-    n.rep.rotation.z = -solveRho(L, Math.min(L.hornTop, kb));
+    n.rep.rotation.z = -repRho(L, Math.min(L.hornTop, kb));
     n.hammer.rotation.z = hammerOverride ?? sim.g;
     // alignment: spacing, traveling (drift at the string = 47 mm of rise times the tilt), squaring
     const tilt = -(a.hammerTravel || 0) / 44.5;           // crown rises about 44.5 mm to the strings
@@ -541,12 +541,6 @@ export function createScene(canvas, overlay) {
   function solveUl(y) {
     let lo = -0.5, hi = 0.5;
     for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (UL_PIVOT[1] + UL_FELT[0] * Math.sin(m) + UL_FELT[1] * Math.cos(m) > y) lo = m; else hi = m; }
-    return (lo + hi) / 2;
-  }
-  // repetition lever angle that puts the horn at height y
-  function solveRho(L, y) {
-    let lo = L.rhoStop - 0.6, hi = L.rhoStop;
-    for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (L.repPt(m, G.horn)[1] < y) lo = m; else hi = m; }
     return (lo + hi) / 2;
   }
 

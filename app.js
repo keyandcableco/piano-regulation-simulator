@@ -771,10 +771,24 @@ function renderExamResult(p) {
 
 // ---------- events from the simulation ----------
 function toast(text, kind = '') {
+  const box = $('#toasts');
+  if ([...box.children].some(c => c.textContent === text && !c.classList.contains('out'))) return;   // already showing
+  while (box.children.length >= 3) box.firstChild.remove();
   const t = el('div', { class: 'toast ' + kind }, text);
-  $('#toasts').append(t);
+  box.append(t);
   setTimeout(() => t.classList.add('out'), 2600);
   setTimeout(() => t.remove(), 3200);
+}
+// What the key just did. While you simply play, it goes to the quiet line by the key buttons; during a test,
+// and for anything that is wrong (a block, a pop, a scrape), it pops up as well.
+const recentWarn = new Map();
+function say(text, kind = '') {
+  $('#lastevent').textContent = text;
+  if (kind === 'warn') {
+    if (performance.now() - (recentWarn.get(text) ?? -1e9) < 5000) return;   // not again on every loop
+    recentWarn.set(text, performance.now());
+    toast(text, kind);
+  } else if (busy) toast(text, kind);
 }
 let letoffMark = null, checkMark = null, letoffD = null;
 function handleEvents() {
@@ -784,18 +798,19 @@ function handleEvents() {
       // let-off is judged on a slow press; a hard blow trips at a slightly different point
       const slow = sim.keySpeed <= 20;
       if (slow) { letoffMark = e.g; letoffD = e.d; }
-      toast(show('letoff') && slow ? `Let-off ${fmt(e.dist)} from the string` : 'Jack let off');
+      say(show('letoff') && slow ? `Let-off ${fmt(e.dist)} from the string` : 'Jack let off');
     }
-    if (e.type === 'strike') toast(`Hammer strikes (${e.v.toFixed(1)} m/s)`);
-    if (e.type === 'checked') { checkMark = e.g; toast(show('check') ? `Checked ${fmt(e.dist)} from the string` : 'Hammer checked'); }
-    if (e.type === 'reset') toast(`Jack back under the knuckle (key ${Math.round(100 * (1 - e.d / sim.dip))}% up)`);
-    if (e.type === 'blocked') toast('Blocked: the jack never let off and the hammer is jammed against the string', 'warn');
-    if (e.type === 'buzz') toast('The hammer is held up against the string: it buzzes instead of striking', 'warn');
-    if (e.type === 'pop') toast('Pop: you would feel a bump in the key', 'warn');
-    if (e.type === 'scrape') toast('The hammer tail scraped the backcheck', 'warn');
-    if (e.type === 'jumpcheck') toast('The hammer jumped out of check', 'warn');
-    if (e.type === 'damperbounce') toast('The damper bobbled on the strings', 'warn');
-    if (e.type === 'click') toast('A dry click on the blow', 'warn');
+    if (e.type === 'strike') say(`Hammer strikes (${e.v.toFixed(1)} m/s)`);
+    if (e.type === 'checked') { checkMark = e.g; say(show('check') ? `Checked ${fmt(e.dist)} from the string` : 'Hammer checked'); }
+    if (e.type === 'reset') say(`Jack back under the knuckle (key ${Math.round(100 * (1 - e.d / sim.dip))}% up)`);
+    if (e.type === 'blocked') say('Blocked: the jack never let off and the hammer is jammed against the string', 'warn');
+    if (e.type === 'buzz') say('The hammer is held up against the string: it buzzes instead of striking', 'warn');
+    if (e.type === 'jackjam') say('The jack is jammed against its stop felt in the repetition lever: too much aftertouch, or let-off set too early', 'warn');
+    if (e.type === 'pop') say('Pop: you would feel a bump in the key', 'warn');
+    if (e.type === 'scrape') say('The hammer tail scraped the backcheck', 'warn');
+    if (e.type === 'jumpcheck') say('The hammer jumped out of check', 'warn');
+    if (e.type === 'damperbounce') say('The damper bobbled on the strings', 'warn');
+    if (e.type === 'click') say('A dry click on the blow', 'warn');
   }
   // the pedal test listens for every damper landing, on every note
   NOTES.forEach((n, slot) => { if (landed) for (const e of n.sim.events) if (e.type === 'seated' && !landed.has(slot)) landed.set(slot, e.t); n.sim.events = []; });
@@ -842,6 +857,11 @@ function updateCallouts() {
 // ---------- key controls ----------
 let autoUp = false; // Play: let the key up once it reaches the bottom
 $('#k-play').onclick = () => { if (!busy) { sim.press(sim.dip, 250); autoUp = true; } };
+// Loop: play the key over and over, a normal blow each time it has come back up and settled
+let looping = false, restSince = null;
+const setLoop = on => { looping = on; restSince = null; $('#k-loop').classList.toggle('on', on); };
+$('#k-loop').onclick = () => { if (!busy) setLoop(!looping); };
+for (const id of ['#k-strike', '#k-slow', '#k-ease', '#k-release']) $(id).addEventListener('click', () => setLoop(false));
 $('#k-slow').onclick = () => { if (!busy) { autoUp = false; sim.press(sim.dip, 6); } };
 $('#k-strike').onclick = () => { if (!busy) { autoUp = false; sim.press(sim.dip, 250); } };
 $('#k-ease').onclick = () => { if (!busy) { autoUp = false; sim.press(Math.max(0, Math.min(sim.d, sim.dip) - 1.2), 10); } };
@@ -877,9 +897,9 @@ $('#level').onchange = e => { LEVEL = LEVELS[e.target.value]; try { localStorage
 $('#credits').onclick = e => { e.preventDefault(); showCredits = true; refresh(); $('aside').scrollTop = 0; };
 window.addEventListener('keydown', e => {
   if (mode === 'tools') return;   // no key on the bench while a tool is out
-  if (e.code === 'Escape') letUp();
+  if (e.code === 'Escape') { setLoop(false); letUp(); }
   if (e.code === 'KeyP' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !busy && e.target === document.body) setPedal(!pedalDown);
-  if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); sim.press(sim.dip, 250); }
+  if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); sim.press(sim.dip, 250); }
 });
 window.addEventListener('keyup', e => { if (mode !== 'tools' && e.code === 'Space' && !busy && e.target === document.body) sim.press(0, 60); });
 
@@ -932,6 +952,11 @@ function frame(now) {
   tickExam();
   if (mode !== 'tools') updateCallouts();
   if (autoUp && (sim.d >= sim.dip - 0.01 || sim.blocked)) { autoUp = false; setTimeout(() => sim.press(0, 60), 120); }
+  if (looping && (busy || mode === 'tools')) setLoop(false);
+  if (looping && !autoUp && sim.d === 0 && sim.dTarget === 0) {
+    if (restSince === null) restSince = simTime;
+    else if (simTime - restSince > 0.35) { sim.press(sim.dip, 250); autoUp = true; restSince = null; }
+  }
   const down = sim.d > 0.05 || sim.dTarget > 0.05;
   $('#keypos').textContent = `key ${fmt(sim.d)} down`;
   $('#keystate').textContent = down ? (sim.dTarget > 0.05 ? 'Key held down' : 'Key coming up') : 'Key at rest';
