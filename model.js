@@ -673,6 +673,15 @@ const STRIKE_W = 0.5; // reaching the string slower than this, the hammer just l
 const REST_E = 0.35; // rebound off the string
 const STRIKE_R = Math.hypot(G.crownC[0], G.crownC[1] + G.crownR);   // centre pin to the felt that meets the string, mm
 const BOUNCE_V = 0.01;  // a knuckle landing on the jack slower than this (m/s) just settles
+// A jack spring working the jack's rounded top back under a knuckle that sits a hair below where the jack would hold
+// it (up to G.wedge) doesn't snap the hammer up. At the reset the hammer stays where it is and keeps its speed, and
+// the jack takes up the gap over this long (s), along a smoothstep whose sharpest slowing (57 rad/s^2 at the full
+// wedge) stays under the hammer's own fall, so it never throws it. While the backcheck holds the tail it can't lift
+// it at all. Scott Murphy's high-speed videos (PTG Education Hub, "High Speed Video of the Grand Piano Action") show
+// no lift at the reset on a quick release, and a hammer falling straight on past it; the time itself isn't measured.
+// Before this the reset lifted the crown 3.2 mm in one step, stopped a falling hammer in mid-air, and could fire a
+// checked hammer at the string when the check let go.
+const WEDGE_T = 0.05;
 
 export class Sim {
   constructor(a) { this.setAdj(a); this.reset(); }
@@ -685,6 +694,7 @@ export class Sim {
     this.g = g; this.w = 0; this.psi = L.psiRest; this.L = L; this.events = [];
     this.blocked = false; this.scraped = false; this.jammed = false; this.bounceD = null; this.onBtn = false; this.onScrew = false;
     this.onRep = false;
+    this.wedge0 = 0; this.wedgeT = 0;   // the gap a jack that has just reset still has to take up (rad), and for how long it has
     // a key held down by a tight bushing, and the hand lifting it; the key tests' rocking, twisting and stack-off
     // drop are drawn from keyRock (mm sideways at the front, + bass), keyTwist (rad) and keyShown (key travel)
     this.stuck = false; this.lifting = false; this.keyRock = null; this.keyTwist = null; this.keyShown = null; this.stackOff = false;
@@ -755,7 +765,7 @@ export class Sim {
     if (wasEsc && !st.escaped) this.emit('reset');
     if (st.jammed && !this.jammed) this.emit('jackjam');
     this.jammed = st.jammed;
-    const jackG = st.escaped ? -Infinity : gOnJackAt(L, this.psi);
+    let jackG = st.escaped ? -Infinity : gOnJackAt(L, this.psi);
     const gHorn = gFromKnuckle(L.hornTop);
     const kz = knuckleBottom(this.g)[1];
     const onRep = kz <= L.hornTop + 1e-6;
@@ -772,6 +782,15 @@ export class Sim {
     // but never throws it back up
     if (onRep && this.w <= 0 && w < 0) w = Math.min(0, w + GA * (REP_CENTER + REP_SLIDE * sF) * dt);
     let g = this.g + w * dt;
+    // a jack that has just reset sits at the knuckle and takes up the gap under it over WEDGE_T
+    if (st.escaped) this.wedge0 = 0;
+    else if (wasEsc) { this.wedge0 = Math.max(0, jackG - g); this.wedgeT = 0; }
+    if (this.wedge0 > 0) {
+      const x = Math.min(1, this.wedgeT / WEDGE_T);
+      jackG = wasEsc ? g : jackG - this.wedge0 * (1 - x * x * (3 - 2 * x));   // at the reset exactly at the hammer, not a rounding error above it
+      if (!st.checked) this.wedgeT += dt;
+      if (x >= 1) this.wedge0 = 0;
+    }
     const jackDriving = jackG >= this.g - 1e-6;
     if (onRep && g > gHorn && !jackDriving) {
       // a pop is the spring kicking the hammer up as the key comes up or holds; on the way down the blow just leaves the lever
@@ -790,8 +809,8 @@ export class Sim {
         w = Math.sqrt(Math.max(0, (Math.max(0, 1 - 2 / 3 * G.jackD * vk) * this.w) ** 2 - 2 * GA * Math.max(0, jackG - g)));
         this.bounceD = this.d;   // a strike before the key comes back up is a bobble
       }
-      // a jack slipping back under the knuckle lifts it a hair with no kick; otherwise the jack drives it
-      else w = wasEsc && !st.escaped ? Math.max(0, w) : Math.max(w, Math.min(40, (jackG - this.g) / dt));
+      // otherwise the jack drives it (one slipping back under lifts it gently: WEDGE_T)
+      else w = Math.max(w, Math.min(40, (jackG - this.g) / dt));
       g = jackG;
     }
     const gR = gRail(a);
