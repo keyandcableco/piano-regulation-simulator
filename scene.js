@@ -417,7 +417,9 @@ export function createScene(canvas, overlay) {
 
   // ---------- callouts (measurement lines with labels) ----------
   const callouts = new Map();
-  function setCallout(id, p1, p2, text) {
+  // the label sits at the line's middle, or with opts.end at its far end, pushed opts.dy pixels down
+  // (so two short lines stacked end to end keep their labels apart)
+  function setCallout(id, p1, p2, text, opts = {}) {
     let c = callouts.get(id);
     if (!c) {
       const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
@@ -428,13 +430,37 @@ export function createScene(canvas, overlay) {
     }
     c.line.geometry.setFromPoints([new THREE.Vector3(...p1), new THREE.Vector3(...p2)]);
     c.el.textContent = text;
-    c.mid = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2, (p1[2] + p2[2]) / 2];
+    c.mid = opts.end ? [...p2] : [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2, (p1[2] + p2[2]) / 2];
+    c.dy = opts.dy || 0;
   }
   function clearCallouts(keep = []) {
     for (const [id, c] of callouts) {
       if (keep.includes(id)) continue;
       scene.remove(c.line); c.el.remove(); callouts.delete(id);
     }
+  }
+
+  // ---------- tail to backcheck: the narrowest side-view gap between the drawn tail and the backcheck's buckskin ----------
+  const TAIL_EDGE = H_WOOD.slice(0, 16);      // the tail's bottom corner and its back face, toward the backcheck
+  const BC_FACE = BC_LEATHER.slice(0, 15);    // the buckskin's rounded top and the face it turns to the tail
+  const gv = new THREE.Vector3();
+  const nearest = (p, a, b) => {
+    const ux = b[0] - a[0], uy = b[1] - a[1], t = Math.max(0, Math.min(1, ((p[0] - a[0]) * ux + (p[1] - a[1]) * uy) / (ux * ux + uy * uy)));
+    return [a[0] + t * ux, a[1] + t * uy];
+  };
+  function backcheckGap(slot) {
+    const n = notes[slot];
+    n.headG.updateWorldMatrix(true, false); n.bcHeadG.updateWorldMatrix(true, false);
+    const toW = (pts, obj, o) => pts.map(([x, y]) => { gv.set(x - o[0], y - o[1], 0).applyMatrix4(obj.matrixWorld); return [gv.x, gv.y]; });
+    const tail = toW(TAIL_EDGE, n.headG, [0, 0]), face = toW(BC_FACE, n.bcHeadG, BC_HEAD_C);
+    let best = { gap: Infinity };
+    // each corner of one outline against each edge of the other, both ways round
+    for (const [A, B, flip] of [[tail, face, false], [face, tail, true]])
+      for (const p of A) for (let i = 1; i < B.length; i++) {
+        const q = nearest(p, B[i - 1], B[i]), gap = Math.hypot(p[0] - q[0], p[1] - q[1]);
+        if (gap < best.gap) best = flip ? { gap, tail: q, bc: p } : { gap, tail: p, bc: q };
+      }
+    return best;
   }
 
   // ---------- part labels (on the middle note) ----------
@@ -655,7 +681,7 @@ export function createScene(canvas, overlay) {
     for (const c of callouts.values()) {
       const cut = !inClip(v3.set(...c.mid));   // its line is cut away in a clipped view: hide the label too
       v3.project(camera);
-      c.el.style.transform = `translate(${(v3.x * 0.5 + 0.5) * w}px, ${(-v3.y * 0.5 + 0.5) * h}px)`;
+      c.el.style.transform = `translate(${(v3.x * 0.5 + 0.5) * w}px, ${(-v3.y * 0.5 + 0.5) * h + c.dy}px)`;
       c.el.style.display = v3.z < 1 && !cut ? '' : 'none';
     }
   }
@@ -724,6 +750,6 @@ export function createScene(canvas, overlay) {
   }
 
   setNoteCount(1);
-  return { render, update, setView, showTool, hideTool, spinTool, highlight, pick, setCallout, clearCallouts, setBackground, controls, camera, setLabels,
+  return { render, update, setView, showTool, hideTool, spinTool, highlight, pick, setCallout, clearCallouts, backcheckGap, setBackground, controls, camera, setLabels,
            setNoteCount, setFocus, straightedge, PART_NAMES, VIEWS };
 }

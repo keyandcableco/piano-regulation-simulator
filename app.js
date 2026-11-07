@@ -922,12 +922,13 @@ function handleEvents() {
     if (e.type === 'letoff') {
       // let-off is judged on a slow press; a hard blow trips at a slightly different point
       const slow = sim.keySpeed <= 20;
-      if (slow) { letoffMark = e.g; letoffD = e.d; }
+      // a hard blow, or the jack back under, ends the slow press's marks: drop and aftertouch hang from them
+      letoffMark = slow ? e.g : null; letoffD = slow ? e.d : null;
       say(show('letoff') && slow ? `Let-off ${fmt(e.dist)} from the string` : 'Jack let off');
     }
     if (e.type === 'strike') say(`Hammer strikes (${e.v.toFixed(1)} m/s)`);
     if (e.type === 'checked') { checkMark = e.g; say(show('check') ? `Checked ${fmt(e.dist)} from the string` : 'Hammer checked'); }
-    if (e.type === 'reset') say(`Jack back under the knuckle (key ${Math.round(100 * (1 - e.d / sim.dip))}% up)`);
+    if (e.type === 'reset') { letoffMark = letoffD = null; say(`Jack back under the knuckle (key ${Math.round(100 * (1 - e.d / sim.dip))}% up)`); }
     if (e.type === 'blocked') say('Blocked: the jack never let off and the hammer is jammed against the string', 'warn');
     if (e.type === 'buzz') e.held ? say('The hammer is held up against the string: it buzzes instead of striking', 'warn')
       : say('Too soft to sound: the hammer only just reached the string');
@@ -955,6 +956,7 @@ function handleEvents() {
   // the pedal test listens for every damper landing, on every note
   NOTES.forEach((n, slot) => { if (landed) for (const e of n.sim.events) if (e.type === 'seated' && !landed.has(slot)) landed.set(slot, e.t); n.sim.events = []; });
 }
+const FRONT_VIEWS = new Set(['jackfront', 'checkfront', 'checktop', 'hammerline', 'damperline']);
 function updateCallouts() {
   const nz = NOTE_Z[cur], z = 9 + nz, L = sim.L, g = hammerOverride ?? sim.g;
   const atRest = sim.d < 0.01;
@@ -981,6 +983,12 @@ function updateCallouts() {
   if (show('restGap') && atRest) {
     const s = hamPt(g, G.shankRest), rr = eff(adj).restRail; S.setCallout('rest', [G.restRailX, rr, 12 + nz], [G.restRailX, s[1], 12 + nz], `rail gap ${fmt(Math.max(0, m.restGap))}`); keep.push('rest');
   }
+  // the tail's clearance from the backcheck at rest: no book figure, a reading of the drawn parts, shown with checking;
+  // a side-view reading, so not while a test holds the hammer up or in the views that look along the action
+  if (show('check') && atRest && hammerOverride === null && !FRONT_VIEWS.has(viewNow)) {
+    const b = S.backcheckGap(cur);
+    S.setCallout('bcgap', [...b.tail, 8 + nz], [...b.bc, 8 + nz], `backcheck gap ${fmt(b.gap)}`); keep.push('bcgap');
+  }
   if (show('keyHeight') && atRest) {
     const k = keyAngle(eff(adj), 0), f = keyPt(k.By, k.th, [G.keyFrontLocal + 8, G.keyThick + G.keyTopCap]);
     S.setCallout('kh', [f[0], f[1], 12 + nz], [f[0], NEIGHBOR_H, 12 + nz], reading('keyHeight').txt); keep.push('kh');
@@ -1001,6 +1009,14 @@ function updateCallouts() {
   }
   if (letoffMark !== null && sim.d > 0.05 && show('letoff')) {
     const c = crownTop(letoffMark); S.setCallout('letoff', [c[0] + 8, c[1], z], [c[0] + 8, G.stringY, z], `let-off ${fmt(G.stringY - c[1])}`); keep.push('letoff');
+  }
+  // after let-off on a slow press: where the hammer lands on the repetition lever just after let-off, below the let-off
+  // point on the let-off line's own ruler, its label kept clear below let-off's (hidden as the key comes back up). It
+  // marks the drop as judged, not the hammer: that sinks on past it into the lever's spring and comes back, and the
+  // lever lifts it back some as the key goes on down, which Igrec says to ignore.
+  if (letoffMark !== null && m.drop != null && sim.dTarget >= sim.d && show('drop')) {
+    const c0 = crownTop(letoffMark);
+    S.setCallout('drop', [c0[0] + 8, c0[1], z], [c0[0] + 8, c0[1] - m.drop, z], `drop ${fmt(m.drop)}`, { end: true, dy: 18 }); keep.push('drop');
   }
   if (letoffD !== null && sim.d > letoffD + 0.02 && show('aftertouch')) {
     const E = eff(adj), ka = keyAngle(E, letoffD), kb = keyAngle(E, sim.d);
