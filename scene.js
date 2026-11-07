@@ -50,7 +50,7 @@ const W_HEEL_FELT = [[-52.5, -19.2], [-54.5, -19.8], [-56.5, -20.1], [-59.5, -20
 const W_SUPPORT = [[-44.3, -0.7], [-51.7, -0.7], [-51.7, 27.9], [-51.2, 29.8], [-49.9, 31.1], [-48, 31.6], [-46.1, 31.1], [-44.8, 29.8], [-44.3, 27.9]];
 const W_JACK_POST = [[-80.6, -7.6], [-82.6, -7.6], [-76.4, 21.6], [-74.4, 21.6]];
 const W_FLANGE = [[3.2, -24.7], [-4, -24.7], [-4, 1.4], [-3.5, 3.2], [-2.2, 4.5], [-0.4, 5], [1.4, 4.5], [2.7, 3.2], [3.2, 1.4]];
-const W_STOP_FACE = { p: [-75.9, 18.9], n: [-0.969, 0.247] };   // where the jack button rests
+const W_STOP_FACE = { p: [-76.87, 19.15], n: [-0.969, 0.247] };   // where the jack button rests: the stop wire's face
 const W_SPRING_COIL = [-49.1, 17.0];
 const W_SPRING_UPPER = [[-49.1, 17.0], [-51.6, 19.6], [-60.4, 21.8], [-63.6, 24.7], [-67.6, 26.9], [-71.5, 29.3]];
 const W_SPRING_LOWER = [[-49.1, 17.0], [-51.6, 15.3], [-61.1, 16.0], [-69.8, 12.7], [-74.9, 9.1], [-80.7, 4.4], [-90.9, 1.5], [-95.4, -0.7]];
@@ -218,15 +218,15 @@ export function createScene(canvas, overlay) {
     ext(shapeFrom(W_FLANGE), 3, 4.3, COLORS.wood, 'wflange', wfl, { opacity: 0.4 });
     // hammer flange: a foot screwed on the flange rail, and a fork round the shank's center pin
     ext(rect(290, 140, 322, 144), 11, 0, COLORS.wood, 'flange', root);
-    ext(rect(316, 140, 331, 153.5), 3.5, -5, COLORS.wood, 'flange', root);
-    ext(rect(316, 140, 331, 153.5), 3.5, 5, COLORS.wood, 'flange', root, { opacity: 0.4 });
+    ext(rect(321, 140, 331, 153.5), 3.5, -5, COLORS.wood, 'flange', root);
+    ext(rect(321, 140, 331, 153.5), 3.5, 5, COLORS.wood, 'flange', root, { opacity: 0.4 });
     n.letoffBtn = new THREE.Group(); root.add(n.letoffBtn);
     cyl(5, 3, 'y', [G.letoffX, 1.5, 0], COLORS.redfelt, 'letoff', n.letoffBtn);
     n.letoffStem = cyl(1.2, 1, 'y', [G.letoffX, 0, 0], COLORS.steel, 'letoff', root, { metal: true });
     // drop screw: beside the hammer flange, down onto the felt on the repetition lever's front end
-    n.dropScrew = cyl(1.4, 1, 'y', [G.dropX, 0, 8], COLORS.steel, 'drop', root, { metal: true });
-    cyl(2.6, 1.6, 'y', [G.dropX, DROP_TOP + 0.8, 8], COLORS.steel, 'drop', root, { metal: true });
-    cyl(2.4, 4, 'y', [G.dropX, 142, 8], COLORS.wood, 'flange', root);
+    n.dropScrew = cyl(1.4, 1, 'y', [G.dropX, 0, 4.5], COLORS.steel, 'drop', root, { metal: true });
+    cyl(2.6, 1.6, 'y', [G.dropX, DROP_TOP + 0.8, 4.5], COLORS.steel, 'drop', root, { metal: true });
+    cyl(2.4, 4, 'y', [G.dropX, 146, 4.5], COLORS.wood, 'flange', root);
     for (const z of [-3.5, 0, 3.5]) cyl(0.55, 420, 'x', [440, G.stringY + 0.55, z], COLORS.string, 'string', root, { metal: true });
 
     // key, with capstan and backcheck
@@ -289,7 +289,7 @@ export function createScene(canvas, overlay) {
     ext(shapeFrom(R_BODY), 2.3, 4.35, COLORS.wood, 'rep', rep, { opacity: 0.4 });
     ext(shapeFrom(R_TAIL), 6.5, 0, COLORS.wood, 'rep', rep);
     ext(shapeFrom(R_FRONT), 6.5, 0, COLORS.wood, 'rep', rep);
-    ext(shapeFrom(R_DROP_FELT), 9, 0, COLORS.redfelt, 'dropfelt', rep);
+    ext(shapeFrom(R_DROP_FELT), 11, 0, COLORS.redfelt, 'dropfelt', rep);
     ext(shapeFrom(R_WINDOW_FELT), 6.4, 0, COLORS.redfelt, 'windowfelt', rep);
     rodBetween([-18.2, 16.2], [-25.2, -2.7], 1.0, COLORS.steel, 'repspring', rep);          // spring's fine adjustment screw
     cyl(2.2, 0.8, 'y', [-23.2, 2.2, 0], COLORS.steel, 'repspring', rep, { metal: true });
@@ -493,8 +493,8 @@ export function createScene(canvas, overlay) {
     n.balPunch.scale.y = Math.max(0.3, a.balPunch); n.balPunch.position.y = G.balRailY + Math.max(0.3, a.balPunch) / 2 - Math.max(0, 0.3 - a.balPunch);
     n.frontPunch.scale.y = Math.max(0.3, a.frontPunch); n.frontPunch.position.y = G.frontRailY + Math.max(0.3, a.frontPunch) / 2;
     n.letoffBtn.position.y = a.letoff;
-    n.letoffStem.scale.y = 106 - (a.letoff + 3); n.letoffStem.position.y = (106 + a.letoff + 3) / 2;
-    n.dropScrew.scale.y = DROP_TOP - a.drop; n.dropScrew.position.y = (DROP_TOP + a.drop) / 2;
+    n.letoffStem.scale.y = Math.max(0.1, 106 - (a.letoff + 3)); n.letoffStem.position.y = (106 + a.letoff + 3) / 2;
+    n.dropScrew.scale.y = Math.max(0.1, DROP_TOP - a.drop); n.dropScrew.position.y = (DROP_TOP + a.drop) / 2;
     if (drawShared) restRail.position.y = a.restRail;
     n.bc.rotation.z = (a.backcheck - (a.wear || 0) * WEAR.backcheck) / 80;
     // packed-down felts

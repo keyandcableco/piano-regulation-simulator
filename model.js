@@ -23,7 +23,7 @@ export const G = {
   W: [416.0, 82.3], heelC: [-59.5, 3.0], heelR: 25.3,   // heel cushion: an arc that rolls on the capstan
   jackPivotW: [-98.9, -3.5], repPivotW: [-48.3, 27.5],
   // jack (local to its centre pin, drawn at its rest lean): the top-back corner that lifts the knuckle, and the toe's knob
-  jackTop: [16.5, 46.7], jackTopR: 1, toe: [-25.0, 5.1],
+  jackTop: [16.5, 46.7], jackTopR: 1, jackFront: [11.9, 48.9], toe: [-25.0, 5.1],   // jackFront: front end of the top face
   // repetition lever (local to its centre pin): where the knuckle sits on the horn, top of the drop screw's felt
   horn: [-33.5, 16.5], tip: [-51.6, 22.1],
   // hammer (local to the shank centre pin, +x along the shank): the knuckle, the crown's arc, the tail
@@ -65,7 +65,7 @@ export const ADJ = [
     steps: [0.25], stepLabel: ['shim'], how: 'Raises or lowers the rail the hammer shanks fall back toward.' },
   { id: 'frontPunch', name: 'Front rail punchings', part: 'frontpunch', unit: 'mm', min: 0, max: 8,
     steps: [0.1, 0.25], stepLabel: ['0.004" paper', '0.010" card'], how: 'Thicker punchings stop the key sooner: less dip.' },
-  { id: 'letoff', name: 'Let-off button', part: 'letoff', unit: 'mm', min: 84, max: 104,
+  { id: 'letoff', name: 'Let-off button', part: 'letoff', unit: 'mm', min: 84, max: 102,
     steps: [0.05, 0.2], stepLabel: ['⅛ turn', '½ turn'], how: 'Where the jack tender hits and trips the jack. + raises the button (later let-off, closer to the string).' },
   { id: 'drop', name: 'Drop screw', part: 'drop', unit: 'mm', min: 128, max: 152,
     steps: [0.05, 0.2], stepLabel: ['⅛ turn', '½ turn'], how: 'Stops the repetition lever. + raises the screw (hammer drops less after let-off).' },
@@ -100,8 +100,9 @@ export const SPEC = {
   dip:        { name: 'Key dip', target: IN * 3 / 8, tol: IN / 64, unit: 'mm' },
   letoff:     { name: 'Let-off from string', target: IN / 16, tol: IN / 64, unit: 'mm' },
   drop:       { name: 'Drop below let-off', target: IN / 16, tol: IN / 64, unit: 'mm' },
-  // a modern grand at textbook dip, blow and let-off has 2 mm or more (Greg, 2026-11-06; the measured Boston gives about 2.8)
-  aftertouch: { name: 'Aftertouch (key travel after let-off)', target: 2.8, tol: 0.6, unit: 'mm' },
+  // more than the 1 mm older books give: a modern grand at textbook dip, blow and let-off has about 2 mm or more
+  // (Greg, 2026-11-06); the measured Boston gives 1.7
+  aftertouch: { name: 'Aftertouch (key travel after let-off)', target: 1.7, tol: 0.5, unit: 'mm' },
   spring:     { name: 'Repetition spring', target: 0.55, tol: 0.25, unit: '' },
   check:      { name: 'Checking distance', target: IN * 5 / 8, tol: IN / 16, unit: 'mm' },
   // alignment: done first on a real piano, and part of the PTG exam's "assemble, align and regulate"
@@ -251,11 +252,32 @@ export function repSupportZ(a, L) {
   return Math.min(L.hornTop, L.hornFree - (1 - a.repSpring) / G.repK);
 }
 
-// the jack's top-back corner is a small arc: its top lifts the knuckle, its back edge escapes past it
+// the jack's top-back corner is a small arc: its back edge escapes past the knuckle
 export function jackGeom(L, psi) {
   const c = L.jackPt(psi, G.jackTop);
   return { topY: c[1] + G.jackTopR, backX: c[0] + G.jackTopR };
 }
+// The knuckle rests on the jack's top: the face running forward from the corner (square to the leaning arm,
+// so it rises toward the front) or the corner's arc. Gap between the knuckle and that profile, mm.
+const JACK_FACE_T = (() => {   // where the face leaves the corner arc: the tangent from the face's front end
+  const [cx, cy] = G.jackTop, [fx, fy] = G.jackFront, d = Math.hypot(fx - cx, fy - cy);
+  const a = Math.atan2(fy - cy, fx - cx) - Math.acos(G.jackTopR / d);
+  return [cx + G.jackTopR * Math.cos(a), cy + G.jackTopR * Math.sin(a)];
+})();
+function jackGap(L, psi, g) {
+  const k = hamPt(g, G.knuckleC), R = G.knuckleR + WEAR.knuckle * wearNow, r = G.jackTopR;
+  const c = L.jackPt(psi, G.jackTop), t = L.jackPt(psi, JACK_FACE_T), f = L.jackPt(psi, G.jackFront);
+  // height the knuckle's center would sit at, resting on the corner arc, the face or the face's front edge, at its own x
+  const dx = k[0] - c[0], dxf = k[0] - f[0];
+  let h = Math.max(c[1] + Math.sqrt(Math.max(0, (R + r) ** 2 - dx * dx)), f[1] + Math.sqrt(Math.max(0, R * R - dxf * dxf)));
+  const len = Math.hypot(f[0] - t[0], f[1] - t[1]), ux = (f[0] - t[0]) / len, uy = (f[1] - t[1]) / len;
+  const nx = ux < 0 ? uy : -uy, ny = Math.abs(ux);              // the face's upward normal
+  const sOn = (k[0] - t[0] - R * nx) / ux;                     // where along the face it would touch
+  if (sOn >= 0 && sOn <= len) h = Math.max(h, t[1] + R * ny + sOn * uy);
+  return k[1] - h;
+}
+// hammer angle with the knuckle sitting on the jack
+export const gOnJackAt = (L, psi) => solve(g => jackGap(L, psi, g), 0, -0.6, 0.7);
 
 // Update escape/reset state from the jack geometry. Returns jack angle.
 export function updateJack(a, L, st, g) {
@@ -269,8 +291,8 @@ export function updateJack(a, L, st, g) {
   const tgt = Math.max(L.psiRest, L.psiBtn);
   const jt = jackGeom(L, tgt);
   if (a.noJackSpring && L.depth > 0.02) return Math.max(tgt, solve(s => jackGeom(L, s).backX, kb[0] - 0.4, tgt, tgt + 0.8));
-  // the jack spring can push a rounded jack top back under a knuckle sitting a hair below it
-  if (jt.topY < kb[1] + G.wedge) {
+  // the jack spring can push a rounded jack top back under a knuckle sitting a hair below where the jack would hold it
+  if (knuckleBottom(gOnJackAt(L, tgt))[1] < kb[1] + G.wedge) {
     if (jt.backX >= kb[0]) st.escaped = false;
     return tgt;
   }
@@ -284,7 +306,7 @@ export function staticHammer(a, L, st, gPrev) {
   const psi = updateJack(a, L, st, gPrev);
   const cands = [gRail(a), gFromKnuckle(repSupportZ(a, L))];
   let jackG = -Infinity;
-  if (!st.escaped) { jackG = gFromKnuckle(jackGeom(L, psi).topY); cands.push(jackG); }
+  if (!st.escaped) { jackG = gOnJackAt(L, psi); cands.push(jackG); }
   if (st.checked) cands.push(gFromTail(L.bcCatchY));
   let g = Math.max(...cands);
   let blocked = false;
@@ -297,7 +319,7 @@ export function factoryNeighborHeight() { return keyHeightOf({ balPunch: 1.5, fr
 export const NEIGHBOR_H = factoryNeighborHeight();
 
 // start a rest search with the knuckle sitting on the jack, where a regulated hammer rests
-const gOnJack = L => gFromKnuckle(jackGeom(L, L.psiRest).topY);
+const gOnJack = L => gOnJackAt(L, L.psiRest);
 function rest(a) {
   a = eff(a);
   const L = linkage(a, 0), st = { escaped: false, checked: false };
@@ -347,26 +369,27 @@ export function measure(a) {
   const kb = knuckleBottom(g);
   const kc = hamPt(g, G.knuckleC);
   const jg = jackGeom(L, L.psiRest);
-  const crownPerKnuckle = (crownY(gFromKnuckle(kb[1] + 0.5)) - crownY(gFromKnuckle(kb[1]))) / 0.5;
+  // where the hammer sits on the jack, and where it would drop to with the jack tripped (the lever, or the rail)
+  const gJ = gOnJackAt(L, L.psiRest), gL = Math.max(gRail(a), gFromKnuckle(repSupportZ(a, L)));
   const sp = slowPress(a);
   const net = springNet(a);
   const Lb = linkage(a, sp.blockedAt ?? sp.dip);
   const gChk = gFromTail(Lb.bcCatchY);
   const onRail = Math.abs(g - gRail(a)) < 1e-4;
-  // lost motion: key travel before the jack meets the knuckle (when hammer sits on the rail)
-  const restZ = Math.max(jg.topY, repSupportZ(a, L));
+  // lost motion: how far the jack (or lever) must rise before it meets the knuckle (when the hammer sits on the rail)
+  const lost = Math.min(jackGap(L, L.psiRest, g), kb[1] - repSupportZ(a, L));
   return {
     keyHeight: keyHeightOf(a) - NEIGHBOR_H,
     jackPos: jg.backX - (kc[0] + G.coreR),
     jackUnder: jg.backX > kb[0],
     // trip the jack at rest: the hammer settles onto the repetition lever. That small drop is the wink.
     // Negative means the lever is already holding the hammer off the jack.
-    wink: (jg.topY - repSupportZ(a, L)) * crownPerKnuckle,
-    jackReturns: jg.topY - repSupportZ(a, L) < G.wedge && !a.noJackSpring,
-    hammerOnJack: Math.abs(kb[1] - jg.topY) < 0.02,
+    wink: crownY(Math.max(gJ, gRail(a))) - crownY(gL),   // a hammer on the rail (lost motion) doesn't move at all
+    jackReturns: knuckleBottom(gJ)[1] - knuckleBottom(gL)[1] < G.wedge && !a.noJackSpring,
+    hammerOnJack: Math.abs(g - gJ) < 2e-4,
     blow: G.stringY - crownY(g),
     restGap: hamPt(g, G.shankRest)[1] - a.restRail,
-    onRail, lostMotion: onRail ? Math.max(0, kb[1] - restZ) : 0,
+    onRail, lostMotion: onRail ? Math.max(0, lost) : 0,
     dip: sp.dip,
     letoff: sp.letoff,
     blocked: sp.blockedAt !== null,
@@ -453,7 +476,7 @@ export function factory() {
     bis(a, 'capstan', () => measure(a).blow, SPEC.blow.target, 6, 20);
     a.restRail = hamPt(rest(a).g, G.shankRest)[1] - SPEC.restGap.target;
     bis(a, 'frontPunch', () => dipOf(a), SPEC.dip.target, 0, 8);
-    bis(a, 'letoff', () => measure(a).letoff ?? 0, SPEC.letoff.target, 84, 104);
+    bis(a, 'letoff', () => measure(a).letoff ?? 0, SPEC.letoff.target, 84, 102);
     bis(a, 'drop', () => measure(a).drop ?? 0, SPEC.drop.target, 128, 152);
     bis(a, 'backcheck', () => measure(a).check, SPEC.check.target, -4, 4);
     bis(a, 'repSpring', () => measure(a).spring, SPEC.spring.target, 0.3, 2.4);
@@ -472,7 +495,7 @@ const DAMP = 25;     // damping while the knuckle rides the repetition lever
 const POP_W = 2.0;   // leaving the lever faster than this is a visible pop
 const STRIKE_W = 0.5; // reaching the string slower than this, the hammer just leans on it (rad/s)
 const REST_E = 0.35; // rebound off the string
-const STRIKE_R = Math.hypot(...G.crownC) + G.crownR;   // centre pin to the striking felt, mm
+const STRIKE_R = Math.hypot(G.crownC[0], G.crownC[1] + G.crownR);   // centre pin to the felt that meets the string, mm
 
 export class Sim {
   constructor(a) { this.setAdj(a); this.reset(); }
@@ -526,7 +549,7 @@ export class Sim {
     this.psi = updateJack(a, L, st, this.g);
     if (!wasEsc && st.escaped) this.emit('letoff', { dist: G.stringY - crownY(this.g) });
     if (wasEsc && !st.escaped) this.emit('reset');
-    const jackG = st.escaped ? -Infinity : gFromKnuckle(jackGeom(L, this.psi).topY);
+    const jackG = st.escaped ? -Infinity : gOnJackAt(L, this.psi);
     const gHorn = gFromKnuckle(L.hornTop);
     const kz = knuckleBottom(this.g)[1];
     const onRep = kz <= L.hornTop + 1e-6;
@@ -582,7 +605,8 @@ export class Sim {
         this.buzzing = true; g = gString(); w = Math.min(0, w);
       }
     }
-    if (this.d < 0.5) { this.blocked = false; this.scraped = false; this.popped = false; this.buzzing = false; }
+    if (this.d < 0.5) { this.scraped = false; this.popped = false; }
+    if (g < gString() - 1e-4) { this.blocked = false; this.buzzing = false; }   // off the string: a new blow can block or buzz again
     this.g = g; this.w = w; this.L = L;
     this.stepDamper(dt);
   }
@@ -590,4 +614,4 @@ export class Sim {
 }
 
 // Factory regulation solved offline with factory() (node), so the page loads fast.
-export const FACTORY = {"balPunch":1.5,"jackScrew":-3.6709,"repStop":-1.3649,"capstan":14.5336,"restRail":110.7759,"frontPunch":2.299,"letoff":96.6825,"drop":139.6457,"repSpring":1.3358,"backcheck":0.0005,"damperGap":3.3965,"damperStop":6.7754,"pedalLift":6.7254,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0};
+export const FACTORY = {"balPunch":1.5,"jackScrew":-4.1669,"repStop":-0.5506,"capstan":13.9344,"restRail":110.7759,"frontPunch":2.299,"letoff":96.6636,"drop":139.8784,"repSpring":1.3348,"backcheck":0.0005,"damperGap":3.3882,"damperStop":6.7837,"pedalLift":6.7337,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0};

@@ -126,7 +126,7 @@ const STEPS = [
   { spec: 'wink', title: 'Repetition lever height', knobs: ['repStop'], test: 'wink',
     what: 'Trip the jack with the key at rest: the hammer should "wink", dropping a hair (about 1/32") onto the repetition lever, and the jack should slip back under the knuckle when you let it go. Put another way, the jack top sits just below the top of the lever.',
     how: 'Turn the repetition lever height screw. If the hammer doesn\'t move, the lever is too high: it holds the hammer off the jack (lost motion, uneven hammer line). If it drops and the jack can\'t get back under, the lever is too low and the note won\'t repeat.',
-    note: 'The repetition spring changes the wink too, so check it again after setting the springs.' },
+    note: 'A repetition spring too weak to carry the hammer lets the lever sag and deepens the wink, so check it again after setting the springs.' },
   { spec: 'blow', title: 'Blow distance and hammer line', knobs: ['capstan'], test: 'blowGauge',
     what: 'The capstan lifts the wippen and sets the hammer\'s rest height. Textbook blow distance is 1 3/4"; makers range from about 44 to 48 mm. Across a section the hammers should form a straight line.',
     how: 'Turn the capstan. Up raises the hammer and shortens the blow.',
@@ -148,7 +148,7 @@ const STEPS = [
     how: 'Change the front rail punchings. Thicker punchings stop the key sooner and give less dip.',
     note: 'If the hammer blocks before the key bottoms, let-off is too close: fix that first.' },
   { spec: 'aftertouch', title: 'Aftertouch', knobs: ['frontPunch', 'capstan'], test: 'slowPress',
-    what: 'Aftertouch is the key travel left after let-off. On a modern grand at the textbook dip and blow it comes to 2 mm or more; this one gives about 2.8. It is what makes sure the jack escapes on the softest blow.',
+    what: 'Aftertouch is the key travel left after let-off. On a modern grand at the textbook dip and blow it comes to about 2 mm, more than the 1 mm older books give; this action gives about 1.7. It is what makes sure the jack escapes on the softest blow.',
     how: 'Set it with dip and blow distance, never with let-off or drop: more dip or less blow gives more aftertouch. Then recheck let-off and drop, which those changes move.',
     note: 'Too little and soft notes block or bobble; too much and the jack is forced into its stop and can break.' },
   { spec: 'check', title: 'Backcheck', knobs: ['backcheck'], test: 'strikeHold',
@@ -158,7 +158,7 @@ const STEPS = [
   { spec: 'spring', title: 'Repetition spring', knobs: ['repSpring'], test: 'easeUp',
     what: 'Strike and hold so the hammer checks, then ease up a little. The hammer should rise steadily up to the drop screw: quick, but not snappy.',
     how: 'Adjust the spring. Too weak and it rises slowly or not at all; too strong and you feel a "pop" in the key, or it will not stay checked.',
-    note: 'A stronger spring also lifts the hammer at rest. Recheck the wink.' },
+    note: 'A spring too weak to carry the hammer lets the lever sag under it, which deepens the wink. Recheck the wink.' },
   { spec: 'damperTiming', title: 'Damper lift timing', knobs: ['damperGap'], test: 'damperSlow',
     what: 'Press the key slowly and watch the damper: it should start to lift when the hammer is a third to half of the way to the string.',
     how: 'Move the damper head on its wire (set screw in the head block). That changes how much key travel happens before the key end picks up the underlever. Too early and you feel the dampers in the touch; too late and the note isn\'t fully undamped at soft levels.',
@@ -790,7 +790,7 @@ function handleEvents() {
     if (e.type === 'checked') { checkMark = e.g; toast(show('check') ? `Checked ${fmt(e.dist)} from the string` : 'Hammer checked'); }
     if (e.type === 'reset') toast(`Jack back under the knuckle (key ${Math.round(100 * (1 - e.d / sim.dip))}% up)`);
     if (e.type === 'blocked') toast('Blocked: the jack never let off and the hammer is jammed against the string', 'warn');
-    if (e.type === 'buzz') toast('The repetition lever pushes the hammer up against the string: it buzzes (too little drop)', 'warn');
+    if (e.type === 'buzz') toast('The hammer is held up against the string: it buzzes instead of striking', 'warn');
     if (e.type === 'pop') toast('Pop: you would feel a bump in the key', 'warn');
     if (e.type === 'scrape') toast('The hammer tail scraped the backcheck', 'warn');
     if (e.type === 'jumpcheck') toast('The hammer jumped out of check', 'warn');
