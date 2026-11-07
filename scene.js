@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { G, NEIGHBOR_H, WEAR, keyAngle, hamPt, repRho, knuckleBottom } from './model.js';
+import { G, NEIGHBOR_H, WEAR, TRAVEL_RISE, SIDE_K, keyAngle, hamPt, repRho, knuckleBottom } from './model.js';
 
 const COLORS = {
   keybed: 0x6e4c2e, rail: 0xa47a4c, wood: 0xd7b98c, keywood: 0xe6d3ad, keytop: 0xf6f3ea,
@@ -37,6 +37,7 @@ const UL_PIVOT = [604, 66];        // underlever centre pin
 const UL_FELT = [-135, -6];        // lift felt, over the key's end
 const UL_WIRE = [-98, 5];          // where the damper wire leaves the underlever
 const WIRE_Z = 8;                  // the wire rises beside the unison; the head reaches over it
+const DH_X = 506, DH_LEN = 28;     // damper head: its middle over the strings, and its length along them
 
 // Wippen, jack and repetition lever outlines, side profile, mm. Digitized from Renner USA's dimensioned
 // wippen drawing and fitted to Hirschkorn's measured Boston GP-178 (research/wippen/spec.md).
@@ -90,6 +91,8 @@ const H_FELT_FOOT = 7.5;             // the felt is scaled about its foot as it 
 // key-local, the key's own (level) frame
 const BC_BLOCK = [[190.11, 22], [218.41, 22], [218.41, 34.8], [196.31, 34.8], [195.94, 31], [194.86, 27.67], [193.67, 25.71], [192.23, 24.37], [190.11, 23.7]];
 const BC_PIVOT = [210.11, 39.8];     // the bend in the wire: bending the backcheck turns the head about it
+const BC_ARM = G.bcHead[1] - BC_PIVOT[1];   // catch point above the bend: bending the wire sideways moves the head over this arm
+const BC_HEAD_C = [223, 74];         // the head's middle: it twists about here when squared
 const BC_WIRE_TOP = [220.56, 63.61];
 const BC_WOOD = [[212.56, 60.56], [217.18, 71.1], [219.2, 70.21], [226.23, 86.24], [228.41, 85.5], [228.92, 78.94], [229.83, 78.76], [223.47, 59.05], [220.95, 57.54]];
 const BC_FELT = [[212.56, 60.56], [212.92, 61.39], [217.18, 71.1], [219.2, 70.21], [226.23, 86.24], [228.41, 85.5], [228.54, 83.83], [228.95, 84.5], [229.07, 84.92], [229.08, 85.36], [228.98, 85.79], [228.76, 86.18], [228.46, 86.5], [228.03, 86.76], [226.49, 87.43], [225.68, 87.67], [224.9, 87.68], [224.14, 87.5], [223.46, 87.12], [222.89, 86.58], [222.46, 85.86], [211.55, 61.01]];
@@ -216,7 +219,7 @@ export function createScene(canvas, overlay) {
     n.balPunch = cyl(6, 1, 'y', [G.balX, 0, 0], COLORS.felt, 'balance', root);
     cyl(1.5, 30, 'y', [G.balX, G.balRailY + 15, 0], COLORS.steel, 'balrail', root, { metal: true, noPick: true });
     // wippen flange: a fork hanging under the wippen's center pin, screwed to the wippen rail
-    const wfl = new THREE.Group(); wfl.position.set(G.W[0], G.W[1], 0); root.add(wfl);
+    const wfl = n.wfl = new THREE.Group(); wfl.position.set(G.W[0], G.W[1], 0); root.add(wfl);
     ext(shapeFrom(W_FLANGE), 3, -4.3, COLORS.wood, 'wflange', wfl);
     ext(shapeFrom(W_FLANGE), 3, 4.3, COLORS.wood, 'wflange', wfl, { opacity: 0.4 });
     // hammer flange: a foot screwed on the flange rail, and a fork round the shank's center pin
@@ -248,12 +251,14 @@ export function createScene(canvas, overlay) {
     rodBetween([BC_PIVOT[0], 14], BC_PIVOT, 1.45, COLORS.steel, 'backcheck', key);
     const bc = n.bc = new THREE.Group(); bc.position.set(...BC_PIVOT, 0); key.add(bc);
     {
-      const rel = pts => pts.map(([x, y]) => [x - BC_PIVOT[0], y - BC_PIVOT[1]]);
+      const rel = (pts, o = BC_PIVOT) => pts.map(([x, y]) => [x - o[0], y - o[1]]);
       rodBetween([0, 0], rel([BC_WIRE_TOP])[0], 1.45, COLORS.steel, 'backcheck', bc);
       cyl(1.45, 2.9, 'z', [0, 0, 0], COLORS.steel, 'backcheck', bc, { metal: true });
-      ext(shapeFrom(rel(BC_WOOD)), 12, 0, COLORS.wood, 'backcheck', bc);
-      ext(shapeFrom(rel(BC_FELT)), 12.2, 0, COLORS.redfelt, 'backcheck', bc);
-      ext(shapeFrom(rel(BC_LEATHER)), 12.4, 0, COLORS.buckskin, 'backcheck', bc);
+      // the head on the wire's end: squaring twists it about its middle
+      const hd = n.bcHeadG = new THREE.Group(); hd.position.set(...rel([BC_HEAD_C])[0], 0); bc.add(hd);
+      ext(shapeFrom(rel(BC_WOOD, BC_HEAD_C)), 12, 0, COLORS.wood, 'backcheck', hd);
+      ext(shapeFrom(rel(BC_FELT, BC_HEAD_C)), 12.2, 0, COLORS.redfelt, 'backcheck', hd);
+      ext(shapeFrom(rel(BC_LEATHER, BC_HEAD_C)), 12.4, 0, COLORS.buckskin, 'backcheck', hd);
     }
 
     // wippen, with its heel, the repetition lever's support, the jack stop and the butterfly spring
@@ -347,9 +352,9 @@ export function createScene(canvas, overlay) {
     ext(rect(-142, -2, 6, 5), 9, 0, COLORS.wood, 'underlever', ul);
     ext(rect(-142, -6, -128, -2), 10, 0, COLORS.redfelt, 'underlever', ul);
     n.wire = cyl(1.1, 1, 'y', [UL_WIRE[0] + UL_PIVOT[0], 0, WIRE_Z], COLORS.steel, 'damperwire', root, { metal: true });
-    const head = n.dHead = new THREE.Group(); root.add(head);
-    ext(rect(492, 4, 520, 22), 16, 1, COLORS.wood, 'damper', head);
-    ext(rect(492, 0, 520, 4), 13, 0, COLORS.hammerfelt, 'damper', head);
+    const head = n.dHead = new THREE.Group(); root.add(head);   // origin at the middle of the felt's underside
+    ext(rect(-DH_LEN / 2, 4, DH_LEN / 2, 22), 16, 1, COLORS.wood, 'damper', head);
+    ext(rect(-DH_LEN / 2, 0, DH_LEN / 2, 4), 13, 0, COLORS.hammerfelt, 'damper', head);
     center('ucenter', ul, [0, 0], 10);
     building = -1;
     return n;
@@ -408,7 +413,7 @@ export function createScene(canvas, overlay) {
     [N0.bc, [12, 40, 7], 'Backcheck'], [restRail, [G.restRailX, -8, 41], 'Rest rail'], [fixed, [294, 140, 41], 'Hammer flange rail'],
     [fixed, [293, 118, 41], 'Regulating rail'], [N0.root, [560, G.stringY + 3, 0], 'Strings'], [fixed, [G.W[0] - 12, G.W[1] - 10, 41], 'Wippen rail'],
     [N0.wippen, [-48, 31, 5], 'Support'], [N0.jack, [20, 30, 6], 'Jack button'], [N0.wippen, [-62, -22, 7], 'Heel'],
-    [N0.dHead, [506, 22, 9], 'Damper'], [N0.ul, [-60, 5, 6], 'Underlever'], [fixed, [506, 156, 41], 'Damper guide rail'],
+    [N0.dHead, [0, 22, 9], 'Damper'], [N0.ul, [-60, 5, 6], 'Underlever'], [fixed, [506, 156, 41], 'Damper guide rail'],
     [dStopRail, [539, 10, 41], 'Damper stop rail'], [liftTray, [575, -10, 41], 'Lift tray']
   ].map(([obj, p, text]) => {
     const e = document.createElement('div'); e.className = 'plabel'; e.textContent = text; e.hidden = true; overlay.appendChild(e);
@@ -440,7 +445,24 @@ export function createScene(canvas, overlay) {
     // looking down the keys from the player's side at the hammer tops: sight the hammer line
     hammerline: { t: [460, 162, 0], p: [280, 245, 0] },
     dampers: { t: [540, 130, 0], p: [540, 140, 420] },
+    // straight along the action from the front, through a slice cut out of it: the jack under the knuckle,
+    // and the checked hammer's tail on its backcheck; then the backcheck from above, the hammer cut away
+    jackfront: { t: [339, 122, 0], p: [205, 127, 0], clip: { x: [329, 350] } },
+    checkfront: { t: [455, 124, 0], p: [325, 128, 0], clip: { x: [446, 470] } },
+    checktop: { t: [456, 114, 0], p: [438, 240, 0.1], clip: { y: 121 } },
+    // the damper heads on their strings, from above the hammers
+    damperline: { t: [506, 203, 0], p: [420, 285, 0] },
   };
+  // A clipped view keeps only a slice of the action. Cut parts are drawn two-sided so they show their insides.
+  let clipNow = null;
+  const inClip = p => !clipNow || (clipNow.x ? p.x >= clipNow.x[0] && p.x <= clipNow.x[1] : p.y <= clipNow.y);
+  function setClip(c) {
+    clipNow = c || null;
+    const P = (x, y, k) => new THREE.Plane(new THREE.Vector3(x, y, 0), k);
+    renderer.clippingPlanes = !c ? [] : c.x ? [P(1, 0, -c.x[0]), P(-1, 0, c.x[1])] : [P(0, -1, c.y)];
+    const side = c ? THREE.DoubleSide : THREE.FrontSide;
+    for (const r of [fixed, ...notes.map(n => n.root)]) r.traverse(o => { if (o.isMesh && o.material.side !== side) { o.material.side = side; o.material.needsUpdate = true; } });
+  }
   let viewAnim = null, viewZ = 0;
   // pull the camera back on tall, narrow screens so the same width of the action fits
   function viewPos(v) {
@@ -453,6 +475,7 @@ export function createScene(canvas, overlay) {
   function setView(name, z = viewZ) {
     viewZ = z;
     const v = VIEWS[name] || VIEWS.action;
+    setClip(v.clip);
     const dz = name === 'hammerline' ? 0 : z;
     const toT = new THREE.Vector3(...v.t), toP = viewPos(v);
     toT.z += dz; toP.z += dz;
@@ -477,7 +500,8 @@ export function createScene(canvas, overlay) {
     ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
     // faded exam notes stay clickable; only see-through-by-design parts (cheeks, ghosts) are skipped
-    const hit = ray.intersectObjects(pickables, false).find(h => shown(h.object) && h.object.userData.baseOpacity > 0.3);
+    // ...nor parts a clipped view has cut away
+    const hit = ray.intersectObjects(pickables, false).find(h => shown(h.object) && h.object.userData.baseOpacity > 0.3 && inClip(h.point));
     return hit ? { part: hit.object.userData.part, note: hit.object.userData.note } : null;
   }
 
@@ -496,10 +520,14 @@ export function createScene(canvas, overlay) {
     const kb = knuckleBottom(hammerOverride ?? sim.g)[1];
     n.rep.rotation.z = -repRho(L, Math.min(L.hornTop, kb));
     n.hammer.rotation.z = hammerOverride ?? sim.g;
+    // side to side: the wippen shifted on its flange, the backcheck wire bent over and its head twisted
+    n.wippen.position.z = n.wfl.position.z = a.wippenSpace || 0;
+    n.bc.rotation.x = Math.asin(Math.max(-0.5, Math.min(0.5, (a.backcheckSpace || 0) / BC_ARM)));
+    n.bcHeadG.rotation.y = (a.backcheckSquare || 0) * Math.PI / 180;
     // alignment: spacing, traveling (drift at the string = 47 mm of rise times the tilt), squaring
-    const tilt = -(a.hammerTravel || 0) / 44.5;           // crown rises about 44.5 mm to the strings
+    const tilt = -(a.hammerTravel || 0) / TRAVEL_RISE;    // crown rises about 44.5 mm to the strings
     n.align.rotation.x = tilt;
-    n.align.position.z = (a.hammerSpace || 0) - 40 * Math.sin(tilt);   // keep the resting head where spacing puts it
+    n.align.position.z = (a.hammerSpace || 0) - SIDE_K * Math.sin(tilt);   // keep the resting head where spacing puts it (model.js sideZ)
     const wob = a.wobble ? a.wobble * ((sim.strikes || 0) % 2 ? 1 : -1) : 0;   // a split shank wobbles blow to blow
     n.headG.rotation.x = ((a.hammerSquare || 0) + wob) * Math.PI / 180;
     n.crack.visible = a.damage === 'splitShank';
@@ -530,7 +558,10 @@ export function createScene(canvas, overlay) {
     n.ul.rotation.z = th;
     const wb = [UL_PIVOT[0] + UL_WIRE[0] * Math.cos(th) - UL_WIRE[1] * Math.sin(th), UL_PIVOT[1] + UL_WIRE[0] * Math.sin(th) + UL_WIRE[1] * Math.cos(th)];
     const headY = G.stringY + 1.1 + sim.yd;
-    n.dHead.position.y = headY;
+    // a head bent off its seat rests on one end, the other up by damperLevel; one bent sideways sits off its unison
+    const lvl = a.damperLevel || 0;
+    n.dHead.position.set(DH_X, headY + Math.abs(lvl) / 2, a.damperCenter || 0);
+    n.dHead.rotation.z = lvl / DH_LEN;
     n.wire.scale.y = Math.max(1, headY + 4 - wb[1]); n.wire.position.set(wb[0], (headY + 4 + wb[1]) / 2, WIRE_Z);
     if (drawShared) {
       // the stop rail sits where the underlever's top would be with the damper lifted damperStop;
@@ -585,9 +616,10 @@ export function createScene(canvas, overlay) {
     renderer.render(scene, camera);
     const w = canvas.clientWidth, h = canvas.clientHeight;
     for (const c of callouts.values()) {
-      v3.set(...c.mid).project(camera);
+      const cut = !inClip(v3.set(...c.mid));   // its line is cut away in a clipped view: hide the label too
+      v3.project(camera);
       c.el.style.transform = `translate(${(v3.x * 0.5 + 0.5) * w}px, ${(-v3.y * 0.5 + 0.5) * h}px)`;
-      c.el.style.display = v3.z < 1 ? '' : 'none';
+      c.el.style.display = v3.z < 1 && !cut ? '' : 'none';
     }
   }
 
@@ -598,12 +630,12 @@ export function createScene(canvas, overlay) {
   const toolHolder = new THREE.Group(); toolStage.add(toolHolder);
   const AX = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
   const axis = s => { const m = /([+-]?)\s*([xyz])/i.exec(s || ''); if (!m) return null; const v = new THREE.Vector3(...AX[m[2].toLowerCase()]); return m[1] === '-' ? v.negate() : v; };
-  let savedView = null, spin = true, roomEnv = null, toolR = 0;
+  let savedView = null, savedClip = null, spin = true, roomEnv = null, toolR = 0;
   // obj: a THREE.Object3D built for the tool (models of real tools, added one at a time)
   async function showTool(obj, opts = {}) {
     // polished steel and brass need something to reflect: a soft room, only while a tool is out
     if (!roomEnv) { const pm = new THREE.PMREMGenerator(renderer); roomEnv = pm.fromScene(new RoomEnvironment(renderer), 0.04).texture; pm.dispose(); }
-    if (!savedView) savedView = { p: camera.position.clone(), t: controls.target.clone() };
+    if (!savedView) { savedView = { p: camera.position.clone(), t: controls.target.clone() }; savedClip = clipNow; setClip(null); }
     fixed.visible = false; notes.forEach(n => { n.root.visible = false; });
     toolStage.visible = true;
     scene.environment = roomEnv;
@@ -643,7 +675,7 @@ export function createScene(canvas, overlay) {
   function hideTool() {
     if (!toolStage.visible) return;
     toolStage.visible = false; scene.environment = null; lightsForTools(false); fixed.visible = true; setNoteCount(noteCount);
-    if (savedView) { viewAnim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(), toT: savedView.t, toP: savedView.p }; savedView = null; }
+    if (savedView) { viewAnim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(), toT: savedView.t, toP: savedView.p }; savedView = null; setClip(savedClip); }
   }
   // the room already lights the tool from all round, so the direct lights step back while it is out
   function lightsForTools(on) { hemi.intensity = on ? 0.45 : 1.6; sun.intensity = on ? 1.1 : 1.6; fill.intensity = on ? 0.3 : 0.5; }
