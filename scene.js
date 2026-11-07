@@ -765,33 +765,43 @@ export function createScene(canvas, overlay) {
   // side that a neighbor key hides it)
   const INSET = { t: [6, 44, 0], p: [-80, 66, 38] };
   const insetCam = new THREE.PerspectiveCamera(30, 4 / 3, 5, 5000);
+  // the box takes the pointer, so a click or drag there doesn't reach the part of the action hidden behind it;
+  // clicking it opens the full Key front view
   const insetBox = document.createElement('div'); insetBox.id = 'inset'; insetBox.hidden = true; overlay.appendChild(insetBox);
+  insetBox.style.pointerEvents = 'auto'; insetBox.title = 'The key front: click for the full view';
   const insetText = document.createElement('div'); insetText.className = 'inset-text'; insetBox.appendChild(insetText);
   let insetOn = false;
   function setInset(on) { insetOn = on; }
   function setInsetText(t) { if (insetText.textContent !== t) insetText.textContent = t; }
   // top right, under the view buttons however many rows they wrap to (and under the exam clock), left of the move
-  // buttons, about a quarter of the stage wide
+  // buttons, about a quarter of the stage wide. Measured again only when the stage changes size.
   const viewsBar = document.getElementById('views'), navpad = document.getElementById('navpad');
+  let insetAt = null;
+  if (window.ResizeObserver) { const ro = new ResizeObserver(() => { insetAt = null; }); for (const e of [viewsBar, navpad]) if (e) ro.observe(e); }   // the bars wrap or reflow
   function insetRect() {
-    const w = canvas.clientWidth, h = canvas.clientHeight, iw = Math.round(Math.max(150, Math.min(280, w * 0.26))), ih = Math.round(iw * 0.72);
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (insetAt?.sw === w && insetAt.sh === h) return insetAt;
+    const iw = Math.round(Math.max(150, Math.min(280, w * 0.26))), ih = Math.round(iw * 0.72);
     const top = Math.max(56, viewsBar ? viewsBar.offsetTop + viewsBar.offsetHeight + 8 : 0);
     const right = navpad?.offsetParent ? navpad.offsetLeft - 8 : w - 10;
-    return { x: right - iw, top, w: iw, h: ih, stageH: h };
+    insetAt = { x: right - iw, top, w: iw, h: ih, sw: w, sh: h };
+    insetBox.style.cssText = `left:${insetAt.x}px;top:${top}px;width:${iw}px;height:${ih}px;pointer-events:auto`;
+    return insetAt;
   }
+  // not in the clipped views (they look along the action at one slice, and swapping their clipping planes out and back
+  // every frame would send every material back through the shader cache)
   function renderInset() {
-    const show = insetOn && !toolStage.visible && viewName !== 'keyfront';
+    const show = insetOn && !toolStage.visible && viewName !== 'keyfront' && !clipNow;
     if (insetBox.hidden === show) insetBox.hidden = !show;
     if (!show) return;
-    const r = insetRect(), y = r.stageH - r.top - r.h;   // the renderer counts from the bottom
-    insetBox.style.cssText = `left:${r.x}px;top:${r.top}px;width:${r.w}px;height:${r.h}px`;
+    const r = insetRect(), y = r.sh - r.top - r.h;   // the renderer counts from the bottom
     insetCam.position.set(INSET.p[0], INSET.p[1], INSET.p[2] + viewZ); insetCam.lookAt(INSET.t[0], INSET.t[1], INSET.t[2] + viewZ);
     insetCam.aspect = r.w / r.h; insetCam.updateProjectionMatrix();
-    const clip = renderer.clippingPlanes; renderer.clippingPlanes = [];   // a clipped side view's cut doesn't reach the key front
+    for (const c of callouts.values()) c.line.visible = false;   // their labels are placed for the main view only
     renderer.setScissorTest(true); renderer.setScissor(r.x, y, r.w, r.h); renderer.setViewport(r.x, y, r.w, r.h);
     renderer.render(scene, insetCam);
-    renderer.setScissorTest(false); renderer.setViewport(0, 0, canvas.clientWidth, r.stageH);
-    renderer.clippingPlanes = clip;
+    renderer.setScissorTest(false); renderer.setViewport(0, 0, r.sw, r.sh);
+    for (const c of callouts.values()) c.line.visible = true;
   }
 
   const v3 = new THREE.Vector3();
@@ -883,5 +893,5 @@ export function createScene(canvas, overlay) {
 
   setNoteCount(1);
   return { render, update, setView, zoomBy, slideBy, resetView, showTool, hideTool, spinTool, highlight, pick, setCallout, clearCallouts, backcheckGap, setBackground, controls, camera, setLabels,
-           setNoteCount, setFocus, setInset, setInsetText, straightedge, PART_NAMES, VIEWS };
+           setNoteCount, setFocus, setInset, setInsetText, insetEl: insetBox, straightedge, PART_NAMES, VIEWS };
 }

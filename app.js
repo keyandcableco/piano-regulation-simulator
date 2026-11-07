@@ -57,7 +57,7 @@ function store() { Object.assign(NOTES[cur], { adj, sim, m, tested }); }
 function selectNote(slot) {
   if (slot === cur || busy) return;
   clearPlan(); clearFrames();   // the frames carry the other note's markers
-  if (sim.dTarget > 0) sim.press(0, 60);
+  NOTES.forEach(n => { if (n.sim.dTarget > 0) n.sim.press(0, 60); });   // a chord comes up too: its plan to let it up is gone
   store(); cur = slot;
   ({ adj, sim, m, tested } = NOTES[slot]);
   S.setFocus(focusFor(viewNow));
@@ -287,7 +287,7 @@ async function runTest(id) {
   const gen = generation;
   clearPlan(); cue = null; recentWarn.clear();   // a test's own press stays down; its warnings always show
   setPaused(false);                     // a test runs the action itself
-  NOTES.forEach(n => { if (n.sim !== sim && n.sim.dTarget > 0) n.sim.press(0, 60); });   // keys a chord left down come up
+  releaseOthers();
   busy++;
   view(t.view);
   if (mode === 'diagnose' || examActive()) testsUsed++;
@@ -320,7 +320,10 @@ function setAdj(id, v) {
   m = measure(adj);
   unsolve();
   store();
-  if (SHARED.has(id)) NOTES.forEach((n, i) => { if (i !== cur) { n.adj[id] = adj[id]; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); } });
+  // a neighbor's key held down (a chord) stays down, as this one does
+  if (SHARED.has(id)) NOTES.forEach((n, i) => { if (i !== cur) {
+    n.adj[id] = adj[id]; n.sim.setAdj(n.adj); if (n.sim.d < 0.01 && !n.sim.st.checked) n.sim.reset(); n.m = measure(n.adj);
+  } });
   refresh();
 }
 // what each adjustment is for: the readings its card shows, so you see them move as you turn it
@@ -770,7 +773,7 @@ function setThreeKeys(on) {
   threeKeys = on; cur = 0;
   ({ adj, sim, m, tested } = NOTES[0]);
   S.setNoteCount(on ? 3 : 1); S.clearCallouts();
-  view(on ? 'damperrow' : viewNow);
+  view(on ? 'damperrow' : viewNow === 'damperrow' ? 'dampers' : viewNow);   // the row of three has no button of its own
   refresh();
 }
 // all three keys at once: a blow comes back up as Play's does; a slow press stays down until Let key up
@@ -781,11 +784,11 @@ function chord(slow) {
   if (!slow) { plan = 'all'; planAt = null; }
   pausedNote();
 }
-// three keys: each knocked out on its own, the rails they share set once
-function messUpAll() {
+// as worn as before, like Factory regulation; with three keys each knocked out on its own, the rails they share set once
+function messUpSandbox() {
   const rails = sharedOf(deregulated()), w = adj.wear || 0;
   const one = () => ({ ...deregulated(), wear: w, ...rails });
-  NOTES.forEach((n, i) => { if (i !== cur) putNote(n, one()); });
+  if (multi()) NOTES.forEach((n, i) => { if (i !== cur) putNote(n, one()); });
   adj = one(); applyAdj();
 }
 function factoryAll() {
@@ -819,7 +822,7 @@ function renderSandbox(p) {
       damperCompare(),
       el('h3', {}, `Note ${EXAM_ORDER.indexOf(cur) + 1}`)] : null,
     el('div', { class: 'row' }, el('button', { onclick: factoryAll }, 'Factory regulation'),
-      el('button', { onclick: three ? messUpAll : messUp }, 'Mess it all up')),
+      el('button', { onclick: messUpSandbox }, 'Mess it all up')),
     wearControl(),
     AREAS.map(areaPanel),
     el('label', { class: 'row small' }, 'Break something: ',
@@ -1121,6 +1124,9 @@ $('#k-loop').onclick = () => {
   setLoop(!looping);
 };
 for (const id of ['#k-strike', '#k-slow', '#k-ease', '#k-release']) $(id).addEventListener('click', () => setLoop(false));
+// the key buttons play the note being worked on: the other keys of a chord come up first
+const releaseOthers = () => NOTES.forEach(n => { if (n.sim !== sim && n.sim.dTarget > 0) n.sim.press(0, 60); });
+for (const id of ['#k-play', '#k-loop', '#k-strike', '#k-slow', '#k-letoff']) $(id).addEventListener('click', () => { if (!busy) releaseOthers(); });
 $('#k-slow').onclick = () => { if (!busy) { clearPlan(); cue = null; sim.press(sim.dip, 6); pausedNote(); } };
 $('#k-strike').onclick = () => { if (!busy) { clearPlan(); cue = null; sim.press(sim.dip, 250); pausedNote(); } };
 // Ease up lets a held key up a little. Pressed while the key is still going down (a blow, or any press while paused),
@@ -1149,6 +1155,7 @@ $('#labels').onclick = () => { labelsOn = !labelsOn; S.setLabels(labelsOn); $('#
 // on from the start where the stage has room for it
 const setInset = on => { S.setInset(on); $('#inset-btn').classList.toggle('on', on); };
 $('#inset-btn').onclick = () => setInset(!$('#inset-btn').classList.contains('on'));
+S.insetEl.onclick = () => view('keyfront');
 setInset($('#stage').clientWidth >= 700);
 // ---------- frame by frame ----------
 // Pause freezes the action. Frame ▶ moves it on by what one screen frame shows at the chosen speed (press a key
@@ -1273,7 +1280,7 @@ window.addEventListener('keydown', e => {
   if (mode === 'tools') return;   // no key on the bench while a tool is out
   if (e.code === 'Escape') { setLoop(false); letUp(); }
   if (e.code === 'KeyP' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !busy && e.target === document.body) setPedal(!pedalDown);
-  if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); clearPlan(); cue = null; sim.press(sim.dip, 250); pausedNote(); }
+  if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); clearPlan(); cue = null; releaseOthers(); sim.press(sim.dip, 250); pausedNote(); }
   // frame keys work wherever focus is (often a button just clicked), but not while typing or choosing in a field
   if (!/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && !e.ctrlKey && !e.metaKey && !e.altKey) {
     // by the character typed, so the keys named in the titles work on any keyboard layout
@@ -1296,8 +1303,13 @@ canvas.addEventListener('pointerleave', () => { tip.hidden = true; });
 let keyHeld = null;   // the pointer holding the key down
 canvas.addEventListener('pointerdown', e => {
   const hit = S.pick(e), part = hit?.part;
-  if (hit && hit.note >= 0 && hit.note !== cur && multi() && !busy) { selectNote(hit.note); view(examActive() ? 'angle' : viewNow); }
-  if (part === 'key' && !busy) { keyHeld = e.pointerId; S.controls.enabled = false; setLoop(false); clearPlan(); cue = null; sim.press(sim.dip, 250); pausedNote(); }
+  // in the exam a click turns to that note's 3/4 view; in the Sandbox a side view follows it over, and a view of all
+  // three stays put (re-aiming would fight a drag that starts on a neighbor)
+  if (hit && hit.note >= 0 && hit.note !== cur && multi() && !busy) {
+    selectNote(hit.note);
+    if (examActive()) view('angle'); else if (focusFor(viewNow) !== null) view(viewNow);
+  }
+  if (part === 'key' && !busy) { keyHeld = e.pointerId; S.controls.enabled = false; setLoop(false); clearPlan(); cue = null; releaseOthers(); sim.press(sim.dip, 250); pausedNote(); }
   else {
     // the screw is how the flange is spaced; the damper's timing is set at the underlever's top flange
     const knob = ADJ.find(a => a.part === ({ flangescrew: 'flange', ulflange: 'damper', damperfelt: 'damper' }[part] || part));
