@@ -461,7 +461,9 @@ export function createScene(canvas, overlay) {
       if (!o.isMesh) return;
       const faded = noteCount > 1 && focus !== null && i !== focus;
       const op = o.userData.baseOpacity * (faded ? 0.18 : 1);
-      o.material.transparent = op < 1; o.material.opacity = op; o.material.depthWrite = !faded;
+      // three.js builds an opaque material's shader to draw it solid whatever its opacity: switching needs a rebuild
+      if (o.material.transparent !== op < 1) { o.material.transparent = op < 1; o.material.needsUpdate = true; }
+      o.material.opacity = op; o.material.depthWrite = !faded;
     }));
   }
 
