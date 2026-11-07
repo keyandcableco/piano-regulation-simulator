@@ -9,7 +9,8 @@ import { G, NEIGHBOR_H, WEAR, keyAngle, hamPt } from './model.js';
 
 const COLORS = {
   keybed: 0x6e4c2e, rail: 0xa47a4c, wood: 0xd7b98c, keywood: 0xe6d3ad, keytop: 0xf6f3ea,
-  felt: 0x2f6e46, redfelt: 0x9b2f2f, hammerfelt: 0xeee6d2, buckskin: 0xb38b55, core: 0x5a3d22,
+  felt: 0x2f6e46, redfelt: 0x9b2f2f, hammerfelt: 0xeee6d2, buckskin: 0xb38b55, core: 0xc0955c, knucklefelt: 0xe6ddca,
+  jack: 0xc9a06a,
   brass: 0xc9a24a, steel: 0xa9afb6, string: 0xcfd3d8, dark: 0x3a2c22, ghost: 0xf2efe7,
 };
 
@@ -19,7 +20,7 @@ const PART_NAMES = {
   capstan: 'Capstan screw', wippen: 'Wippen', heel: 'Wippen heel cushion', wippenrail: 'Wippen rail & flange',
   jack: 'Jack', tender: 'Jack tender (toe)', jackscrew: 'Jack regulating screw', rep: 'Repetition lever',
   repscrew: 'Repetition lever height screw', repspring: 'Repetition spring', shank: 'Hammer shank',
-  knuckle: 'Knuckle', hammer: 'Hammer', flange: 'Hammer flange', flangerail: 'Hammer flange rail',
+  knuckle: 'Knuckle', knucklecore: 'Knuckle core (wood): the back of the jack lines up with its back edge', hammer: 'Hammer', flange: 'Hammer flange', flangerail: 'Hammer flange rail',
   wflange: 'Wippen flange', support: 'Repetition lever support', jackstop: 'Jack stop (spoon)', repbutton: 'Repetition lever button',
   dropfelt: 'Drop screw felt', windowfelt: 'Jack stop felt in the repetition lever window',
   wcenter: 'Wippen flange center pin (bushed in the flange)', jcenter: 'Jack center pin (bushed in the wippen)',
@@ -66,7 +67,7 @@ const J_BTN_CONTACT = [23.4, 23.9];   // middle of the button's felt face
 const R_BODY = [[38.7, -12.6], [3.8, 2.9], [-3.3, 5.3], [-21.7, 11.8], [-32.6, 16.2], [-36.3, 17.5], [-40, 18.5], [-43.6, 19.2], [-46.6, 19.5],
   [-56.8, 19.9], [-58.6, 15.8], [-51.7, 12.5], [-45.5, 12.5], [-3.3, -2], [3.8, -5.3], [28.5, -15.1], [40, -15.5]];
 const R_DROP_FELT = [[-46.6, 19.5], [-56.8, 19.9], [-56.8, 22], [-46.6, 21.5]];
-const R_WINDOW_FELT = [[-43.7, 18], [-49.2, 19.1], [-51.7, 10], [-47.3, 8.2]];
+const R_WINDOW_FELT = [[-45.5, 12.6], [-43.3, 12.6], [-42.8, 19.0], [-45, 19.3]];   // glued on the window's front wall, facing the jack
 // solid between the cheeks at the tail and the front end; open in the window between
 const R_TAIL = [[38.7, -12.6], [3.8, 2.9], [-3.3, 5.3], [-21.7, 11.8], [-25, 13.13], [-25, 5.46], [-3.3, -2], [3.8, -5.3], [28.5, -15.1], [40, -15.5]];
 const R_FRONT = [[-45, 19.35], [-46.6, 19.5], [-56.8, 19.9], [-58.6, 15.8], [-51.7, 12.5], [-45.5, 12.5]];
@@ -273,7 +274,7 @@ export function createScene(canvas, overlay) {
     // jack: an L on its center pin, the long arm leaning back under the knuckle, the toe toward the let-off button
     const jack = n.jack = new THREE.Group(); wippen.add(jack);
     jack.position.set(G.jackPivotW[0], G.jackPivotW[1], 0);
-    ext(shapeFrom(J_BODY), 5.5, 0, COLORS.wood, 'jack', jack);
+    ext(shapeFrom(J_BODY), 5.5, 0, COLORS.jack, 'jack', jack);
     cyl(2.1, 5.7, 'z', [-25.0, 3.0, 0], COLORS.wood, 'tender', jack);
     // regulating screw through the arm; its button's felt rests on the jack stop
     n.jackBtn = new THREE.Group(); jack.add(n.jackBtn);
@@ -286,7 +287,7 @@ export function createScene(canvas, overlay) {
     const rep = n.rep = new THREE.Group(); wippen.add(rep);
     rep.position.set(G.repPivotW[0], G.repPivotW[1], 0);
     ext(shapeFrom(R_BODY), 2.3, -4.35, COLORS.wood, 'rep', rep);
-    ext(shapeFrom(R_BODY), 2.3, 4.35, COLORS.wood, 'rep', rep, { opacity: 0.4 });
+    ext(shapeFrom(R_BODY), 2.3, 4.35, COLORS.wood, 'rep', rep, { opacity: 0.22 });   // see-through, so the jack shows in its window
     ext(shapeFrom(R_TAIL), 6.5, 0, COLORS.wood, 'rep', rep);
     ext(shapeFrom(R_FRONT), 6.5, 0, COLORS.wood, 'rep', rep);
     ext(shapeFrom(R_DROP_FELT), 11, 0, COLORS.redfelt, 'dropfelt', rep);
@@ -311,8 +312,10 @@ export function createScene(canvas, overlay) {
     n.crack = ext(rect(30, 2.2, 95, 3.6), 1.2, 3.4, COLORS.dark, 'shank', hammer, { noPick: true });
     // the head twists about the shank's axis when the shank is out of square
     const headG = n.headG = new THREE.Group(); hammer.add(headG);
+    // knuckle: buckskin over felt round a wooden core; the core's end shows on each side, and the jack lines up with it
     n.knuckle = cyl(G.knuckleR, 8, 'z', [G.knuckleC[0], G.knuckleC[1], 0], COLORS.buckskin, 'knuckle', hammer);
-    cyl(G.coreR, 8.4, 'z', [G.knuckleC[0], G.knuckleC[1], 0], COLORS.core, 'knuckle', hammer);
+    cyl(G.knuckleR - 0.9, 8.2, 'z', [G.knuckleC[0], G.knuckleC[1], 0], COLORS.knucklefelt, 'knuckle', hammer);
+    cyl(G.coreR, 8.6, 'z', [G.knuckleC[0], G.knuckleC[1], 0], COLORS.core, 'knucklecore', hammer);
     // head: molding and tail in one piece, the underfelt round the molding's tip, the top felt over it, and the
     // scored seat on the tail's back face that the backcheck's buckskin grips
     ext(shapeFrom(H_WOOD), 11.4, 0, COLORS.wood, 'hammer', headG);
