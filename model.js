@@ -108,6 +108,10 @@ export const ADJ = [
 // ---------- textbook specs ----------
 // Generic textbook targets of the kind a PTG exam expects. Change them here.
 export const SPEC = {
+  // Steinway's guide asks for slight side play at the front rail bushing, at rest and held down, and a little at the
+  // balance pin when the key is turned at its front, even across the keyboard; no technician standard gives it in mm.
+  // Graded on the side play at the front; the band is the sim's own (KEY below). Not in the exam: repairs aren't.
+  keyBushings: { name: 'Key bushings: slight side play, key drops freely', target: 0.45, tol: 0.35, unit: 'mm', noExam: true },
   keyHeight:  { name: 'Key height (vs neighbors)', target: 0, tol: 0.4, unit: 'mm' },
   jackPos:    { name: 'Jack: back of jack to back of knuckle core', target: 0, tol: 0.4, unit: 'mm' },
   // side to side, the jack centered under the knuckle (Steinway's regulation guide aligns the wippen so). A 5.5 mm jack
@@ -195,7 +199,44 @@ export function eff(a) {
     e.clicky = !!dmg.clicky; e.noJackSpring = !!dmg.noJackSpring; e.wobble = dmg.wobble || 0;
     e.centerFriction = dmg.centerFriction || 0;
   }
+  e.keyLean = BUSHINGS[a.bushing]?.lean || 0;
   return e;
+}
+
+// ---------- key bushings ----------
+// The key is guided sideways by cloth bushings in two mortises: round the balance rail pin and round the front rail pin.
+// Forum techs want side play you can feel but not see; the mm figures are the sim's own within that (a Piano World
+// post, seen only in a search summary, gives 0.2 at the balance and 0.4 at the front). Friction is in grams at the key front.
+export const KEY = {
+  frontPlay: 0.3, balPlay: 0.2,   // side play at the key front (front bushing) and across the balance pin, mm
+  balTwist: 22,                   // the balance mortise runs through the key's depth: twisting the front rolls it on its pin
+  friction: 1244 / 235,           // the key's own friction, about 5.3 g (Hirschkorn Table A.9: 1244 mm·g at the balance)
+  upweight: 24,                   // what brings the key up with the action on it (Stanwood's example, PTG 2022: down 50, up 24;
+                                  // key patents give 19-29 as usual)
+  frontWeight: 27,                // the key's front weight with the stack off (Stanwood, PTG 2022: 27 g is medium)
+  upSpeed: 60,                    // mm/s: a free key comes up as fast as the sim lets a key up
+  slowDrag: 3,                    // more extra friction than this, and the key visibly drops slowly (the sim's own)
+};
+// drag: friction a tight bushing adds at the key front (g). A key stays down once it passes the upweight, and hangs
+// with the stack off once it passes the front weight less the key's own friction. Both figures are the sim's own.
+export const BUSHINGS = {
+  // the cloth packed down: a dealer's guide calls 1-2 mm at the key front the most a player puts up with
+  frontWorn: { name: 'Worn front rail bushing', frontPlay: 1.5, lean: 0.5, clicks: true },
+  // swollen cloth gripping the front pin: no play, and the action's weight can't bring the key back up
+  frontTight: { name: 'Tight front rail bushing', frontPlay: 0, drag: 26 },
+  // gripping the balance pin: the play at the front is still there, but the key comes up at half speed
+  balTight: { name: 'Tight balance rail bushing', balPlay: 0, drag: 12 },
+};
+// share of a free key's speed coming up (0: it stays down)
+export const keyUpShare = a => Math.max(0, Math.min(1, 1 - (BUSHINGS[a.bushing]?.drag || 0) / KEY.upweight));
+export function measureKey(a) {
+  const b = BUSHINGS[a.bushing] || {}, drag = b.drag || 0, free = KEY.frontWeight - KEY.friction;
+  return {
+    keyBushings: b.frontPlay ?? KEY.frontPlay, balPlay: b.balPlay ?? KEY.balPlay, keyDrag: drag,
+    // stack off, the key raised and let go: Don Dalton's "it should drop easily" (PTG, 2022)
+    keyFall: drag >= free ? 'hangs' : drag > KEY.slowDrag ? 'slow' : 'free', keyFallShare: Math.max(0, 1 - drag / free),
+    keyUpShare: keyUpShare(a),
+  };
 }
 
 // ---------- key ----------
@@ -503,6 +544,7 @@ export function measure(a) {
     hammerTravel: a.hammerTravel, hammerSpacing: a.hammerSpace - a.hammerTravel, hammerSquare: a.hammerSquare,
     hammerSound: a.damage ? 1 : 0, damage: a.damage || null,
     ...measureDampers(a),
+    ...measureKey(a),
   };
 }
 
@@ -564,6 +606,13 @@ export function grade(id, m, k = 1) {
   if (id === 'hammerSquare' && m.damage === 'splitShank') return { ok: false, v, note: 'the head wobbles from blow to blow' };
   if (id === 'hammerSound') return m.damage ? { ok: false, v, note: DAMAGE[m.damage].signs } : { ok: true, v, note: 'solid and quiet' };
   if (id === 'damperFall') return { ok: v <= s.tol, v, note: v <= s.tol ? 'falls freely' : 'drags in its bushing: falls late' };
+  if (id === 'keyBushings') {
+    const note = v < 0.05 ? 'no side play at the front: the front bushing binds'
+      : m.balPlay < 0.05 ? 'no play at the balance pin: the balance bushing binds'
+      : m.keyFall === 'hangs' ? 'a tight bushing holds the key up' : m.keyFall === 'slow' ? 'the key drops slowly'
+      : v > s.target + s.tol ? 'a knock each way at the front: the front bushing is worn' : '';
+    return { ok: !note && Math.abs(v - s.target) <= s.tol, v, note };
+  }
   // two readings each: sideways in mm, and square (degrees) or seated (mm one end is up)
   if (id === 'backcheckAlign') return { ok: Math.abs(v) <= s.tol && Math.abs(m.backcheckSquare) <= s.tolSq * k, v, note: '' };
   if (id === 'damperSeat') return { ok: Math.abs(v) <= s.tol && Math.abs(m.damperLevel) <= s.tolLevel * k, v, note: '' };
@@ -625,6 +674,9 @@ export class Sim {
     let g = gOnJack(L); for (let i = 0; i < 4; i++) g = staticHammer(this.a, L, this.st, g).g;
     this.g = g; this.w = 0; this.psi = L.psiRest; this.L = L; this.events = [];
     this.blocked = false; this.scraped = false; this.jammed = false; this.bounceD = null; this.onBtn = false; this.onScrew = false;
+    // a key held down by a tight bushing, and the hand lifting it; the key tests' rocking, twisting and stack-off
+    // drop are drawn from keyRock (mm sideways at the front, + bass), keyTwist (rad) and keyShown (key travel)
+    this.stuck = false; this.lifting = false; this.keyRock = null; this.keyTwist = null; this.keyShown = null; this.stackOff = false;
     this.t = 0; this.pedal = this.pedal ?? 0; this.pedalTarget = this.pedalTarget ?? 0;
     this.yd = Math.min(this.pedal * this.a.pedalLift, this.a.damperStop); this.vd = 0;
     this.up = this.yd > 0.05; this.hitStop = false; this.liftedAt = this.up ? 0 : null;
@@ -657,13 +709,26 @@ export class Sim {
     this.yd = y; this.vd = v;
   }
   emit(type, data = {}) { this.events.push({ type, d: this.d, g: this.g, ...data }); }
-  press(target, speed) { this.dTarget = Math.max(0, Math.min(target, this.dip + 1)); this.keySpeed = speed; }
+  press(target, speed) {
+    // letting a key up again once it has stuck down: the hand lifts it
+    if (this.stuck && target < this.d && this.dTarget <= target + 1e-9) this.lifting = true;
+    this.dTarget = Math.max(0, Math.min(target, this.dip + 1)); this.keySpeed = speed;
+  }
   step(dt) {
     const a = this.a, st = this.st;
     const dPrev = this.d;
     const dir = Math.sign(this.dTarget - this.d);
-    this.d += dir * Math.min(Math.abs(this.dTarget - this.d), this.keySpeed * dt);
+    // the action's weight brings a key up; a tight bushing's friction slows it, or holds it down
+    let speed = this.keySpeed;
+    if (dir < 0 && !this.lifting && BUSHINGS[a.bushing]?.drag) {
+      speed = Math.min(speed, KEY.upSpeed * keyUpShare(a));
+      if (speed <= 0 && !this.stuck) { this.stuck = true; this.emit('keystuck'); }
+    }
+    this.d += dir * Math.min(Math.abs(this.dTarget - this.d), speed * dt);
     this.d = Math.max(0, Math.min(this.d, this.dip));
+    if (this.d === 0) this.stuck = this.lifting = false;
+    // a worn bushing lets the key knock on its pins as a blow bottoms it
+    if (BUSHINGS[a.bushing]?.clicks && dPrev < this.dip && this.d >= this.dip && this.keySpeed >= 100) this.emit('keyclick');
     let L = linkage(a, this.d);
     // the jack's tender reaching the let-off button, and the repetition lever the drop screw: in a well-regulated
     // action the two meet together

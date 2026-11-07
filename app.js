@@ -4,6 +4,7 @@ import { createScene, NOTE_Z, BASS } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
 import { TOOLBAG } from './toolbag.js';
+import { BUSHINGS, KEY } from './model.js';
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -103,13 +104,14 @@ const view = name => { viewNow = name; travelRestG = null; S.setFocus(focusFor(n
 const STEPS = [
   { info: true, id: 'prep', title: 'Before you regulate: prepare the action',
     what: 'Regulating over loose screws, tight centers or sticky keys is wasted work. Tighten the action and keyframe screws, check that the centers swing freely but not loosely, ease any tight key bushings, and shape or file worn hammers and fit them to the strings: both change blow and let-off, so they come first.',
-    how: 'None of this is in the sim: its parts are clean, free and tight. On a real piano it comes first.' },
+    how: 'Key bushings are on the card after next; the rest of this isn\'t in the sim. On a real piano it comes first.' },
   { info: true, id: 'bedding', title: 'Bed the keyframe',
     what: 'The keyframe has to sit flat on the keybed at the front rail, balance rail and back rail. If it rocks, it knocks, and the key dip and height wander.',
     how: 'Knock test with the action in: press on the rails and listen. Sand the front rail where it doesn\'t touch; set the balance rail glide bolts so they just touch, never lifting the rail.' },
-  { info: true, id: 'keys', title: 'Square, space and ease the keys',
-    what: 'Keys should sit square and evenly spaced, with slight side play at the bushings and none that binds.',
-    how: 'Square a key by bending the balance rail pin to one side with a soft drift; space it by bending the front rail pin, the tool under the punching so the pin isn\'t marked.' },
+  { spec: 'keyBushings', id: 'keys', title: 'Square, space and ease the keys', knobs: [], bushings: true, test: 'rockKey', tests: ['rockKey', 'keyDrop'],
+    what: 'Each key has to work freely yet firmly before anything else is regulated. Steinway: "A tight key will make other adjustments virtually useless." Rocked side to side at the front, at rest and held down, the key should have slight play at its front rail bushing; twisted at its front, a little at the balance pin. With the stack lifted off, a key raised and let go should drop easily.',
+    how: 'A tight bushing (no play, or a key that drops slowly or stays up) is eased: squeeze the mortise with key easing pliers. A worn one (a knock each way, often a click) is rebushed with new cloth sized to the pin; easing it only makes it looser. Square a key by bending the balance rail pin to one side with a soft drift; space it by bending the front rail pin, the tool under the punching so the pin isn\'t marked. The sim keeps its keys square and spaced.',
+    note: 'No technician standard gives key side play in millimetres: Steinway asks for slight play, even across the keyboard, and techs say you should feel it but not see it. The sim\'s band is its own. A key that drops freely with the stack off but comes up slowly with it on has its friction in the action, not the key.' },
   { spec: 'hammerTravel', title: 'Travel the hammers', knobs: ['hammerTravel'], test: 'travelLift',
     what: 'Lift the hammer slowly to the strings: it should rise straight, without drifting sideways. A hammer that travels off its path ends up striking a different spot than where it rests.',
     how: 'Put a strip of thin paper under one side of the hammer flange to tilt its path: under the side the hammer drifts toward as it rises. That side of the flange lifts and the path swings back. Paper on the wrong side makes the drift worse. Travel before spacing, since traveling moves the hammer at the strings.',
@@ -268,7 +270,45 @@ const TESTS = {
     } },
   damperSight: { label: 'Sight the damper heads on their strings', specs: ['damperSeat'], view: 'damperline', damper: true,
     run: async () => { await releaseKey(); await waitReal(1.6); view('dampers'); await waitReal(1.6); } },
+  // key bushings (not in the exam: its keys are given): rocked side to side at the front (the front rail bushing) and
+  // twisted (the balance rail bushing), at rest and held down, as Steinway's guide checks them
+  rockKey: { label: 'Rock the key at the front', specs: ['keyBushings'], view: 'keytop', noExam: true,
+    run: async () => {
+      await releaseKey(); await waitReal(0.6);
+      const rock = async () => {
+        const half = m.keyBushings / 2, tw = m.balPlay / KEY.balTwist / 2, lean = sim.a.keyLean;
+        sim.keyRock = lean;
+        for (const s of [-half, half, -half, half, lean]) await sway('keyRock', sim.keyRock, s);
+        sim.keyTwist = 0;
+        for (const t of [-tw, tw, -tw, tw, 0]) await sway('keyTwist', sim.keyTwist, t);
+        sim.keyRock = sim.keyTwist = null;
+      };
+      const p = m.keyBushings, s = SPEC.keyBushings, bad = p < 0.05 || p > s.target + s.tol || m.balPlay < 0.05;
+      const feel = `side to side, ${p < 0.05 ? 'no play: it binds on the front pin' : p > s.target + s.tol ? `a knock each way, about ${fmt(p)}` : `slight play, smooth (about ${fmt(p)})`}; `
+        + `twisted, ${m.balPlay < 0.05 ? 'no play: it binds on the balance pin' : 'a little play at the balance pin'}`;
+      await rock(); say(`At rest: ${feel}`, bad ? 'warn' : '');
+      sim.press(sim.dip, 20); await waitSim(sim.dip / 20 + 0.15);
+      await rock(); say(`Held down: ${feel}`, bad ? 'warn' : '');
+      await waitReal(0.6);
+      await releaseKey();
+    } },
+  // Don Dalton's check (PTG, 2022): stack off, lift the key, it should drop easily
+  keyDrop: { label: 'Stack off: lift the key and let it drop', specs: ['keyBushings'], view: 'action', noExam: true,
+    run: async () => {
+      await releaseKey();
+      const stack = on => NOTES.forEach(n => { n.sim.stackOff = on; });   // one stack over all the keys
+      stack(true); sim.keyShown = 0; await waitReal(0.8);
+      if (m.keyFall === 'hangs') { say('Let go, the key stays up: a tight bushing holds it', 'warn'); await waitReal(1.6); }
+      else {
+        await sway('keyShown', 0, sim.dip, Math.round(15 / m.keyFallShare));
+        say(m.keyFall === 'slow' ? 'Let go, the key drops, but slowly: a bushing is tight' : 'Let go, the key drops freely', m.keyFall === 'slow' ? 'warn' : '');
+        await waitReal(1);
+      }
+      sim.keyShown = null; stack(false);
+    } },
 };
+// move one of the key tests' drawn values (sim.keyRock, keyTwist, keyShown) from a to b over a few screen frames
+const sway = async (field, a, b, steps = 8) => { for (let i = 1; i <= steps; i++) { sim[field] = a + (b - a) * i / steps; await waitReal(0.03); } };
 const waitReal = s => new Promise(r => setTimeout(r, s * 1000));
 let landed = null; // pedal test: when each note's damper seated
 async function releaseKey() {
@@ -336,7 +376,7 @@ const KNOB_FOR = {
   damperDrag: ['damperFall'], damperCenter: ['damperSeat'], damperLevel: ['damperSeat'],
 };
 const SHORT = {
-  keyHeight: 'Key height', dip: 'Dip', aftertouch: 'Aftertouch', blow: 'Blow', lostMotion: 'Lost motion', restGap: 'Rail gap',
+  keyBushings: 'Key bushings', keyHeight: 'Key height', dip: 'Dip', aftertouch: 'Aftertouch', blow: 'Blow', lostMotion: 'Lost motion', restGap: 'Rail gap',
   hammerTravel: 'Travel', hammerSpacing: 'Spacing', hammerSquare: 'Square', jackPos: 'Jack position', wippenSpacing: 'Jack centered',
   wink: 'Wink', letoff: 'Let-off', drop: 'Drop', spring: 'Spring', check: 'Checking', backcheckAlign: 'Centered, square',
   damperTiming: 'Lift timing', damperStop: 'Stop rail', pedalLift: 'Pedal lift', damperFall: 'Fall', damperSeat: 'Seat',
@@ -399,6 +439,7 @@ function specTarget(id) {
   if (id === 'backcheckAlign') return 'centered, square';
   if (id === 'lostMotion') return 'none';
   if (id === 'damperSeat') return 'centered, flat';
+  if (id === 'keyBushings') return 'slight play, drops freely';
   return fmt(s.target);
 }
 const side = v => Math.abs(v) < 0.05 ? 'centered' : `${fmt(Math.abs(v))} toward the ${v > 0 ? 'bass' : 'treble'}`;
@@ -416,6 +457,7 @@ function reading(id, mm = m) {
   else if (id === 'backcheckAlign') txt = `${side(r.v)}, ${Math.abs(mm.backcheckSquare) < 0.25 ? 'square' : `${Math.abs(mm.backcheckSquare).toFixed(1)}° out of square`}`;
   else if (id === 'lostMotion') txt = r.v < 0.01 ? 'none' : `${fmt(r.v)} of free play at the key`;
   else if (id === 'damperSeat') txt = `${side(r.v)}, ${Math.abs(mm.damperLevel) < 0.02 ? 'seated flat' : `${mm.damperLevel > 0 ? 'back' : 'front'} end ${fmt(Math.abs(mm.damperLevel))} up`}`;
+  else if (id === 'keyBushings') txt = r.v < 0.05 ? r.note : `${fmt(r.v)} side play at the front` + (r.note ? ` · ${r.note}` : ', drops freely');
   else if (r.v == null) txt = r.note || '—';
   else if (id === 'keyHeight') txt = Math.abs(r.v) < 0.05 ? 'level' : `${fmt(Math.abs(r.v))} ${r.v > 0 ? 'high' : 'low'}`;
   else if (id === 'jackPos') txt = Math.abs(r.v) < 0.05 ? 'aligned' : `${fmt(Math.abs(r.v))} ${r.v > 0 ? 'too far back' : 'too far forward'}`;
@@ -469,6 +511,12 @@ const SCENARIOS = [
     answer: 'A broken jack spring: nothing pushes the jack back under the knuckle until the key is fully up. Replace the spring.' },
   { complaint: 'It was regulated when we bought it eight years ago. Now there\'s a click at the top of the key, soft notes are hard to control, and it feels like it bottoms out.', faults: { wear: 0.8 }, alone: true,
     answer: 'Nothing was turned: eight years of playing packed down the felts and cloth. Blow grew, the hammer settled onto the rest rail (lost motion), and aftertouch shrank. The fix is a touch-up of the whole sequence.' },
+  { complaint: 'This key wobbles from side to side, and it clicks when I play it.', faults: { bushing: 'frontWorn' }, alone: true,
+    answer: 'A worn front rail bushing: the cloth in the key\'s front mortise has packed down, so the key knocks side to side on its front pin and clicks. Rebush the front mortise with new cloth sized to the pin; easing only makes it looser. Turning an oval front pin takes up a little play for a while, but it crushes the rail\'s wood.' },
+  { complaint: 'Since the summer this key stays down after I play it, and I have to lift it back up.', faults: { bushing: 'frontTight' }, alone: true,
+    answer: 'A tight front rail bushing: the cloth swelled in the humid months and grips the front pin, so the key has no side play and the action\'s weight can\'t bring it back up. Ease it with key easing pliers. Rebushing would work too, but the cloth is sound.' },
+  { complaint: 'This key comes back up slowly, lazier than the ones next to it.', faults: { bushing: 'balTight' }, alone: true,
+    answer: 'A tight balance rail bushing: the key still has its side play at the front, but twisted at its front it has none at the balance pin, and with the stack off it drops slowly. Ease the balance bushing with key easing pliers.' },
 ];
 function newScenario() {
   const pool = [...SCENARIOS].sort(() => Math.random() - 0.5);
@@ -500,7 +548,12 @@ function deregulated() {
   a.damperDrag = Math.random() < 0.4 ? rnd(0.3, 0.6) : FACTORY.damperDrag;
   return a;
 }
-function messUp() { adj = deregulated(); applyAdj(); }
+function messUp() {
+  adj = deregulated();
+  // in Learn, one key in three also has a key bushing to ease or rebush
+  if (mode === 'learn' && Math.random() < 1 / 3) { const k = Object.keys(BUSHINGS); adj.bushing = k[Math.floor(Math.random() * k.length)]; }
+  applyAdj();
+}
 function applyAdj() { generation++; clearFrames(); sim.setAdj(adj); sim.reset(); m = measure(adj); store(); S.clearCallouts(); refresh(); }
 
 // ---------- panel ----------
@@ -563,7 +616,8 @@ function renderLearn(p) {
     el('div', { class: 'row' }, (st.tests || [st.test]).map(testButton)),
     measureTable(stepSpecs(st)),
     el('div', { class: 'knobs' }, st.knobs.map(knobRow)),
-    benchTips(st.spec),
+    st.bushings ? bushingRepairs() : null,
+    benchTips(st.id ?? st.spec),
     nav(stepDone(st)),
     earlier.length ? el('details', {}, el('summary', {}, 'Earlier steps'), measureTable(earlier)) : null,
   );
@@ -621,12 +675,33 @@ function repairs() {
       sim.setAdj(adj); sim.reset(); m = measure(adj); store(); refresh();
     } }, d.repair))));
 }
+// key bushings are eased or rebushed, never regulated; the wrong one says why it didn't help
+const BUSHING_FIXES = {
+  easeFront: { label: 'Ease the front rail bushing', fixes: { frontTight: 'Eased with key easing pliers: the key has its play again and drops freely.' },
+    wrong: { frontWorn: 'Easing a worn bushing only makes it looser: this one needs new cloth.', balTight: 'The front bushing already has its play: easing it would only make it sloppy.' } },
+  rebushFront: { label: 'Rebush the front rail mortise', fixes: { frontWorn: 'Rebushed: new cloth sized to the pin, and the key has slight play again.',
+    frontTight: 'Rebushed, and it works, but the cloth was sound, only swollen: key easing pliers would have done it in a minute.' } },
+  easeBal: { label: 'Ease the balance rail bushing', fixes: { balTight: 'Eased: the key has a little play at its balance pin and drops freely.' },
+    wrong: { frontTight: 'The balance bushing already has its play: the key binds at the front.' } },
+};
+function bushingChanged() { clearFrames(); sim.setAdj(adj); sim.reset(); m = measure(adj); store(); refresh(); }
+function bushingRepairs() {
+  return el('div', {}, el('p', { class: 'muted small' }, 'Key bushings: eased or rebushed, not regulated.'),
+    el('div', { class: 'tests' }, Object.values(BUSHING_FIXES).map(f => el('button', { class: 'test', disabled: busy ? '' : false, onclick: () => {
+      const msg = f.fixes[adj.bushing];
+      if (!msg) {
+        if (mode === 'diagnose') testsUsed++;
+        toast(f.wrong?.[adj.bushing] || `${f.label}: nothing wrong there, so nothing changed.`); refresh(); return;
+      }
+      adj.bushing = null; unsolve(); toast(msg); bushingChanged();
+    } }, f.label))));
+}
 const damageLabel = k => ({ splitShank: 'Split shank', looseFlange: 'Loose flange screw', looseHead: 'Loose hammer head',
   tightCenter: 'Tight flange center', brokenJackSpring: 'Broken jack spring' })[k];
 // Find the fault, Sandbox and Exam work part by part: each part of the action with its tests, readings and adjustments together
 // (hammerLine shows only with three notes, the exam's or the Sandbox's, where there are three hammers to sight)
 const AREAS = [
-  { id: 'key', name: 'Key', tests: ['straightedge', 'dipBlock'], knobs: ['balPunch', 'frontPunch'] },
+  { id: 'key', name: 'Key', tests: ['straightedge', 'dipBlock', 'rockKey', 'keyDrop'], knobs: ['balPunch', 'frontPunch'], repairs: bushingRepairs },
   { id: 'hammer', name: 'Hammer, blow and rest rail', tests: ['travelLift', 'alignSight', 'wiggle', 'blowGauge', 'hammerLine', 'restRail', 'topPlay'],
     knobs: ['hammerTravel', 'hammerSpace', 'hammerSquare', 'capstan', 'restRail'] },
   { id: 'jack', name: 'Jack and repetition lever', tests: ['sightJack', 'sightJackFront', 'wink', 'slowPress', 'easeUp'],
@@ -640,7 +715,7 @@ const openFolds = new Set(['how']);
 const fold = (key, summary, ...kids) => el('details', { class: 'fold', open: openFolds.has(key) ? '' : false,
   ontoggle: e => { e.target.open ? openFolds.add(key) : openFolds.delete(key); } }, el('summary', {}, summary), el('div', { class: 'fold-body' }, ...kids));
 function areaPanel(a) {
-  const tests = a.tests.filter(t => !TESTS[t].threeOnly || multi());
+  const tests = a.tests.filter(t => (!TESTS[t].threeOnly || multi()) && !(TESTS[t].noExam && examActive()));
   const specs = [...new Set(tests.flatMap(t => TESTS[t].specs))];
   const shown = specs.filter(revealed), out = shown.filter(id => !gradeL(id, m).ok);
   const status = out.length ? el('span', { class: 'badc small' }, `${out.length} out of spec`)
@@ -649,7 +724,8 @@ function areaPanel(a) {
   return fold(a.id, [el('span', { class: 'grow' }, a.name), status],
     el('div', { class: 'tests' }, tests.map(testButton)),
     measureTable(specs),
-    el('div', { class: 'knobs' }, a.knobs.map(id => knobRow(id, { readings: true }))));
+    el('div', { class: 'knobs' }, a.knobs.map(id => knobRow(id, { readings: true }))),
+    examActive() ? null : a.repairs?.());
 }
 const howTo = () => el('ol', { class: 'how' },
   el('li', {}, el('b', {}, 'Test. '), 'Open a part of the action below and run its tests (▶). The action shows each test, and its readings fill in.',
@@ -829,6 +905,10 @@ function renderSandbox(p) {
       el('select', { onchange: e => { adj.damage = e.target.value || null; clearFrames(); sim.setAdj(adj); sim.reset(); m = measure(adj); store(); refresh(); } },
         el('option', { value: '' }, 'nothing'),
         Object.keys(DAMAGE).map(k => el('option', { value: k, ...(adj.damage === k ? { selected: '' } : {}) }, damageLabel(k))))),
+    el('label', { class: 'row small' }, 'Key bushings: ',
+      el('select', { onchange: e => { adj.bushing = e.target.value || null; bushingChanged(); } },
+        el('option', { value: '' }, 'healthy'),
+        Object.entries(BUSHINGS).map(([k, b]) => el('option', { value: k, ...(adj.bushing === k ? { selected: '' } : {}) }, b.name)))),
     repairs());
 }
 
@@ -842,7 +922,7 @@ const EXAM_ORDER = [1, 0, 2];                 // note 1, 2, 3 from bass to trebl
 const EVEN = ['keyHeight', 'dip', 'blow', 'letoff', 'drop', 'check'];
 let examDampers = false;
 const DAMPER_KNOBS = ['damperGap', 'damperStop', 'pedalLift', 'damperDrag', 'damperCenter', 'damperLevel'];
-const examSpecs = () => Object.keys(SPEC).filter(id => exam.dampers || !SPEC[id].damper);
+const examSpecs = () => Object.keys(SPEC).filter(id => (exam.dampers || !SPEC[id].damper) && !SPEC[id].noExam);
 let exam = { started: false, done: false };
 const examActive = () => mode === 'exam' && exam.started;
 // three notes in play: the exam model, or the Sandbox's three keys
@@ -1027,12 +1107,15 @@ function handleEvents() {
     // (in Learn, only once the dampers are being worked on, so it doesn't nag through the earlier steps)
     if (e.type === 'seated' && !gradeL('damperSeat', m).ok && (show('damperSeat') || mode === 'diagnose')) say('The damper is down, but a string goes on ringing', 'warn');
     if (e.type === 'click') say('A dry click on the blow', 'warn');
+    if (e.type === 'keyclick') say('A click from the key as it bottoms: it knocks on its pins', 'warn');
+    if (e.type === 'keystuck') say('The key stayed down: a tight bushing holds it. Let key up again to lift it by hand', 'warn');
   }
   // the pedal test listens for every damper landing, on every note
   NOTES.forEach((n, slot) => { if (landed) for (const e of n.sim.events) if (e.type === 'seated' && !landed.has(slot)) landed.set(slot, e.t); n.sim.events = []; });
 }
 const FRONT_VIEWS = new Set(['jackfront', 'checkfront', 'checktop', 'hammerline', 'damperline']);
 function updateCallouts() {
+  if (sim.stackOff) { S.clearCallouts(); return; }   // the key drop test: nothing on the keys to measure
   const nz = NOTE_Z[cur], z = 9 + nz, L = sim.L, g = hammerOverride ?? sim.g;
   const atRest = sim.d < 0.01;
   const show = id => revealed(id);

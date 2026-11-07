@@ -569,6 +569,8 @@ export function createScene(canvas, overlay) {
     // traveling: straight along the action from the keys, through a slice round the hammer head, so the head rises
     // toward its unison (the three strings end-on) with nothing in front of it
     travel: { t: [455, 172, 0], p: [333, 174, 0], clip: { x: [436, 474] } },   // about 140 to 205 high: a low rail's head too
+    // down onto the key fronts and their neighbors: the gaps show the key's side play
+    keytop: { t: [30, 26, 0], p: [-50, 250, 0] },
   };
   // A clipped view keeps only a slice of the action. Cut parts are drawn two-sided so they show their insides.
   let clipNow = null;
@@ -652,10 +654,21 @@ export function createScene(canvas, overlay) {
   let bg = null;
   function setBackground(hex) { if (hex !== bg) { scene.background = new THREE.Color(hex); bg = hex; } }
 
+  // with the stack lifted off the keys (the key drop test) only the keys and the keyframe show
+  const KEY_PARTS = new Set(['key', 'keytop', 'neighbor', 'balance', 'balrail', 'frontrail', 'frontpunch', 'backrail', 'capstan', 'backcheck', 'keybed']);
+  function showStack(n, on, shared) {
+    for (const c of n.root.children) c.visible = on || c === n.key || KEY_PARTS.has(c.userData.part);
+    if (shared) for (const c of fixed.children) if (c !== ghosts && c !== straightedge) c.visible = on || KEY_PARTS.has(c.userData.part);
+  }
+
   function update(slot, sim, a, hammerOverride = null, jackOverride = null, drawShared = slot === 0) {
     const n = notes[slot];
-    const k = keyAngle(a, sim.d);
+    const k = keyAngle(a, sim.keyShown ?? sim.d);
     n.key.position.set(G.balX, k.By, 0); n.key.rotation.z = k.th;
+    // key bushings: side play lets the front swing about the balance pin, and twist on it; a worn one rests off center
+    n.key.rotation.y = Math.asin(BASS * (sim.keyRock ?? a.keyLean ?? 0) / -G.keyFrontLocal);
+    n.key.rotation.x = sim.keyTwist ?? 0;
+    if (!!n.stackOff !== !!sim.stackOff) { n.stackOff = !!sim.stackOff; showStack(n, !n.stackOff, drawShared); }
     const L = sim.L;
     n.wippen.rotation.z = L.phi;
     n.jack.rotation.z = jackOverride ?? sim.psi;
