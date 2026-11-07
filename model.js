@@ -609,6 +609,16 @@ const DAMP = 25;     // damping while the knuckle rides the repetition lever
 // the spring pushes with: about 0.16 in all at the drop screw. Without it, a slow press with a little too much drop
 // carried the hammer on past the lever into check.
 const REP_CENTER = 0.088, REP_SLIDE = 0.05;
+// A knuckle coming down onto the lever (the contact starting while the hammer falls: just after let-off, a rebound
+// coming back onto it, or catching up with a lever moving away) loses a fixed energy, worth this many mm of fall at
+// the crown. A small landing dies; a fast one carries on into check, so only blows near the check threshold change
+// (at factory a strike and hold now needs about 180 mm/s of key speed to check; 170 without this).
+// Fitted to Scott Murphy's high-speed videos of a Steinway grand action model (PTG Education Hub, "High Speed Video of
+// the Grand Piano Action"): after a rise from check the hammer floated 1.2 mm (at the crown) over the drop screw and
+// came back only about 0.45 mm below where it then sat, still a frame (33 ms) later; the same test here gives 0.54.
+// Hirschkorn's damping for this contact (Table A.8, contact 10, 2.935 s/m) takes only about 4% off at let-off speeds,
+// so it can't account for that on its own.
+const LAND_LOSS = 1.0;
 const POP_W = 2.0;   // leaving the lever faster than this is a visible pop
 const STRIKE_W = 0.5; // reaching the string slower than this, the hammer just leans on it (rad/s)
 const REST_E = 0.35; // rebound off the string
@@ -625,6 +635,7 @@ export class Sim {
     let g = gOnJack(L); for (let i = 0; i < 4; i++) g = staticHammer(this.a, L, this.st, g).g;
     this.g = g; this.w = 0; this.psi = L.psiRest; this.L = L; this.events = [];
     this.blocked = false; this.scraped = false; this.jammed = false; this.bounceD = null; this.onBtn = false; this.onScrew = false;
+    this.onRep = false;
     this.t = 0; this.pedal = this.pedal ?? 0; this.pedalTarget = this.pedalTarget ?? 0;
     this.yd = Math.min(this.pedal * this.a.pedalLift, this.a.damperStop); this.vd = 0;
     this.up = this.yd > 0.05; this.hitStop = false; this.liftedAt = this.up ? 0 : null;
@@ -687,7 +698,10 @@ export class Sim {
     const sF = onRep ? springF(a, L, kz) : 0;
     if (onRep) acc += GA * (sF - fr) - (this.w > 0 ? DAMP * (1 + 3 * fr) * this.w : 0);
     let w = this.w + acc * dt;
-    // that friction slows a hammer coming down, or holds one still when the spring and its weight nearly balance,
+    // landing on the lever from free flight takes LAND_LOSS out of the fall
+    if (onRep && !this.onRep && w < 0) w = -Math.sqrt(Math.max(0, w * w - 2 * GA * LAND_LOSS / STRIKE_R));
+    this.onRep = onRep;
+    // the lever's friction slows a hammer coming down, or holds one still when the spring and its weight nearly balance,
     // but never throws it back up
     if (onRep && this.w <= 0 && w < 0) w = Math.min(0, w + GA * (REP_CENTER + REP_SLIDE * sF) * dt);
     let g = this.g + w * dt;
