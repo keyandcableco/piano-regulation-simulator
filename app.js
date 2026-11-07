@@ -155,7 +155,7 @@ const STEPS = [
   { spec: 'check', title: 'Backcheck', knobs: ['backcheck'], test: 'strikeHold',
     what: 'Strike firmly and hold: the backcheck should catch the hammer 1/2" to 5/8" from the string, even across the section.',
     how: 'Bend the backcheck wire. Set it as close as the tail allows without scraping on the way up, within 1/2" to 5/8". Bent too far back it misses the tail altogether. On a real piano also square it to the tail and set its angle.',
-    note: 'The checking distance sets how the repetition spring behaves, which is why the springs come next.' },
+    note: 'On a real action the scraping limit usually lands inside 1/2" to 5/8"; this action\'s backcheck leaves more room, so the sim grades the window. The checking distance sets how the repetition spring behaves, which is why the springs come next.' },
   { spec: 'spring', title: 'Repetition spring', knobs: ['repSpring'], test: 'easeUp',
     what: 'Strike and hold so the hammer checks, then ease up a little. The hammer should rise steadily up to the drop screw: quick, but not snappy.',
     how: 'Adjust the spring. Too weak and it rises slowly or not at all; too strong and you feel a "pop" in the key, or it will not stay checked.',
@@ -165,7 +165,7 @@ const STEPS = [
     how: 'Loosen the set screw in the underlever\'s wire block, move the underlever up or down the wire with the head seated on the strings (a setting jig holds it), and retighten. That changes how much key travel happens before the key end picks up the underlever. Too early and you feel the dampers in the touch; too late and the note isn\'t fully undamped at soft levels.',
     note: 'Lift timing is set key by key, so look for evenness across a section.' },
   { spec: 'damperStop', title: 'Damper stop rail', knobs: ['damperStop'], test: 'damperSlow',
-    what: 'With the key held firmly down, the underlever should sit a hair (about 1/32") below the stop rail.',
+    what: 'With the key held firmly down, there should be a hair of room (about 1/32" at the damper head) before the underlever reaches the stop rail.',
     how: 'Raise or lower the rail. It keeps dampers from flying up on hard staccato and bobbling on the way down. It is not the pedal\'s stop: the pedal has its own, set to about the same height.',
     note: 'Simplified here: the damper falls by its own weight. Many bass dampers also have springs.' },
   { spec: 'pedalLift', title: 'Damper pedal lift', knobs: ['pedalLift'], test: 'pedalTest',
@@ -370,18 +370,18 @@ function measureTable(ids) {
 
 // ---------- scenarios for diagnose mode ----------
 const SCENARIOS = [
-  { complaint: 'Soft notes on this key sometimes come out choked, or don\'t sound at all.', faults: { letoff: +0.2 }, answer: 'Let-off set too close: the jack trips barely half a millimetre from the string, so soft blows choke against it.' },
+  { complaint: 'Soft notes on this key feel uneven and hard to control next to its neighbors.', faults: { letoff: +0.2 }, answer: 'Let-off set too close: the jack trips barely half a millimetre from the string. A hair closer and the hammer blocks against the string.' },
   { complaint: 'I can\'t play this note quietly, it either thumps or misses.', faults: { letoff: -1.0 }, answer: 'Let-off too far from the string.' },
   { complaint: 'The key feels shallow, and soft notes are hard to control.', faults: { frontPunch: +1.0 }, answer: 'Dip too shallow: too little aftertouch, so the jack barely escapes. Drop and the damper settings move with it and come right once dip is set.' },
   { complaint: 'The key feels deep and mushy at the bottom.', faults: { frontPunch: -0.8 }, answer: 'Dip too deep: too much aftertouch.' },
   { complaint: 'Fast repeated notes and trills fail on this key.', faults: { repSpring: -0.6 }, answer: 'Repetition spring too weak.' },
   { complaint: 'There\'s a little bump in the key when I let it up slowly, and loud notes bounce.', faults: { repSpring: +0.7 }, answer: 'Repetition spring too strong.' },
-  { complaint: 'When I play loud and hold the key down, the hammer doesn\'t stay back: it bounces up and sits right under the string.', faults: { backcheck: -3.0 }, answer: 'Backcheck bent too far back: it misses the tail, so nothing catches the hammer and it comes back up on the repetition lever.' },
+  { complaint: 'When I play loud and hold the key down, the hammer doesn\'t stay back: it bounces up and sits right under the string.', faults: { backcheck: -3.0 }, alone: true, answer: 'Backcheck bent too far back: it misses the tail, so nothing catches the hammer and it comes back up on the repetition lever.' },
   { complaint: 'There\'s free play at the top of the key and the tone is weak.', faults: { capstan: -0.4 }, answer: 'Capstan too low: the hammer rests on the rail, so the key moves before it lifts anything (lost motion), and the blow is too long.' },
   { complaint: 'The hammer on this key sits higher than its neighbors, and the key goes on down a long way after the note sounds.', faults: { capstan: +0.5 }, answer: 'Capstan too high: the blow is short, so aftertouch grows and drop shrinks. Let-off doesn\'t move: the button still trips the jack at the same point.' },
   { complaint: 'This key sits higher than the others.', faults: { balPunch: +0.5 }, answer: 'Too many balance rail punchings: key too high (and the dip changed with it).' },
   { complaint: 'Soft repeated notes on this key feel draggy compared with its neighbors.', faults: { jackScrew: -1.4 }, answer: 'Jack set too far back under the knuckle: it drags as it escapes and is slow to get back under. Sight the back of the jack against the back of the knuckle core.' },
-  { complaint: 'Soft notes on this key buzz, as if something is touching the string.', faults: { drop: +2.0 }, answer: 'Drop screw too high: after let-off the repetition lever carries the hammer back up against the string on a soft blow.' },
+  { complaint: 'Soft notes on this key buzz, as if something is touching the string.', faults: { drop: +2.0 }, alone: true, answer: 'Drop screw too high: after let-off the repetition lever carries the hammer back up against the string on a soft blow.' },
   { complaint: 'Trills and fast repeated notes on this key feel unreliable.', faults: { repStop: -0.3 }, answer: 'Repetition lever too low: tripped at rest, the hammer drops so far that the jack can\'t get back under the knuckle. A strong spring can still throw the hammer up for it in play, which is why the wink test is how you find it.' },
   { complaint: 'The hammer on this key sits a little higher than its neighbors, and there\'s some play at the top of the key.', faults: { repStop: +0.25 }, answer: 'Repetition lever too high above the jack: it holds the hammer off the jack (no wink), so the hammer line is uneven.' },
   { complaint: 'Notes ring on after I let go, and the sustain pedal leaves a little smear.', faults: { damperDrag: +0.5 }, answer: 'A damper wire binding in its guide rail bushing: that damper falls late.' },
@@ -422,7 +422,7 @@ function deregulated() {
   a.restRail += Math.random() < 0.5 ? rnd(-4, -2) : rnd(0.5, 2); a.frontPunch += pm(0.6);
   // rough let-off stays on the early side so dip can be set without blocking
   a.letoff += rnd(-1.0, 0.25);
-  a.drop += pm(2.0); a.repSpring += rnd(-0.15, 0.25); a.backcheck += pm(2.5);
+  a.drop += pm(2.0); a.repSpring += rnd(-0.15, 0.25); a.backcheck += pm(2.3);   // short of missing or scraping
   a.damperGap += pm(1.5); a.damperStop += pm(1.2); a.pedalLift += pm(1.2);
   a.hammerTravel = pm(0.6); a.hammerSpace = pm(0.8); a.hammerSquare = pm(2.5);
   a.damperDrag = Math.random() < 0.4 ? rnd(0.3, 0.6) : FACTORY.damperDrag;

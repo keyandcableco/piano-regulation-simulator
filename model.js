@@ -475,7 +475,8 @@ export function grade(id, m, k = 1) {
   if (id === 'restGap' && m.onRail) return { ok: false, v, note: m.lostMotion > 0.05 ? 'hammer sits on the rail: lost motion' : 'hammer sits on the rail' };
   if (id === 'check' && m.scrapes) return { ok: false, v, note: 'tail scrapes the backcheck' };
   if (id === 'check' && m.bcMisses) return { ok: false, v: null, note: 'the backcheck misses the tail: the hammer bounces back' };
-  if (id === 'drop' && m.dropAtString) return { ok: false, v, note: 'no drop: the lever holds the hammer against the string' };
+  if (id === 'drop' && m.dropAtString) return { ok: false, v: null, note: 'no drop: the lever holds the hammer against the string' };
+  if (id === 'spring' && m.bcMisses) return { ok: false, v: null, note: 'can\'t be set: the backcheck misses, so the hammer never checks' };
   if (id === 'check' && m.noCheck) return { ok: false, v, note: 'hammer will not stay checked' };
   if (id === 'damperStop' && v <= 0.05) return { ok: false, v, note: 'dampers hit the stop rail before the key bottoms' };
   if (id === 'pedalLift' && m.pedalIntoStop) return { ok: false, v, note: 'the pedal drives the dampers into the stop rail' };
