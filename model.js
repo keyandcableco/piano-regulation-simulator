@@ -602,6 +602,13 @@ export function factory() {
 // ---------- time-stepped simulation (for watching it move) ----------
 const GA = 60;       // hammer free-fall, rad/s^2
 const DAMP = 25;     // damping while the knuckle rides the repetition lever
+// A hammer settling down onto the repetition lever is braked by friction, in hammer weights at the horn, worked out
+// at the drop position: the lever's center (Hirschkorn Table A.9, 252 g·mm, the lever turning 0.53 times the hammer's
+// angle over the knuckle's 17.3 mm arm, 88 g of hammer) gives 0.088, and the knuckle sliding on its buckskin (Table A.8
+// contact 10, kinetic friction 0.33, about 0.15 mm of slide for each mm pressed down) gives 0.05 for each hammer weight
+// the spring pushes with: about 0.16 in all at the drop screw. Without it, a slow press with a little too much drop
+// carried the hammer on past the lever into check.
+const REP_CENTER = 0.088, REP_SLIDE = 0.05;
 const POP_W = 2.0;   // leaving the lever faster than this is a visible pop
 const STRIKE_W = 0.5; // reaching the string slower than this, the hammer just leans on it (rad/s)
 const REST_E = 0.35; // rebound off the string
@@ -676,9 +683,13 @@ export class Sim {
     const onRep = kz <= L.hornTop + 1e-6;
     const fr = a.centerFriction || 0;   // a tight flange center drags on the swing both ways
     let acc = -GA * (1 - fr);
-    // the lever damps the hammer's rise; a falling hammer just compresses the spring
-    if (onRep) acc += GA * (springF(a, L, kz) - fr) - (this.w > 0 ? DAMP * (1 + 3 * fr) * this.w : 0);
+    // the lever damps the hammer's rise; a falling hammer compresses the spring against the lever's friction
+    const sF = onRep ? springF(a, L, kz) : 0;
+    if (onRep) acc += GA * (sF - fr) - (this.w > 0 ? DAMP * (1 + 3 * fr) * this.w : 0);
     let w = this.w + acc * dt;
+    // that friction slows a hammer coming down, or holds one still when the spring and its weight nearly balance,
+    // but never throws it back up
+    if (onRep && this.w <= 0 && w < 0) w = Math.min(0, w + GA * (REP_CENTER + REP_SLIDE * sF) * dt);
     let g = this.g + w * dt;
     const jackDriving = jackG >= this.g - 1e-6;
     if (onRep && g > gHorn && !jackDriving) {
