@@ -647,8 +647,21 @@ export function createScene(canvas, overlay) {
     ray.setFromCamera(ndc, camera);
     // faded exam notes stay clickable; only see-through-by-design parts (cheeks, ghosts) are skipped
     // ...nor parts a clipped view has cut away
-    const hit = ray.intersectObjects(pickables, false).find(h => shown(h.object) && h.object.userData.baseOpacity > 0.3 && inClip(h.point));
-    return hit ? { part: hit.object.userData.part, note: hit.object.userData.note } : null;
+    // a faded note in front of the one in focus (a side view sights all three in line) gives way to it and the shared rails
+    const hits = ray.intersectObjects(pickables, false).filter(h => shown(h.object) && h.object.userData.baseOpacity > 0.3 && inClip(h.point));
+    const mine = h => noteCount < 2 || focus === null || h.object.userData.note === focus || h.object.userData.note === -1;
+    const hit = hits.find(mine) || hits[0];
+    // obj and local pin the spot clicked to the part, so a card can follow it as the part and the view move
+    return hit ? { part: hit.object.userData.part, note: hit.object.userData.note, obj: hit.object, local: hit.object.worldToLocal(hit.point.clone()) } : null;
+  }
+  // where a spot on a part is on the picture, in pixels from its top left; on: in front of the camera, in the picture and not cut away
+  const sv = new THREE.Vector3();
+  function screenOf(obj, local) {
+    sv.copy(local); obj.localToWorld(sv);
+    const cut = !inClip(sv) || !shown(obj);
+    sv.project(camera);
+    return { x: (sv.x * 0.5 + 0.5) * canvas.clientWidth, y: (-sv.y * 0.5 + 0.5) * canvas.clientHeight,
+      on: sv.z < 1 && Math.abs(sv.x) < 1 && Math.abs(sv.y) < 1 && !cut };
   }
 
   // ---------- update from the model ----------
@@ -908,6 +921,6 @@ export function createScene(canvas, overlay) {
   }
 
   setNoteCount(1);
-  return { render, update, setView, zoomBy, slideBy, resetView, showTool, hideTool, spinTool, highlight, pick, setCallout, clearCallouts, backcheckGap, setBackground, controls, camera, setLabels,
+  return { render, update, setView, zoomBy, slideBy, resetView, showTool, hideTool, spinTool, highlight, pick, screenOf, setCallout, clearCallouts, backcheckGap, setBackground, controls, camera, setLabels,
            setNoteCount, setFocus, setInset, setInsetText, insetEl: insetBox, straightedge, PART_NAMES, VIEWS };
 }
