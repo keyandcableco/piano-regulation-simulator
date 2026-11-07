@@ -142,18 +142,18 @@ const STEPS = [
   { spec: 'letoff', title: 'Let-off', knobs: ['letoff'], test: 'slowPress',
     what: 'Press the key slowly: the jack should trip with the hammer 1/16" from the string on this note. Let-off is set wider toward the bass and closer toward the top treble.',
     how: 'Turn the let-off button. Lower trips earlier (farther from the string). Too close and soft notes block or buzz; too far and you lose pianissimo control and power.',
-    note: '' },
+    note: 'The jack\'s tender should reach the let-off button just as the repetition lever reaches the drop screw; the drop step comes back to that.' },
   { spec: 'drop', title: 'Drop', knobs: ['drop'], test: 'slowPress',
-    what: 'After let-off the hammer falls back onto the repetition lever, about 1/16" below where it let off. It must never rise above the let-off point as the key goes down.',
+    what: 'In a well-regulated action the repetition lever meets the drop screw at the same moment the jack\'s tender meets the let-off button. Then, just after let-off, the hammer falls back onto the lever about 1/16" below where it let off. As the key goes on to the bottom the lever lifts it back up, nearly to where it let off with this much aftertouch: ignore that rise (Igrec), but it must never be pushed back up to the string.',
     how: 'Turn the drop screw. Down stops the lever sooner and gives more drop. Too little drop and the hammer can bobble against the string; too much makes repetition sluggish.',
-    note: 'Another way to set it: the lever reaches the drop screw just as the tender reaches the let-off button. Rough in the repetition springs first: with a spring too weak to carry the hammer, drop can\'t be set. Changing dip moves drop again.' },
+    note: 'Press slowly and watch the two contacts: the sim tells you which came first and by how much key travel. Chris Brown regulates one sample note so they meet together, then matches the rest to its let-off and drop. Rough in the repetition springs first: with a spring too weak to carry the hammer, drop can\'t be set.' },
   { spec: 'dip', title: 'Key dip', knobs: ['frontPunch'], test: 'dipBlock',
     what: 'Dip is how far the key front travels. A common grand starting point is 3/8"; makers specify about 10 mm. On a real piano or the exam model you work to the given spec.',
     how: 'Change the front rail punchings. Thicker punchings stop the key sooner and give less dip. Measure with moderate pressure, about the weight of your hand: pressing hard squashes the punching.',
-    note: 'Dip moves drop and checking with it, so recheck those. If the hammer blocks before the key bottoms, let-off may be too close, the dip too shallow, or there is lost motion: find which first.' },
+    note: 'Dip moves checking with it, and how far the lever lifts the hammer back at the bottom, so recheck those. If the hammer blocks before the key bottoms, let-off may be too close, the dip too shallow, or there is lost motion: find which first.' },
   { spec: 'aftertouch', title: 'Aftertouch', knobs: ['frontPunch', 'capstan'], test: 'slowPress',
     what: 'Aftertouch is the key travel left after let-off. Igrec gives about 1 mm (0.8 to 1.5 mm), and many modern grands run more; this action at the textbook dip and blow gives about 1.7, and the sim grades that. It is what makes sure the jack escapes on the softest blow.',
-    how: 'Most texts set it with dip and blow: more dip or less blow gives more aftertouch. Then recheck let-off and drop, which those changes move. Some techs, Chris Brown among them, fine-tune it together with let-off and drop.',
+    how: 'Most texts set it with dip and blow: more dip or less blow gives more aftertouch. Neither moves let-off or drop, judged just after let-off, but dip moves checking: recheck that. Some techs, Chris Brown among them, fine-tune it together with let-off and drop.',
     note: 'Too little and soft notes block or bobble; too much wastes the blow, slows repetition and crushes the jack\'s stop felt.' },
   { spec: 'check', also: ['backcheckAlign'], title: 'Backcheck', knobs: ['backcheck', 'backcheckSpace', 'backcheckSquare'], test: 'strikeHold', tests: ['strikeHold', 'sightBackcheck'],
     what: 'Strike firmly and hold: the backcheck should catch the hammer 1/2" to 5/8" from the string, even across the section. Seen from the front, it should sit centered behind the tail, its face square to the tail\'s.',
@@ -430,18 +430,18 @@ function measureTable(ids) {
 const SCENARIOS = [
   { complaint: 'Soft notes on this key feel uneven and hard to control next to its neighbors.', faults: { letoff: +0.2 }, answer: 'Let-off set too close: the jack trips barely half a millimetre from the string. A hair closer and the hammer blocks against the string.' },
   { complaint: 'I can\'t play this note quietly, it either thumps or misses.', faults: { letoff: -1.0 }, answer: 'Let-off too far from the string.' },
-  { complaint: 'The key feels shallow, and soft notes are hard to control.', faults: { frontPunch: +1.0 }, answer: 'Dip too shallow: too little aftertouch, so the jack barely escapes. Drop and the damper settings move with it and come right once dip is set.' },
+  { complaint: 'The key feels shallow, and soft notes are hard to control.', faults: { frontPunch: +1.0 }, answer: 'Dip too shallow: too little aftertouch, so the jack barely escapes. The damper settings move with it and come right once dip is set.' },
   { complaint: 'The key feels deep and mushy at the bottom.', faults: { frontPunch: -0.8 }, answer: 'Dip too deep: too much aftertouch.' },
-  { complaint: 'Played firmly, this note sometimes sounds twice, like a stutter.', faults: { frontPunch: +1.7 }, alone: true, answer: 'Dip far too shallow: the key bottoms before the jack can escape, so there is no let-off and no aftertouch. After the blow the hammer falls back onto the jack, bounces off it and strikes again (the double repeat Igrec warns of). Drop and the damper settings move with dip and come right once it is set.' },
+  { complaint: 'Played firmly, this note sometimes sounds twice, like a stutter.', faults: { frontPunch: +1.7 }, alone: true, answer: 'Dip far too shallow: the key bottoms before the jack can escape, so there is no let-off and no aftertouch. After the blow the hammer falls back onto the jack, bounces off it and strikes again (the double repeat Igrec warns of). The damper settings move with dip and come right once it is set.' },
   { complaint: 'Fast repeated notes and trills fail on this key.', faults: { repSpring: -0.6 }, answer: 'Repetition spring too weak.' },
   { complaint: 'There\'s a little bump in the key when I let it up slowly, and loud notes bounce.', faults: { repSpring: +0.7 }, answer: 'Repetition spring too strong.' },
   { complaint: 'When I play loud and hold the key down, the hammer doesn\'t stay back: it bounces up and sits right under the string.', faults: { backcheck: -3.0 }, alone: true, answer: 'Backcheck bent too far back: it misses the tail, so nothing catches the hammer and it comes back up on the repetition lever.' },
   { complaint: 'There\'s free play at the top of the key and the tone is weak.', faults: { capstan: -0.4 }, answer: 'Capstan too low: the hammer rests on the rail, so the key moves before it lifts anything (lost motion), and the blow is too long.' },
-  { complaint: 'The hammer on this key sits higher than its neighbors, and the key goes on down a long way after the note sounds.', faults: { capstan: +0.5 }, answer: 'Capstan too high: the blow is short, so aftertouch grows and drop shrinks. Let-off doesn\'t move: the button still trips the jack at the same point. The jack position reading shifts a little with the hammer\'s height and comes right with the capstan.' },
+  { complaint: 'The hammer on this key sits higher than its neighbors, and the key goes on down a long way after the note sounds.', faults: { capstan: +0.5 }, answer: 'Capstan too high: the blow is short, so aftertouch grows. Let-off doesn\'t move: the button still trips the jack at the same point. The jack position reading shifts a little with the hammer\'s height and comes right with the capstan.' },
   { complaint: 'This key sits higher than the others.', faults: { balPunch: +0.5 }, answer: 'Too many balance rail punchings: key too high (and the dip changed with it).' },
   { complaint: 'Soft repeated notes on this key feel draggy compared with its neighbors.', faults: { jackScrew: -1.4 }, answer: 'Jack set too far back under the knuckle: it drags as it escapes and is slow to get back under. Sight the back of the jack against the back of the knuckle core. Moving it shifts the hammer\'s height a little too, so blow and wink come right once it is back in place.' },
   { complaint: 'Soft notes on this key buzz, as if something is touching the string.', faults: { drop: +2.0 }, alone: true, answer: 'Drop screw too high: after let-off the repetition lever carries the hammer back up against the string on a soft blow.' },
-  { complaint: 'Trills and fast repeated notes on this key feel unreliable.', faults: { repStop: -0.3 }, answer: 'Repetition lever too low: tripped at rest, the hammer drops so far that the jack can\'t get back under the knuckle. A strong spring can still throw the hammer up for it in play, which is why the wink test is how you find it.' },
+  { complaint: 'Trills and fast repeated notes on this key feel unreliable.', faults: { repStop: -0.3 }, answer: 'Repetition lever too low: tripped at rest, the hammer drops so far that the jack can\'t get back under the knuckle. A strong spring can still throw the hammer up for it in play, which is why the wink test is how you find it. With the lever riding low, the hammer also drops further after let-off; that comes right with the lever.' },
   { complaint: 'The hammer on this key sits a little higher than its neighbors.', faults: { repStop: +0.25 }, answer: 'Repetition lever too high above the jack: it holds the hammer off the jack (no wink), so the hammer line is uneven.' },
   { complaint: 'Notes ring on after I let go, and the sustain pedal leaves a little smear.', faults: { damperDrag: +0.5 }, answer: 'A damper wire binding in its guide rail bushing: that damper falls late.' },
   { complaint: 'This note keeps ringing faintly after I let the key up, even without the pedal.', faults: { damperLevel: +0.6 }, answer: 'The damper head isn\'t seated: its back end sits up off the strings, so a string goes on ringing. Bend the wire, as seen from the side, until both ends sit with equal force.' },
@@ -911,7 +911,7 @@ function say(text, kind = '') {
     toast(text, kind);
   } else if (busy) toast(text, kind);
 }
-let letoffMark = null, checkMark = null, letoffD = null;
+let letoffMark = null, checkMark = null, letoffD = null, contactD = {};
 function handleEvents() {
   for (const e of sim.events) {
     const show = id => revealed(id);
@@ -933,6 +933,16 @@ function handleEvents() {
     if (e.type === 'jumpcheck') say('The hammer jumped out of check', 'warn');
     if (e.type === 'damperbounce') say('The damper bobbled on the strings', 'warn');
     if (e.type === 'bobble') say('The hammer bounced off the jack and struck again (bobble)', 'warn');
+    // the tender reaching the let-off button and the lever reaching the drop screw: together in a well-regulated action
+    if (e.type === 'tender' || e.type === 'dropscrew') {
+      contactD[e.type] = e.d;
+      const tender = e.type === 'tender', other = contactD[tender ? 'dropscrew' : 'tender'];
+      const btn = 'the jack\'s tender met the let-off button', screw = 'the repetition lever met the drop screw';
+      // within the 0.2 mm of key travel that drop and let-off in spec allow; the verdict waits until drop has been tested
+      if (other == null || !show('drop')) say(tender ? 'The jack\'s tender meets the let-off button' : 'The repetition lever meets the drop screw');
+      else if (e.d - other < 0.2) say('Tender on the let-off button and lever on the drop screw together, as in a well-regulated action');
+      else say(`${tender ? 'The lever met the drop screw' : 'The tender met the let-off button'} ${(e.d - other).toFixed(1)} mm of key travel before ${tender ? btn : screw}`);
+    }
     // a head off center, or with one end up, leaves part of the unison undamped
     // (in Learn, only once the dampers are being worked on, so it doesn't nag through the earlier steps)
     if (e.type === 'seated' && !gradeL('damperSeat', m).ok && (show('damperSeat') || mode === 'diagnose')) say('The damper is down, but a string goes on ringing', 'warn');
@@ -947,7 +957,7 @@ function updateCallouts() {
   const show = id => revealed(id);
   // traveling: only a line straight up from where the head rests, like the lines on a traveling stick; a hammer
   // that travels true rises along it, one that doesn't drifts off it
-  if (sim.d < 0.01) { letoffMark = null; checkMark = null; letoffD = null; }
+  if (sim.d < 0.01) { letoffMark = null; checkMark = null; letoffD = null; contactD = {}; }
   if (viewNow === 'travel') {
     // from the crown where it rests (a head out of square, or wobbling on a split shank, sits off the hammer's line,
     // twisted on the shank: the same twist scene.js draws) up to the strings

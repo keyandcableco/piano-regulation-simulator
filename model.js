@@ -410,8 +410,12 @@ export function slowPress(a, step = 0.01) {
   const dip = dipOf(a);
   const st = { escaped: false, checked: false };
   let g = rest(a).g, dEsc = null, letoff = null, blockedAt = null, maxCrown = -Infinity, slipped = false;
+  let dropLow = null, rising = false, dTender = null, dScrew = null;
   for (let d = 0; d <= dip + 1e-9; d += step) {
     const L = linkage(a, d);
+    // when the jack's tender reaches the let-off button, and the repetition lever the drop screw
+    if (dTender === null && L.psiBtn > L.psiRest + 1e-9) dTender = d;
+    if (dScrew === null && L.rhoDrop < L.rhoStop) dScrew = d;
     const wasEsc = st.escaped;
     const r = staticHammer(a, L, st, g);
     if (r.blocked) { blockedAt = d; g = r.g; break; }
@@ -419,11 +423,16 @@ export function slowPress(a, step = 0.01) {
     if (!wasEsc && st.escaped && dEsc === null) { dEsc = d; letoff = G.stringY - crownY(g); slipped = L.psiBtn <= L.psiRest + 1e-9; }
     g = r.g;
     maxCrown = Math.max(maxCrown, crownY(g));
+    // drop is judged just after let-off, where the hammer lands on the lever; as the key goes on down the lever lifts
+    // it back some, and Igrec says to ignore that rise
+    const dist = G.stringY - crownY(g);
+    if (dEsc !== null && !rising) { if (dropLow === null || dist >= dropLow - 1e-6) dropLow = dist; else rising = true; }
   }
   const bottomD = blockedAt ?? dip;
   return {
-    dip, dEsc, blockedAt,
+    dip, dEsc, blockedAt, dTender, dScrew,
     letoff, // distance from string at the moment the jack trips
+    dropLow, // distance from string where the hammer lands just after let-off
     dropFromString: G.stringY - crownY(g),
     aftertouch: dEsc === null ? 0 : bottomD - dEsc,
     escaped: st.escaped, gBottom: g, closest: G.stringY - maxCrown, slipped,
@@ -477,7 +486,9 @@ export function measure(a) {
     dip: sp.dip,
     letoff: sp.letoff,
     blocked: sp.blockedAt !== null,
-    drop: sp.letoff === null ? null : sp.dropFromString - sp.letoff,
+    drop: sp.letoff === null ? null : sp.dropLow - sp.letoff,
+    // key travel from the tender meeting the let-off button to the lever meeting the drop screw (+: the screw comes later)
+    screwAfterButton: sp.dTender === null || sp.dScrew === null ? null : sp.dScrew - sp.dTender,
     aftertouch: sp.aftertouch,
     spring: net,
     // a tight center makes any spring look sluggish: the hammer rises and falls against the friction
@@ -540,7 +551,11 @@ export function grade(id, m, k = 1) {
   if (id === 'restGap' && m.onRail) return { ok: false, v, note: m.lostMotion > 0.05 ? 'hammer sits on the rail: lost motion' : 'hammer sits on the rail' };
   if (id === 'check' && m.scrapes) return { ok: false, v, note: 'tail scrapes the backcheck' };
   if (id === 'check' && m.bcMisses) return { ok: false, v: null, note: 'the backcheck misses the tail: the hammer bounces back' };
-  if (id === 'drop' && m.dropAtString) return { ok: false, v: null, note: 'no drop: the lever holds the hammer against the string' };
+  // held against the string at the bottom: by a drop screw set too high (no drop at let-off), or, with the drop itself
+  // fine, by too much aftertouch carrying the lever back up as the key goes on down
+  if (id === 'drop' && m.dropAtString) return v != null && v >= s.target - s.tol
+    ? { ok: false, v, note: 'the lever lifts the hammer back up to the string at the bottom: too much aftertouch' }
+    : { ok: false, v: null, note: 'no drop: the lever holds the hammer against the string' };
   if (id === 'spring' && m.bcMisses) return { ok: false, v: null, note: 'can\'t be set: the backcheck misses, so the hammer never checks' };
   if (id === 'check' && m.noCheck) return { ok: false, v, note: 'hammer will not stay checked' };
   if (id === 'damperStop' && v <= 0.05) return { ok: false, v, note: 'dampers hit the stop rail before the key bottoms' };
@@ -602,7 +617,7 @@ export class Sim {
     const L = linkage(this.a, 0);
     let g = gOnJack(L); for (let i = 0; i < 4; i++) g = staticHammer(this.a, L, this.st, g).g;
     this.g = g; this.w = 0; this.psi = L.psiRest; this.L = L; this.events = [];
-    this.blocked = false; this.scraped = false; this.jammed = false; this.bounceD = null;
+    this.blocked = false; this.scraped = false; this.jammed = false; this.bounceD = null; this.onBtn = false; this.onScrew = false;
     this.t = 0; this.pedal = this.pedal ?? 0; this.pedalTarget = this.pedalTarget ?? 0;
     this.yd = Math.min(this.pedal * this.a.pedalLift, this.a.damperStop); this.vd = 0;
     this.up = this.yd > 0.05; this.hitStop = false; this.liftedAt = this.up ? 0 : null;
@@ -643,6 +658,12 @@ export class Sim {
     this.d += dir * Math.min(Math.abs(this.dTarget - this.d), this.keySpeed * dt);
     this.d = Math.max(0, Math.min(this.d, this.dip));
     let L = linkage(a, this.d);
+    // the jack's tender reaching the let-off button, and the repetition lever the drop screw: in a well-regulated
+    // action the two meet together
+    const onBtn = L.psiBtn > L.psiRest + 1e-9, onScrew = L.rhoDrop < L.rhoStop;
+    if (onBtn && !this.onBtn) this.emit('tender');
+    if (onScrew && !this.onScrew) this.emit('dropscrew');
+    this.onBtn = onBtn; this.onScrew = onScrew;
     const wasEsc = st.escaped;
     this.psi = updateJack(a, L, st, this.g);
     if (!wasEsc && st.escaped) this.emit('letoff', { dist: G.stringY - crownY(this.g) });
@@ -730,4 +751,4 @@ export class Sim {
 }
 
 // Factory regulation solved offline with factory() (node), so the page loads fast.
-export const FACTORY = {"balPunch":1.5,"jackScrew":-0.5732,"repStop":-0.4591,"capstan":13.8078,"restRail":110.7759,"frontPunch":2.299,"letoff":95.6693,"drop":139.9278,"repSpring":1.3553,"backcheck":0.5226,"damperGap":3.5071,"damperStop":5.0557,"pedalLift":5.0057,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0,"wippenSpace":0,"backcheckSpace":0,"backcheckSquare":0,"damperCenter":0,"damperLevel":0};
+export const FACTORY = {"balPunch":1.5,"jackScrew":-0.5732,"repStop":-0.4591,"capstan":13.8078,"restRail":110.7759,"frontPunch":2.299,"letoff":95.6693,"drop":140.2303,"repSpring":1.3553,"backcheck":0.5226,"damperGap":3.5071,"damperStop":5.0557,"pedalLift":5.0057,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0,"wippenSpace":0,"backcheckSpace":0,"backcheckSquare":0,"damperCenter":0,"damperLevel":0};
