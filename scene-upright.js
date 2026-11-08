@@ -378,8 +378,9 @@ export function createUprightScene(canvas, overlay) {
     n.damper.rotation.z = p.dl;
     n.spoon.rotation.z = spoonAngle(a); n.bc.rotation.z = bcAngle(a); n.bridle.rotation.z = bridleAngle(a);
     n.letoff.position.y = -a.letoff;
-    // the hammer rail is every note's: the last note posed sets it (the preview poses all three with the same pedal)
-    const rs = a.railShim + (p.soft ? a.softFelt : 0); hammerRail.position.set(RAIL_N[0] * rs, RAIL_N[1] * rs, 0);
+    // the hammer rail is every note's: the last note posed sets it (the preview poses all three with the same pedal).
+    // p.soft is true/false from pose(), or the share of the pedal's travel (0-1) from a running Sim
+    const rs = a.railShim + Number(p.soft || 0) * a.softFelt; hammerRail.position.set(RAIL_N[0] * rs, RAIL_N[1] * rs, 0);
     // the springs follow the parts they press; the strap hangs between the catcher and the bridle wire's hook
     const W = CENTER.wippen, js = TRACE.jackSpring;
     reshape(n.jackSpring, coilGeo(rel([js[0]], W)[0], rel([turn(js[1], CENTER.jack, p.psi)], W)[0], 2, 0.35, 6, 0));

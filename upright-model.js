@@ -587,3 +587,189 @@ export function factory(a0 = {}) {
 // the key held (Spurlock: 1/16-1/8 in): by Spurlock's rule the blow is long for the dip. Left as a finding for Greg,
 // not fitted (protocol 3.2 rule 1).
 export const FACTORY = {"balPunch":1.5,"frontPunch":1.5522,"railShim":-0.4964,"capstan":0.274,"letoff":0.0411,"backcheck":-5.7965,"spoon":-1.5527,"bridle":0,"softFelt":10.3664};
+
+// =====================================================================================================================
+// Dynamics (C3): one note stepped in time.
+// The hammer (butt, shank, head and catcher on the butt pin) and the wippen are bodies with inertia; so is the damper
+// lever. The wippen rides on the capstan, but the strap or a key bouncing on its back rail can lift it off. The jack is
+// quasi-static: where its spring, the butt and the let-off button put it. The key is driven: press() moves it at a
+// speed, drive() follows a measured key (a clip's).
+// Units: mm, s, g. Torques are g·mm²/s²: GRAV times a torque in gram-force·mm, the way technicians weigh them.
+// =====================================================================================================================
+const GRAV = 9810;
+const DEG = Math.PI / 180;
+export const DYN = {
+  hammerI: 175000,       // [T] g·mm²: head 8 g at 142 mm, shank 2 g, butt 4 g, catcher 1.5 g (Greg's scale: protocol 1.4 D)
+  hammerLean: 16.2 * DEG, // [T] how far the hammer's centre of mass leans toward the player at rest, from those masses
+  hammerMR: 2174,        // [fit] g·mm: mass times the CG's distance from the pin (S15, strap and spring both off). Only
+                         //   its ratio to hammerI shows in the clips: 2174 against 175000 is 1360 against 110000 (a
+                         //   lighter head, CG at 88 mm) as well
+  springT0: 287,         // [fit] gf·mm: the butt spring's push toward the rail at rest (S15, spring only)
+  springK: 0,            // gf·mm per radian toward the strings: fitted with the preload it comes out about 0 (-16), so
+                         //   left at 0 (tests/upright-fit.mjs fits the preload alone)
+  frictionT: 60,         // [S3] gf·mm: the butt centre, Igrec's 1.5-4.0 g at 25 mm (37-100)
+  railE: 0.5,            // [S15 m] rebound over landing speed on the hammer rail cloth (0.45-0.52). The rail is a hard
+                         //   stop here: the filmed hammers land at 59-151 deg/s, the model's at 160-280 on the same
+                         //   timing, the cloth's give (the head runs 0.5-2 degrees past rest) not modelled
+  stringE: 0.4,          // [S15 m] off the filmed model's wire "string" after a firm blow
+  strapK: 300,           // [fit] gf per mm the strap is stretched past its length (S15, strap on), fitted with the filmed
+                         //   strap's slack (tests/upright-fit.mjs): its slack decides more than its stiffness
+  strapC: 0.5,           // [T] gf per mm/s of stretching (cloth: a little damping)
+  wippenI: 20000,        // [T] g·mm²: wippen with its jack, backcheck and wires
+  wippenDownT: 18500,    // [S15 ff, e] gf·mm holding the wippen down on its capstan: its weight, the damper spring
+                         //   through the spoon, the hammer on the jack, as one constant. From S15's ff blow: the wippen's
+                         //   front end overshoots 2.75 mm (+26%) past where the key holds it (a key speed about 1/5 of the
+                         //   7-8 m/s crown taken). S15's key bouncing on its back rail throws the wippen 1.5-2 mm for 25 ms,
+                         //   which would want 1/18 of this; that throw is not modelled (the key is driven, rigid)
+  damperAlpha: 1400,     // [S15 ff, medium-low] rad/s²: the damper spring's return (the head dropping back about 13 mm
+                         //   in 14 ms after a hard blow throws it)
+  jackRate: 40,          // [T] rad/s: how fast the jack spring swings the jack back under the butt
+};
+
+export class Sim {
+  constructor(a, d = 0, { soft = false } = {}) { this.a = { ...a }; this.dip = dipOf(this.a); this.reset(d, { soft }); }
+  // at rest (or held at depth d on a slow press), the soft pedal up or already down
+  reset(d = 0, { soft = false } = {}) {
+    const a = this.a, p = pose(a, d, { soft });
+    this.t = 0; this.d = d; this.dTarget = d; this.keySpeed = 40; this.driver = null;
+    this.soft = this.softTarget = soft ? 1 : 0; this.pedal = 0; this.pedalTarget = 0;
+    this.phi = p.phi; this.v = 0; this.g = p.g; this.w = 0; this.psi = p.psi; this.dl = p.dl; this.vd = 0;
+    this.jack = p.on === 'off' || p.on === 'backcheck' ? 'off' : 'under';
+    this.strapLen = STRAP_LEN;
+    this.taut = false; this.checked = false; this.onRail = p.on === 'rail'; this.seated = p.dl <= 1e-6; this.events = [];
+    this.strapD = undefined; this.dPeak = 0; this.blocked = false;
+  }
+  // held down after a blow: the key at depth d, the hammer where the backcheck holds it, the jack let off
+  hold(d, { soft = false } = {}) {
+    const p = pose(this.a, d, { held: true, soft });
+    this.reset(0, { soft });
+    Object.assign(this, { d, dTarget: d, dPeak: d, phi: p.phi, g: p.g, psi: p.psi, dl: p.dl, jack: 'off', checked: p.on === 'backcheck', onRail: false,
+      seated: p.dl <= 1e-6 });
+  }
+  press(target, speed) { this.driver = null; this.dTarget = Math.max(0, Math.min(target, this.dip)); this.keySpeed = speed; }
+  // follow a measured key: fn(t) gives the key front's depth (mm) t seconds from now
+  drive(fn) { this.driver = fn; this.t0 = this.t; }
+  setSoft(down) { this.softTarget = down ? 1 : 0; }
+  setPedal(down) { this.pedalTarget = down ? 1 : 0; }
+  emit(type, data = {}) { this.events.push({ type, t: this.t, d: this.d, g: this.g, ...data }); }
+  // the regulation with the soft pedal part way down: the rail moves its share of the soft pedal's travel
+  railShim() { return this.a.railShim + this.soft * this.a.softFelt; }
+
+  step(dt) {
+    const a = this.a, gPrev = this.g, phiPrev = this.phi;
+    this.t += dt;
+    // pedals: a foot presses over about a tenth of a second and lets go faster
+    for (const [k, tk] of [['soft', 'softTarget'], ['pedal', 'pedalTarget']]) {
+      const rate = this[tk] > this[k] ? dt / 0.1 : dt / 0.03;
+      this[k] += Math.sign(this[tk] - this[k]) * Math.min(Math.abs(this[tk] - this[k]), rate);
+    }
+    // the key
+    if (this.driver) this.d = Math.max(0, Math.min(this.dip, this.driver(this.t - this.t0)));
+    else this.d += Math.sign(this.dTarget - this.d) * Math.min(Math.abs(this.dTarget - this.d), this.keySpeed * dt);
+    const k = keyAngle(a, this.d), phiCap = wippenOn(capstanTop(a, k));
+
+    // ---- the strap: a tension-only link, slack until its ends are its length apart ----
+    // Slack, it hangs over the let-off screw's eye; taut, it pulls straight from the catcher to the hook: in every pose
+    // where it can be taut that line passes at least 10 mm clear of the eye, so the eye never bends a taut strap.
+    const [F, K] = strapEnds(a, this.phi, this.g), u = sub(K, F), D = Math.hypot(...u);
+    const stretch = D - this.strapLen, rate = (D - (this.strapD ?? D)) / dt;
+    this.strapD = D;
+    let T = stretch > 0 ? GRAV * Math.max(0, DYN.strapK * stretch + DYN.strapC * rate) : 0;
+    if (a.noStrap) T = 0;
+    if ((T > 0) !== this.taut) { this.taut = T > 0; this.emit(this.taut ? 'straptaut' : 'strapslack'); }
+    const cross = (r, f) => r[0] * f[1] - r[1] * f[0];
+    const fH = [T * u[0] / D, T * u[1] / D];                       // on the catcher, toward the hook
+    const tauH = -cross(sub(F, CENTER.butt), fH);                   // + = toward the strings
+    const tauW = -cross(sub(K, CENTER.wippen), [-fH[0], -fH[1]]);   // + = rising
+
+    // ---- the wippen: free under its load and the strap, but never below its capstan ----
+    let v = this.v + (tauW - GRAV * DYN.wippenDownT) / DYN.wippenI * dt;
+    let phi = this.phi + v * dt;
+    if (phi <= phiCap) { phi = phiCap; v = (phiCap - phiPrev) / dt; }   // on the capstan: carried, or resting
+    this.phi = phi; this.v = v;
+
+    // ---- the jack ----
+    const gr = gRail({ ...a, railShim: this.railShim() });
+    const x0 = restPlace(a.balPunch, a.capstan, gr), c = contactOn(gr, x0);
+    const pb = jackPsi(a, phi);
+    let gJack = -Infinity;                                          // where the jack holds the hammer up from
+    if (this.jack === 'under') {
+      const ch = chain(phi, c), psiFree = psiAtX(phi, this.g, x0);
+      if (pb > Math.max(ch.psi, psiFree)) {
+        // the button trips it: its top slides toward the player along the cushion
+        this.psi = pb;
+        if (escaped(phi, pb, this.g)) { this.jack = 'off'; this.emit('letoff', { dist: stringGap(this.g) }); }
+        else gJack = gOnJack(phi, pb);
+      } else if (this.g <= ch.g + 1e-6) { this.psi = ch.psi; gJack = ch.g; }   // carrying the butt
+      else this.psi = psiFree;                                      // the hammer above it: the jack keeps its place
+    } else {
+      // let off: its spring swings it back toward its place under the butt, unless the cushion's player-side end is in
+      // the way (the corner still above the cushion's underside) or the button holds it out
+      const psiHome = psiAtX(phi, this.g, x0), q = cornerInButt(phi, psiHome, this.g);
+      const clear = q[1] < CUSH_FACE.y - 0.05;
+      const psiTo = Math.max(pb, clear ? psiHome : psiAtX(phi, this.g, CUSH_FACE.x[0] - 0.05));
+      this.psi += Math.sign(psiTo - this.psi) * Math.min(Math.abs(psiTo - this.psi), DYN.jackRate * dt);
+      if (clear && pb <= psiHome && Math.abs(this.psi - psiHome) < 1e-6) {
+        this.jack = 'under';
+        const share = this.dPeak > 0 ? 1 - this.d / this.dPeak : null;   // how far the key had come back up
+        this.emit('reset', { keyShare: share });
+      }
+    }
+
+    // ---- the hammer ----
+    const lean = DYN.hammerLean - this.g;
+    let acc = (GRAV * (-DYN.hammerMR * Math.sin(lean) - (a.noSpring ? 0 : DYN.springT0 + DYN.springK * this.g)) + tauH) / DYN.hammerI;
+    if (Math.abs(this.w) > 1e-6) acc -= Math.sign(this.w) * GRAV * DYN.frictionT / DYN.hammerI;
+    let w = this.w + acc * dt, g = this.g + w * dt;
+    // the jack carries it (a hammer it meets falling is taken at the jack's own speed: no snap)
+    if (g < gJack) { w = Math.max(w, (gJack - gPrev) / dt); g = gJack; }
+    // The backcheck: the catcher coming back meets its felt and is held there, the felt taking its speed. It only ever
+    // stops the hammer: a backcheck that rises into a hammer (the wippen overshooting at the key's bottom, as S15's ff
+    // blow shows) moves it out of the way, at no speed of its own, and never throws it.
+    const bc = TRACE.backcheckFelt.map(p => wipPt(phi, turn(p, BC_BEND, bcAngle(a))));
+    const hits = gg => polyGap(TRACE.catcherHead.map(p => turn(p, CENTER.butt, -gg)), bc) === 0;
+    if (hits(g)) {
+      let lo = g, hi = Math.max(g, gPrev);                          // lo touching; find the nearest clear angle above it
+      if (hits(hi)) hi = Math.min(gString(), hi + 0.01);
+      if (hits(hi)) { g = gPrev; w = 0; }                           // wedged against it (a backcheck in the catcher's way)
+      else {
+        for (let i = 0; i < 25; i++) { const m = (lo + hi) / 2; if (hits(m)) lo = m; else hi = m; }
+        if (!this.checked && w < 0) { this.checked = true; this.emit('checked', { dist: stringGap(hi) }); }
+        g = hi; w = Math.max(0, Math.min(w, 0));                    // held: the felt has taken the speed it came back with
+      }
+    } else if (this.checked) { this.checked = false; this.emit('uncheck'); }
+    // the rail
+    if (g < gr) {
+      if (w < -0.5) { this.emit('rail', { v: -w }); w = -DYN.railE * w; } else w = Math.max(0, w);
+      g = gr;
+    }
+    // the strings
+    const gs = gString();
+    if (g > gs) {
+      if (gJack >= gs) { if (!this.blocked) this.emit('blocked'); this.blocked = true; w = 0; }
+      else { this.emit('strike', { v: w * 142.6 / 1000 }); w = -DYN.stringE * Math.abs(w); }
+      g = gs;
+    } else this.blocked = false;
+    this.g = g; this.w = w;
+    this.dPeak = Math.max(this.dPeak ?? 0, this.d);
+    if (this.d === 0 && this.g <= gr + 1e-6) this.dPeak = 0;
+
+    // ---- the damper: the spoon or the lift rod holds it off; else its spring brings it back to the strings ----
+    const dlSpoon = damperAngle(a, phi), dlPedal = this.pedal * DAMPER_PEDAL_LIFT;
+    let vd = this.vd - DYN.damperAlpha * dt, dl = this.dl + vd * dt;
+    const floor = Math.max(dlSpoon, dlPedal);
+    if (dl < floor) { vd = Math.max(vd, (floor - this.dl) / dt); dl = floor; }
+    if (dl <= 0) { dl = 0; vd = 0; if (!this.seated) { this.seated = true; this.emit('seated'); } }
+    else if (this.seated && dl > 1e-4) { this.seated = false; this.emit('damperup'); }
+    this.dl = dl; this.vd = vd;
+  }
+  run(seconds, dt = 0.0001) { for (let t = 0; t < seconds - 1e-12; t += dt) this.step(dt); }
+  // where everything is now, as pose() gives it (for the drawing), but soft is the pedal's share of its travel (0-1)
+  pose() {
+    return { d: this.d, th: keyAngle(this.a, this.d).th, bal: keyRest(this.a).bal, phi: this.phi, psi: this.psi, g: this.g, dl: this.dl,
+      soft: this.soft, slack:this.strapLen - Math.hypot(...sub(...strapEnds(this.a, this.phi, this.g))), on: this.jack };
+  }
+}
+// the sustain pedal lifts every damper about as far as its spoon does at the bottom of the key (S2) [T: its lost motion
+// and travel are knobs to come with the trapwork]
+export const DAMPER_PEDAL_LIFT = 0.03;

@@ -4,23 +4,29 @@
 <meta name="robots" content="noindex">
 <title>Upright action preview</title>
 <link rel="icon" href="data:,">
-<!-- Work bench for the upright action (research/upright/protocol.md, C1-C2). Not linked from the app: the upright joins it
+<!-- Work bench for the upright action (research/upright/protocol.md, C1-C3). Not linked from the app: the upright joins it
      at the switch (C6). URL: ?view=<name> &labels=1 &d=<key depth, mm> &pose=rest|letoff|held|soft &readings=1
      &at=x,y,z &from=x,y,z (world mm) &bg=rrggbb (hex, no #). Click a part for its name. The regulation is the model's
-     factory one; the key moves slowly (each pose is static: no dynamics yet). -->
+     factory one. The key slider and the pose buttons are slow presses (static poses); the Play row runs the dynamics
+     (upright-model.js Sim) in slow motion. A frozen moment of play, for screenshots: &play=key|staccato|slow
+     &vel=pp|mf|ff &ms=<ms after the key starts> (&soft=1, &sustain=1 with it). Space bar: the key, held while it's down. -->
 <style>
 :root { --ink: #222; --muted: #666; --panel: #fff; --line: #c9c9c9; }
 html, body { margin: 0; height: 100%; background: #eceef0; font: 13px system-ui, sans-serif; color: var(--ink); }
 #stage { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
 canvas { width: 100%; height: 100%; display: block; }
 #overlay { position: absolute; inset: 0; pointer-events: none; }
-#bar, #keybar { position: absolute; left: 8px; right: 8px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-#bar { top: 8px; } #keybar { bottom: 8px; }
-button { font: inherit; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); cursor: pointer; }
+#bar, #keybar, #playbar { position: absolute; left: 8px; right: 8px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+#bar { top: 8px; } #keybar { bottom: 8px; } #playbar { bottom: 44px; }
+button, select { font: inherit; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); cursor: pointer; color: var(--ink); }
 button.on { background: #2f6e46; color: #fff; border-color: #2f6e46; }
+#keyBtn { touch-action: none; user-select: none; }
 #depth { width: 220px; }
-#keytext { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font-variant-numeric: tabular-nums; min-width: 17em; }
-#picked { position: absolute; left: 8px; bottom: 48px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; }
+#keytext, #events { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font-variant-numeric: tabular-nums; }
+#keytext { min-width: 17em; }
+#events { font-size: 12px; color: var(--muted); }
+#events:empty { display: none; }
+#picked { position: absolute; left: 8px; bottom: 82px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; }
 #picked:empty { display: none; }
 #readings { position: absolute; right: 8px; top: 48px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px;
   font-size: 12px; max-width: 340px; }
@@ -29,11 +35,15 @@ button.on { background: #2f6e46; color: #fff; border-color: #2f6e46; }
 #readings .note { color: var(--muted); max-width: 320px; margin-top: 4px; }
 .plabel { position: absolute; left: 0; top: 0; white-space: nowrap; font: 600 11px/1 system-ui; color: var(--ink);
   background: color-mix(in srgb, var(--panel) 85%, transparent); border: 1px solid var(--line); padding: 2px 5px; border-radius: 4px; margin: -8px 0 0 4px; pointer-events: none; }
-body.shot #bar, body.shot #picked, body.shot #keybar { display: none; }
+body.shot #bar, body.shot #picked, body.shot #keybar, body.shot #playbar { display: none; }
 body.shot.readings #readings { top: 8px; }
 </style>
 <script type="importmap">{ "imports": { "three": "../vendor/three/three.module.min.js", "three/addons/": "../vendor/three/addons/" } }</script>
 </head><body><div id="stage"><canvas id="c"></canvas><div id="overlay"></div><div id="bar"></div><div id="picked"></div>
+<div id="playbar"><span>Play</span><button id="keyBtn" title="The key goes down while you hold this (or the space bar), and comes up when you let go">Key (hold)</button>
+<select id="vel" title="How hard: the key front's speed going down"><option value="pp">pp</option><option value="mf" selected>mf</option><option value="ff">ff</option></select>
+<select id="slow" title="Slow motion"><option value="100">1/100 speed</option><option value="20" selected>1/20 speed</option><option value="5">1/5 speed</option><option value="2">1/2 speed</option></select>
+<span id="events"></span></div>
 <div id="keybar"><span>Key</span><input id="depth" type="range" min="0" max="10" step="0.02" value="0"><span id="keytext"></span></div>
 <div id="readings" hidden></div></div>
 <div id="why" hidden style="position:absolute;inset:0;align-items:center;justify-content:center;padding:24px;text-align:center"></div>
@@ -45,7 +55,7 @@ if (location.protocol === 'file:') why('This page has to come from a local serve
 </script>
 <script type="module">
 import { createUprightScene } from '../scene-upright.js';
-import { FACTORY, SPEC, pose, measure, stringGap } from '../upright-model.js';
+import { FACTORY, SPEC, pose, measure, stringGap, Sim, DAMPER_PEDAL_LIFT } from '../upright-model.js';
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById('c');
 let S;
@@ -59,13 +69,14 @@ S.setView(q.get('view') || 'action', true);
 if (q.get('at')) S.controls.target.set(...q.get('at').split(',').map(Number));
 if (q.get('from')) S.camera.position.set(...q.get('from').split(',').map(Number));
 
-// ---------- the key and the poses ----------
+// ---------- the key and the poses (slow presses) ----------
 const a = { ...FACTORY }, m = measure(a);
 const depth = document.getElementById('depth'), keytext = document.getElementById('keytext');
 depth.max = m.dip.toFixed(2);
 let soft = false, held = false;
 const STATE = { rail: 'hammer on its rail', jack: 'jack lifting the hammer', off: 'let off', backcheck: 'hammer caught by the backcheck' };
 function show(d) {
+  stopPlay();
   const p = pose(a, d, { soft, held });
   // the neighbors stay at rest, with the same soft pedal (it moves every hammer)
   const rest = pose(a, 0, { soft });
@@ -76,13 +87,108 @@ function show(d) {
   window.P = p;
 }
 depth.oninput = () => { held = false; heldBtn.classList.remove('on'); show(+depth.value); };
-const keybar = document.getElementById('keybar');
-const btn = (text, on) => { const b = document.createElement('button'); b.textContent = text; b.onclick = on; keybar.appendChild(b); return b; };
+const keybar = document.getElementById('keybar'), playbar = document.getElementById('playbar');
+const btn = (text, on, where = keybar, before = null) => {
+  const b = document.createElement('button'); b.textContent = text; b.onclick = on; where.insertBefore(b, before); return b;
+};
 btn('Rest', () => { held = false; heldBtn.classList.remove('on'); show(0); });
 btn('Let-off', () => { held = false; heldBtn.classList.remove('on'); show(Math.max(0, m.letoffDepth - 0.02)); });
 const heldBtn = btn('Held after a blow', () => { held = !held; heldBtn.classList.toggle('on', held); show(held ? m.dip : +depth.value); });
-const softBtn = btn('Soft pedal', () => { soft = !soft; softBtn.classList.toggle('on', soft); show(+depth.value); });
+const softBtn = btn('Soft pedal', () => {
+  soft = !soft; softBtn.classList.toggle('on', soft);
+  if (sim) { sim.setSoft(soft); idle = false; } else show(+depth.value);
+});
 const rdBtn = btn('Readings', () => { const r = document.getElementById('readings'); r.hidden = !r.hidden; rdBtn.classList.toggle('on', !r.hidden); });
+
+// ---------- play: the dynamics (upright-model.js Sim), in slow motion ----------
+// How hard: the key front's speed going down, mm/s. On the factory regulation these strike at about 0.6, 2.4 and 7 m/s
+// at the crown (S15's ff blow: 7-8 m/s).
+const VEL = { pp: 120, mf: 450, ff: 1300 };
+const UP = 236;          // [S15] mm/s: the key front coming up when let go quickly
+const DT = 0.0001;       // s: the Sim's step (the tests' and the fit's)
+const MAX_STEPS = 120;   // a frame's worth at most (a step costs about 0.2 ms): a slower computer runs slower than chosen
+const vel = document.getElementById('vel'), slow = document.getElementById('slow'), events = document.getElementById('events');
+let sim = null, prog = [], progAt = 0, idle = false, sustain = false, t0 = 0, log = [], carry = 0;
+if (Object.hasOwn(VEL, q.get('vel') ?? '')) vel.value = q.get('vel');
+
+function startPlay() {
+  if (sim) return;
+  sim = new Sim(a, 0, { soft });
+  if (held) sim.hold(m.dip, { soft });
+  else if (+depth.value > 0) sim.reset(+depth.value, { soft });
+  sim.setPedal(sustain);
+  held = false; heldBtn.classList.remove('on');
+  window.SIM = sim;
+}
+function stopPlay() {
+  sim = null; prog = []; log = []; events.textContent = '';
+  sustain = false; susBtn.classList.remove('on');   // a static pose has every damper on its spoon
+}
+// a program: [target depth (mm), key speed (mm/s), seconds until the next], from now; its first step starts at once
+function run(steps) { startPlay(); prog = steps.map(s => [...s]); t0 = sim.t; log = []; idle = false; nextStep(); }
+function nextStep() { const [d, v, secs] = prog.shift(); sim.press(d, v); progAt = sim.t + secs; }
+const WHAT = {
+  // a blow faster than a slow press throws the hammer ahead of the jack: the jack lets off as it comes back
+  letoff: e => log.some(l => l.type === 'strike') ? 'jack let off' : `let off ${e.dist.toFixed(1)} mm from the strings`,
+  strike: e => `strikes at ${e.v.toFixed(1)} m/s`,
+  blocked: () => 'blocked on the strings', checked: e => `checked ${e.dist.toFixed(1)} mm from the strings`,
+  reset: () => 'jack back under the butt', rail: () => 'on the rail', straptaut: () => 'strap pulls',
+  seated: () => 'damper on the strings', damperup: () => 'damper lifts',
+};
+function note(e) {
+  if (!WHAT[e.type] || (e.type === 'rail' && log.at(-1)?.type === 'rail')) return;   // a rebound on the rail: once
+  log.push({ type: e.type, text: `${((e.t - t0) * 1000).toFixed(0)} ms ${WHAT[e.type](e)}` }); if (log.length > 6) log.shift();
+  events.textContent = log.map(l => l.text).join(' · ');
+}
+function drawPlay() {
+  const p = sim.pose(), an = { ...a, railShim: sim.railShim() }, rest = pose(an, 0);
+  // the neighbors at rest, on the rail the soft pedal has moved, their dampers on the sustain pedal's lift rod
+  rest.dl = Math.max(rest.dl, sim.pedal * DAMPER_PEDAL_LIFT);
+  S.update(an, rest, 1); S.update(an, rest, 2); S.update(a, p, 0);
+  depth.value = sim.d;
+  keytext.textContent = `${sim.d.toFixed(2)} mm down; crown ${stringGap(sim.g).toFixed(1)} mm from the strings; jack ${sim.jack === 'off' ? 'let off' : 'under the butt'}`
+    + `${lagging ? '; running slower than chosen' : ''}`;
+  window.P = p;
+}
+let lagging = false;
+// advance the Sim by `secs` of its time; returns whether anything moved
+function advance(secs, cap = Infinity) {
+  carry += secs;
+  let n = Math.floor(carry / DT + 1e-9);
+  lagging = n > cap; n = Math.min(n, cap); carry = lagging ? 0 : carry - n * DT;
+  if (n === 0) return true;   // a frame shorter than a step (a fast display in slow motion): nothing to judge yet
+  const s0 = [sim.g, sim.phi, sim.psi, sim.dl, sim.d, sim.soft, sim.pedal];
+  for (let i = 0; i < n; i++) {
+    while (prog.length && sim.t >= progAt - 1e-12) nextStep();
+    sim.step(DT);
+    for (const e of sim.events) note(e);
+    sim.events = [];
+  }
+  const s1 = [sim.g, sim.phi, sim.psi, sim.dl, sim.d, sim.soft, sim.pedal];
+  return prog.length > 0 || sim.d !== sim.dTarget || s0.some((v, i) => Math.abs(v - s1[i]) > 1e-9) || Math.abs(sim.w) > 1e-9 || Math.abs(sim.vd) > 1e-9;
+}
+
+const keyBtn = document.getElementById('keyBtn');
+let keyHeld = false;
+function keyDown() { if (keyHeld) return; keyHeld = true; keyBtn.classList.add('on'); run([[Infinity, VEL[vel.value], 0]]); }
+function keyUp() { if (!keyHeld) return; keyHeld = false; keyBtn.classList.remove('on'); if (sim) { sim.press(0, UP); idle = false; } }
+keyBtn.addEventListener('pointerdown', e => { if (e.button !== 0) return; keyBtn.setPointerCapture(e.pointerId); keyDown(); });
+for (const ev of ['pointerup', 'pointercancel']) keyBtn.addEventListener(ev, keyUp);
+addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) keyDown(); } });
+addEventListener('keyup', e => { if (e.code === 'Space') { e.preventDefault(); keyUp(); } });
+addEventListener('blur', keyUp);
+// a quick blow let go as the key bottoms; a slow press down and back up (lets off without striking)
+const PROGRAMS = {
+  staccato: () => { const v = VEL[vel.value]; return [[Infinity, v, m.dip / v + 0.003], [0, UP, 0]]; },
+  slow: () => [[Infinity, 20, m.dip / 20 + 0.4], [0, 20, 0]],
+  key: () => [[Infinity, VEL[vel.value], 0]],
+};
+btn('Staccato', () => run(PROGRAMS.staccato()), playbar, events);
+btn('Slow press', () => run(PROGRAMS.slow()), playbar, events);
+const susBtn = btn('Sustain pedal', () => {
+  sustain = !sustain; susBtn.classList.toggle('on', sustain);
+  startPlay(); sim.setPedal(sustain); idle = false;
+}, playbar, events);
 
 // ---------- readings at the factory regulation, against their specs ----------
 {
@@ -104,9 +210,17 @@ const rdBtn = btn('Readings', () => { const r = document.getElementById('reading
   if (q.get('readings') === '1') { document.getElementById('readings').hidden = false; rdBtn.classList.add('on'); document.body.classList.add('readings'); }
 }
 const ps = q.get('pose');
-if (ps === 'soft') { soft = true; softBtn.classList.add('on'); }
+if (ps === 'soft' || q.get('soft') === '1') { soft = true; softBtn.classList.add('on'); }
 if (ps === 'held') { held = true; heldBtn.classList.add('on'); }
 show(ps === 'held' ? m.dip : ps === 'letoff' ? Math.max(0, m.letoffDepth - 0.02) : +(q.get('d') || 0));
+// a frozen moment of play: run the program to ms and stop there
+if (Object.hasOwn(PROGRAMS, q.get('play') ?? '')) {
+  startPlay();
+  // the sustain pedal goes down first, and has lifted the dampers by the time the key starts
+  if (q.get('sustain') === '1') { sustain = true; susBtn.classList.add('on'); sim.setPedal(true); advance(0.15); }
+  run(PROGRAMS[q.get('play')]());
+  advance(Math.min(2000, Math.max(0, +q.get('ms') || 0)) / 1000); drawPlay(); idle = true;
+}
 
 const bar = document.getElementById('bar');
 for (const name of Object.keys(S.VIEWS)) {
@@ -122,6 +236,11 @@ canvas.addEventListener('pointerup', e => {
 });
 window.S = S;
 // ready for a screenshot once a few frames are drawn (the view is set instantly, so nothing is still moving)
-let frames = 0;
-(function loop() { S.render(); if (++frames === 3) window.ready = true; requestAnimationFrame(loop); })();
+let frames = 0, last = performance.now();
+(function loop(now = performance.now()) {
+  const real = Math.min(0.05, (now - last) / 1000); last = now;
+  // the Sim runs until everything has come to rest, then waits for the next input
+  if (sim && !idle) { idle = !advance(real / +slow.value, MAX_STEPS); drawPlay(); }
+  S.render(); if (++frames === 3) window.ready = true; requestAnimationFrame(loop);
+})();
 </script></body></html>
