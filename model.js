@@ -121,6 +121,13 @@ export const ADJ = [
 // ---------- textbook specs ----------
 // Generic textbook targets of the kind a PTG exam expects. Change them here.
 export const SPEC = {
+  // Action centers: friction in grams on a gram gauge at the stated distance (CENTERS), and no side play. Graded on the
+  // published ranges as they stand, not scaled with the skill level: they are part specs, not regulation tolerances. Not
+  // in the exam (its repairs are a separate section), apart from a tight hammer center dealt as RPT damage.
+  hammerCenter: { name: 'Hammer flange center: free, no side play', center: 'hammer', unit: 'g', noExam: true },
+  wippenCenter: { name: 'Wippen flange center: free, no side play', center: 'wippen', unit: 'g', noExam: true },
+  jackCenter: { name: 'Jack center: free, no side play', center: 'jack', unit: 'g', noExam: true },
+  repCenter: { name: 'Repetition lever center: firm, not loose', center: 'rep', unit: 'g', noExam: true },
   // Steinway's guide asks for slight side play at the front rail bushing, at rest and held down, and a little at the
   // balance pin when the key is turned at its front, even across the keyboard; no technician standard gives it in mm.
   // Graded on the side play at the front; the band is the sim's own (KEY below). Not in the exam: repairs aren't.
@@ -159,6 +166,7 @@ export const SPEC = {
   damperFall:   { name: 'Damper falls freely', target: 0, tol: 0.15, unit: '', damper: true },
   // Igrec: the head vertical and centered to its strings, both ends of its felt seated with equal force; bands are the sim's own
   damperSeat:   { name: 'Damper head centered on its unison, seated flat', target: 0, tol: 0.5, tolLevel: 0.2, unit: 'mm', damper: true },
+  underCenter:  { name: 'Damper underlever center: falls freely', center: 'under', unit: 'g', noExam: true, damper: true },
 };
 export const DAMPER_SPECS = Object.keys(SPEC).filter(k => SPEC[k].damper);
 
@@ -193,8 +201,7 @@ export const DAMAGE = {
     signs: 'a click, and the hammer shifts sideways on its flange' },
   looseHead: { repair: 'Reglue the hammer head', power: 0.9, clicky: true, add: { hammerSquare: 2 },
     signs: 'a tick on the blow, and the head moves on the shank' },
-  tightCenter: { repair: 'Ease the flange center', centerFriction: 0.45,
-    signs: 'the hammer swings stiffly on its center and falls back slowly' },
+  // (a tight or loose center pin is a center fault, CENTER_FAULTS below: eased, repinned or rebushed)
   brokenJackSpring: { repair: 'Replace the jack spring', noJackSpring: true,
     signs: 'the jack flops loose: it does not spring back under the knuckle' },
 };
@@ -209,10 +216,27 @@ export function eff(a) {
   if (dmg) {
     for (const [k, v] of Object.entries(dmg.add || {})) e[k] += v;
     if (dmg.power) e.power = dmg.power;
-    e.clicky = !!dmg.clicky; e.noJackSpring = !!dmg.noJackSpring; e.wobble = dmg.wobble || 0;
-    e.centerFriction = dmg.centerFriction || 0;
+    e.clicky = !!dmg.clicky; e.wobble = dmg.wobble || 0;
   }
   e.keyLean = BUSHINGS[a.bushing]?.lean || 0;
+  // action centers: each one's friction torque (mm·g). The sim's other figures were set on the healthy action, so where
+  // they already stand for its friction (the key's upweight, the lever's brake, the damper's fall) only a fault's
+  // difference from healthy is added; the hammer's free swing takes its whole friction (Sim.step).
+  const cf = CENTER_FAULTS[a.center], T = e.centerT = {};
+  for (const [k, c] of Object.entries(CENTERS)) T[k] = cf?.center === k ? cf.T : c.T;
+  e.hammerFr = T.hammer / HAMMER_WT;                                   // hammer weights
+  e.repFr = REP_CENTER * T.rep / CENTERS.rep.T;                        // hammer weights at the horn (REP_CENTER, below)
+  e.hammerFrX = Math.max(0, (T.hammer - CENTERS.hammer.T) / HAMMER_WT);   // what a tight one has over healthy
+  e.centerFrX = e.hammerFrX + Math.max(0, e.repFr - REP_CENTER);
+  // the jack spring pushes the jack back under the knuckle against its center's friction; the wedge it can work the
+  // rounded top under a knuckle sitting a hair low shrinks with what is left (the sim's own scaling), and with nothing
+  // left the jack doesn't come back at all
+  const spring = dmg?.noJackSpring ? 0 : JACK_SPRING;
+  e.noJackSpring = spring <= T.jack;
+  e.wedge = G.wedge * Math.max(0, Math.min(1, (spring - T.jack) / (JACK_SPRING - CENTERS.jack.T)));
+  e.wippenDrag = Math.max(0, T.wippen - CENTERS.wippen.T) * WIPPEN_TURN;   // g at the key front
+  e.damperDrag = (a.damperDrag ?? 0) + Math.max(0, T.under - CENTERS.under.T) / DAMPER_WT;
+  if (cf?.clicks) e.clicky = true;
   return e;
 }
 
@@ -240,8 +264,8 @@ export const BUSHINGS = {
   // gripping the balance pin: the play at the front is still there, but the key comes up at half speed
   balTight: { name: 'Tight balance rail bushing', balPlay: 0, drag: 12 },
 };
-// share of a free key's speed coming up (0: it stays down)
-export const keyUpShare = a => Math.max(0, Math.min(1, 1 - (BUSHINGS[a.bushing]?.drag || 0) / KEY.upweight));
+// share of a free key's speed coming up (0: it stays down); a tight wippen center drags on it too (a.wippenDrag, from eff)
+export const keyUpShare = a => Math.max(0, Math.min(1, 1 - ((BUSHINGS[a.bushing]?.drag || 0) + (a.wippenDrag || 0)) / KEY.upweight));
 export function measureKey(a) {
   const b = BUSHINGS[a.bushing] || {}, drag = b.drag || 0, free = KEY.frontWeight - KEY.friction;
   return {
@@ -250,6 +274,86 @@ export function measureKey(a) {
     keyFall: drag >= free ? 'hangs' : drag > KEY.slowDrag ? 'slow' : 'free', keyFallShare: Math.max(0, 1 - drag / free),
     keyUpShare: keyUpShare(a),
   };
+}
+
+// ---------- action centers ----------
+// Every center pin turns in cloth bushings with a friction torque, in mm·g (grams of force on a gram gauge times its
+// distance from the pin): research/wippen/spec.md §7. Healthy torques are Hirschkorn's, measured on the Boston (Table A.9,
+// kinetic friction: hammer 0.00101 N·m, wippen and jack 0.000397, repetition lever 0.00247). He didn't measure the damper
+// underlever: there the middle of Renner's range. A gram gauge reads a center at `at` mm from its pin; `band` is the
+// published range there, in grams. Hirschkorn's four fall inside them: wippen and jack near the low end, the hammer near
+// the top, the repetition lever in the middle (the tightest center on purpose: it brakes the lever, Igrec).
+//   Renner: Renner USA Technical Manual "Renner Flange Bushing Cloth" (Bill Spurlock, 2014), its friction table.
+//   Igrec: Mario Igrec, Pianos Inside Out (2013), Table 5, gauged with the springs unhooked.
+export const CENTERS = {
+  hammer: { name: 'Hammer flange center', T: 103, at: 23, band: [2, 5], src: 'Renner' },     // 46-115 mm·g
+  wippen: { name: 'Wippen flange center', T: 40, at: 25, band: [1.5, 4], src: 'Igrec' },     // 37-100 mm·g
+  // at the tender's tip, spring off
+  jack: { name: 'Jack center', T: 40, at: 25, band: [0.5, 4], src: 'Igrec', springOff: true },   // 12-100 mm·g
+  // where the drop screw meets its felt: 56 mm out on this lever (Igrec measures 58: his 2-6 g there is 120-360 mm·g)
+  rep: { name: 'Repetition lever center', T: 252, at: 56, band: [120 / 56, 360 / 56], src: 'Igrec', springOff: true },
+  under: { name: 'Damper underlever center', T: 40, at: 20, band: [1, 3], src: 'Renner' },  // 20-60 mm·g
+};
+// what the friction works against (Hirschkorn Table A.1 masses and centers of mass)
+export const HAMMER_WT = 1199;   // the hammer's weight about its pin: 11.74 g, 102 mm out (the sim's "hammer weight")
+export const JACK_SPRING = 430;  // the jack spring, about constant: 0.0042 N·m (Hirschkorn §A.4)
+const JACK_WT = 52;              // the jack's own weight about its pin, the arm level: 2.65 g, 19.5 mm out
+const WIPPEN_WT = 1040;          // the wippen with its jack and lever about the flange pin, level: 600 + 248 + 188 mm·g
+const WIPPEN_TURN = 0.0082;      // rad the wippen turns per mm of key travel (factory linkage): mm·g at its pin → g at the key front
+// The damper's weights about the underlever pin are the sim's own estimates, from the drawn parts (scene.js) in maple and
+// steel: no published figure. The whole damper (head, wire, underlever) about 1500 mm·g; the underlever alone 470.
+const DAMPER_WT = 1500, UL_WT = 470;
+// Faults (spec §8.2, §8.3): tight cloth (swollen, gummed) is eased; a loose pin in sound cloth is repinned a half size up;
+// a bushing that wobbles with its friction right has worn cloth and is rebushed. No source gives side play in mm for an
+// action center (Renner: "watch the pin"), so play is the sim's own, in mm at the part a test watches (the crown, the
+// jack's top), sized so the test shows it on screen. Torques without a source are the sim's own too, picked where the
+// symptoms in §8.2 show.
+export const CENTER_FAULTS = {
+  // Fred Sturm (PTG, 2022): 3-4 half-swings read about 6-8 g
+  hammerTight: { center: 'hammer', kind: 'tight', T: 7 * 23, name: 'Tight hammer flange center' },
+  // James Kelly (PTG, 2023): 12-14 swings is too loose
+  hammerLoose: { center: 'hammer', kind: 'loose', T: 1.5 * 23, play: 1.5, clicks: true, name: 'Loose hammer flange center' },
+  // Renner: a part can pass the friction test and still wobble, one side of its bushing worn
+  hammerWorn: { center: 'hammer', kind: 'worn', T: 3 * 23, play: 2.0, clicks: true, name: 'Worn hammer flange bushing' },
+  // a sluggish one, of the kind Igrec's tilt test catches (about 5× his top figure; the sim's own)
+  wippenTight: { center: 'wippen', kind: 'tight', T: 20 * 25, name: 'Tight wippen flange center' },
+  wippenLoose: { center: 'wippen', kind: 'loose', T: 0.6 * 25, play: 1.0, clicks: true, name: 'Loose wippen flange center' },
+  // Steve Howard (Howard Piano Industries, 2023): over 6-7 g at the toe is too tight; this one sticks (the sim's own)
+  jackTight: { center: 'jack', kind: 'tight', T: 12 * 25, name: 'Tight jack center' },
+  jackLoose: { center: 'jack', kind: 'loose', T: 0.3 * 25, play: 1.0, clicks: true, name: 'Loose jack center' },
+  // Jessica Masse after Don Mannino (PTG, 2007): it can reach about 7 g in humid weather and still work, and must not
+  // drop below the low end or the lever won't hold the knuckle
+  repTight: { center: 'rep', kind: 'tight', T: 10 * 56, name: 'Tight repetition lever center' },
+  repLoose: { center: 'rep', kind: 'loose', T: 1 * 56, name: 'Loose repetition lever center' },
+  // the humid-summer sticking damper (James Kelly, Cecil Snyder, PTG 2022)
+  underTight: { center: 'under', kind: 'tight', T: 15 * 20, name: 'Tight damper underlever center' },
+};
+// Swing test (spec §8.1): the flange held, the shank level, let go, count the half-swings. A real hammer loses more than
+// its center's friction alone takes (air, the felt): technicians' counts fit half-swings ≈ 21 ÷ grams at the flange
+// gauge (Chris Brown: 9 for 2.5 g; Fred Sturm: 6-8 for 2-3 g, 3-4 for 6-8 g). An empirical fit, not a published law;
+// friction alone, with Hirschkorn's hammer, would give about 7 at his 103 mm·g.
+export const SWING_K = 21;
+export const swingCount = T => Math.max(1, Math.round(SWING_K * CENTERS.hammer.at / T));
+// a part falling back under its own weight against its center's friction: how much of a free part's pull is left
+const fallShare = (W, T, T0) => Math.max(0, (W - T) / (W - T0));
+// falls back in visibly more time than a healthy one (over about 1.2×: it falls in a time ∝ 1/√pull), or not at all
+const fallOf = s => s <= 0 ? 'hangs' : s < 0.7 ? 'slow' : 'free';
+export function measureCenters(a) {
+  a = eff(a);
+  const cf = CENTER_FAULTS[a.center], T = a.centerT, out = { centerFault: a.center || null };
+  for (const [k, c] of Object.entries(CENTERS)) {
+    out[`${k}Center`] = T[k] / c.at;                      // grams on the gauge
+    out[`${k}Play`] = cf?.center === k ? cf.play || 0 : 0;
+  }
+  out.swings = swingCount(T.hammer);
+  // spring unhooked, the wippen held tender up: the jack should fall slowly under its own weight (Don Mannino, via
+  // Jessica Masse, PTG 2007). With the jack's 52 mm·g of weight, Hirschkorn's 40 does just that.
+  out.jackFall = T.jack >= JACK_WT ? 'stays' : T.jack < CENTERS.jack.band[0] * CENTERS.jack.at ? 'flops' : 'slow';
+  // Igrec's tilt test: the stack tilted so the wippens hang, pushed toward the shanks and let go; slow ones get gauged
+  out.wippenShare = fallShare(WIPPEN_WT, T.wippen, CENTERS.wippen.T); out.wippenTilt = fallOf(out.wippenShare);
+  // the wire unhooked, the underlever lifted and let go: it should fall from its own weight (Renner)
+  out.ulShare = fallShare(UL_WT, T.under, CENTERS.under.T); out.ulDrop = fallOf(out.ulShare);
+  return out;
 }
 
 // ---------- key ----------
@@ -424,7 +528,7 @@ function jackFree(a, L, st, g) {
   // the jack spring can push a rounded jack top back under a knuckle sitting a hair below where the jack would hold it,
   // once the knuckle sitting there would be clear of the slipping point (judged where it would sit, so it can't flicker)
   const gS = gOnJackAt(L, tgt);
-  if (knuckleBottom(gS)[1] < kb[1] + G.wedge) {
+  if (knuckleBottom(gS)[1] < kb[1] + (a.wedge ?? G.wedge)) {
     if (jt.backX >= slipBack(L, tgt, gS) + RESET_CLEAR) st.escaped = false;
     return tgt;
   }
@@ -532,7 +636,7 @@ export function measure(a) {
     // trip the jack at rest: the hammer settles onto the repetition lever. That small drop is the wink.
     // Negative means the lever is already holding the hammer off the jack.
     wink: crownY(Math.max(gJ, gRail(a))) - crownY(gL),   // a hammer on the rail (lost motion) doesn't move at all
-    jackReturns: knuckleBottom(gJ)[1] - knuckleBottom(gL)[1] < G.wedge && !a.noJackSpring,
+    jackReturns: knuckleBottom(gJ)[1] - knuckleBottom(gL)[1] < a.wedge && !a.noJackSpring,
     hammerOnJack: Math.abs(g - gJ) < 2e-4,
     blow: G.stringY - crownY(g),
     restGap: hamPt(g, G.shankRest)[1] - a.restRail,
@@ -545,8 +649,8 @@ export function measure(a) {
     screwAfterButton: sp.dTender === null || sp.dScrew === null ? null : sp.dScrew - sp.dTender,
     aftertouch: sp.aftertouch,
     spring: net,
-    // a tight center makes any spring look sluggish: the hammer rises and falls against the friction
-    springState: a.centerFriction ? 'weak' : net > G.checkHold ? 'jumps' : net > G.popNet ? 'pop' : net < 0 ? 'none' : net < G.weakNet ? 'weak' : 'good',
+    // the spring's band was set on the healthy action: a center tighter than that takes its extra friction off the lift
+    springState: net > G.checkHold ? 'jumps' : net > G.popNet ? 'pop' : net < 0 ? 'none' : net - a.centerFrX < G.weakNet ? 'weak' : 'good',
     check: G.stringY - crownY(gChk),
     backcheckAlign: a.backcheckSpace - sideZ(a, pyTail), backcheckSquare: a.backcheckSquare,
     scrapes: a.backcheck > G.bcScrapeLean,
@@ -558,6 +662,7 @@ export function measure(a) {
     hammerSound: a.damage ? 1 : 0, damage: a.damage || null,
     ...measureDampers(a),
     ...measureKey(a),
+    ...measureCenters(a),
   };
 }
 
@@ -596,6 +701,11 @@ export function measureDampers(a) {
 export function grade(id, m, k = 1) {
   const s = { ...SPEC[id], tol: SPEC[id].tol * k };
   let v = m[id];
+  if (s.center) {
+    const [lo, hi] = CENTERS[s.center].band;
+    const note = [v > hi ? 'tight' : v < lo ? 'loose' : '', m[`${s.center}Play`] ? 'side play' : ''].filter(Boolean).join(', ');
+    return { ok: !note, v, note };
+  }
   if (id === 'letoff' && m.blocked) return { ok: false, v: null, note: 'blocks: jack never lets off' };
   if (id === 'damperTiming' && v == null) return { ok: false, v: null, note: 'the key never lifts the damper' };
   if (v === null || v === undefined) return { ok: false, v: null, note: 'no let-off' };
@@ -618,7 +728,8 @@ export function grade(id, m, k = 1) {
   if (id === 'pedalLift' && v < 0) return { ok: false, v, note: 'the pedal lifts the dampers less than the keys do' };
   if (id === 'hammerSquare' && m.damage === 'splitShank') return { ok: false, v, note: 'the head wobbles from blow to blow' };
   if (id === 'hammerSound') return m.damage ? { ok: false, v, note: DAMAGE[m.damage].signs } : { ok: true, v, note: 'solid and quiet' };
-  if (id === 'damperFall') return { ok: v <= s.tol, v, note: v <= s.tol ? 'falls freely' : 'drags in its bushing: falls late' };
+  // a wire dragging in its guide bushing or a tight underlever center: the pedal test can't tell which
+  if (id === 'damperFall') return { ok: v <= s.tol, v, note: v <= s.tol ? 'falls freely' : 'drags: falls late' };
   if (id === 'keyBushings') {
     const note = v < 0.05 ? 'no side play at the front: the front bushing binds'
       : m.balPlay < 0.05 ? 'no play at the balance pin: the balance bushing binds'
@@ -711,6 +822,9 @@ export class Sim {
     // a key held down by a tight bushing, and the hand lifting it; the key tests' rocking, twisting and stack-off
     // drop are drawn from keyRock (mm sideways at the front, + bass), keyTwist (rad) and keyShown (key travel)
     this.stuck = false; this.lifting = false; this.keyRock = null; this.keyTwist = null; this.keyShown = null; this.stackOff = false;
+    // the center tests' side play, drawn from jackRock (mm at the jack's top), wippenRock (mm at the jack, the wippen moving
+    // on its flange) and hammerRock (mm at the crown), + bass; ulShown lifts the underlever alone (mm at its lift felt)
+    this.jackRock = this.wippenRock = this.hammerRock = this.ulShown = null;
     this.t = 0; this.pedal = this.pedal ?? 0; this.pedalTarget = this.pedalTarget ?? 0;
     this.yd = Math.min(this.pedal * this.a.pedalLift, this.a.damperStop); this.vd = 0;
     this.up = this.yd > 0.05; this.hitStop = false; this.liftedAt = this.up ? 0 : null;
@@ -756,7 +870,7 @@ export class Sim {
     const dir = Math.sign(this.dTarget - this.d);
     // the action's weight brings a key up; a tight bushing's friction slows it, or holds it down
     let speed = this.keySpeed;
-    if (dir < 0 && !this.lifting && BUSHINGS[a.bushing]?.drag) {
+    if (dir < 0 && !this.lifting && (BUSHINGS[a.bushing]?.drag || a.wippenDrag > 0)) {
       speed = Math.min(speed, KEY.upSpeed * keyUpShare(a));
       if (speed <= 0 && !this.stuck) { this.stuck = true; this.emit('keystuck'); }
     }
@@ -782,18 +896,24 @@ export class Sim {
     const gHorn = gFromKnuckle(L.hornTop);
     const kz = knuckleBottom(this.g)[1];
     const onRep = kz <= L.hornTop + 1e-6;
-    const fr = a.centerFriction || 0;   // a tight flange center drags on the swing both ways
-    let acc = -GA * (1 - fr);
+    // Off the lever, the hammer's center pin drags on its swing either way: Coulomb friction, all of it (a.hammerFr, from
+    // CENTERS; it never holds a hammer up against its weight). On the lever, DAMP, REP_CENTER and LAND_LOSS were fitted on
+    // the healthy action with the hammer's own friction folded in, so there only a center tighter than healthy adds its
+    // extra (a.hammerFrX, a.centerFrX), and the lever's brake goes with its center's torque (a.repFr).
+    let acc = -GA;
+    if (!onRep) acc -= Math.sign(this.w) * GA * a.hammerFr;
     // the lever damps the hammer's rise; a falling hammer compresses the spring against the lever's friction
     const sF = onRep ? springF(a, L, kz) : 0;
-    if (onRep) acc += GA * (sF - fr) - (this.w > 0 ? DAMP * (1 + 3 * fr) * this.w : 0);
+    if (onRep) acc += GA * sF - (this.w > 0 ? DAMP * this.w : 0);
     let w = this.w + acc * dt;
+    // rising on the lever (or about to), a tight center's extra friction slows it, or holds it if the lift can't beat it
+    if (onRep && this.w >= 0 && w > 0) w = Math.max(0, w - GA * a.centerFrX * dt);
     // landing on the lever from free flight takes LAND_LOSS out of the fall
     if (onRep && !this.onRep && w < 0) w = -Math.sqrt(Math.max(0, w * w - 2 * GA * LAND_LOSS / STRIKE_R));
     this.onRep = onRep;
     // the lever's friction slows a hammer coming down, or holds one still when the spring and its weight nearly balance,
     // but never throws it back up
-    if (onRep && this.w <= 0 && w < 0) w = Math.min(0, w + GA * (REP_CENTER + REP_SLIDE * sF) * dt);
+    if (onRep && this.w <= 0 && w < 0) w = Math.min(0, w + GA * (a.repFr + REP_SLIDE * sF + a.hammerFrX) * dt);
     let g = this.g + w * dt;
     // a jack that has just reset sits at the knuckle and takes up the gap under it over WEDGE_T
     if (st.escaped) this.wedge0 = 0;
