@@ -466,14 +466,45 @@ export function createUprightScene(canvas, overlay) {
     const side = c ? THREE.DoubleSide : THREE.FrontSide;
     act.traverse(o => { if (o.isMesh && o.material.side !== side) { o.material.side = side; o.material.needsUpdate = true; } });
   }
+  let home = 'action';   // the view Reset view goes back to
   function setView(name, instant = false) {
     const v = VIEWS[name] || VIEWS.action;
+    home = VIEWS[name] ? name : 'action';
     setNeighbors(!!v.nb); setClip(v.clip);
     const toT = new THREE.Vector3(...v.t), toP = new THREE.Vector3(...v.p);
     if (instant) { controls.target.copy(toT); camera.position.copy(toP); viewAnim = null; return; }
     viewAnim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(), toT, toP };
   }
   setView('action', true);
+
+  // ---------- moving the view with the app's buttons (the grand's scene.js idiom) ----------
+  function settle() {   // pressed during a change of view: finish the change, then move from there
+    if (viewAnim) { controls.target.copy(viewAnim.toT); camera.position.copy(viewAnim.toP); camera.lookAt(controls.target); viewAnim = null; }
+  }
+  function zoomBy(f) {   // f < 1 steps in
+    settle();
+    const d = THREE.MathUtils.clamp(camera.position.distanceTo(controls.target) * f, controls.minDistance, controls.maxDistance);
+    camera.position.sub(controls.target).setLength(d).add(controls.target);
+  }
+  const sideV = new THREE.Vector3(), upV = new THREE.Vector3();
+  function slideBy(dx, dy) {   // in screen heights: +dx sees more to the right, +dy more above
+    settle();
+    const h = 2 * camera.position.distanceTo(controls.target) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    sideV.set(dx * h, 0, 0).applyQuaternion(camera.quaternion);
+    upV.set(0, dy * h, 0).applyQuaternion(camera.quaternion);
+    sideV.add(upV); camera.position.add(sideV); controls.target.add(sideV);
+  }
+  const resetView = () => setView(home);
+  // the parts a step or a card works on glow (the middle note's only)
+  let highlighted = [];
+  function highlight(parts) {
+    for (const m of highlighted) m.material.emissive.setHex(0);
+    highlighted = [];
+    for (const p of [].concat(parts || [])) for (const m of partMeshes[p] || []) {
+      if (m.userData.note > 0) continue;
+      m.material.emissive.setHex(0x7a4a00); highlighted.push(m);
+    }
+  }
 
   // ---------- picking: which part is under the pointer ----------
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
@@ -552,5 +583,6 @@ export function createUprightScene(canvas, overlay) {
     clearCallouts();
     renderer.dispose();
   }
-  return { render, update, setView, setNeighbors, setLabels, setBackground, pick, screenOf, setCallout, clearCallouts, dispose, controls, camera, scene, notes, VIEWS, partMeshes };
+  return { render, update, setView, setNeighbors, setLabels, setBackground, pick, screenOf, setCallout, clearCallouts, zoomBy, slideBy, resetView, highlight,
+    dispose, controls, camera, scene, notes, VIEWS, PART_NAMES, partMeshes };
 }

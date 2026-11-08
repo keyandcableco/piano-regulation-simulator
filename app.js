@@ -53,6 +53,9 @@ const gradeL = (id, mm) => grade(id, mm, level().tolK);
 // use slot 0; exam mode and the Sandbox's three keys use all three. adj, sim, m and tested always point at the current slot.
 const NOTES = [0, 1, 2].map(() => { const a = { ...FACTORY }; return { adj: a, sim: new Sim(a), m: measure(a), tested: new Set() }; });
 let cur = 0;
+// Grand or upright (C6): the upright's own module (upright-app.js, loaded the first time it is picked) takes the picture,
+// the panel, the loop and the move buttons; everything else in this file is the grand's, and waits while it does
+let action = 'grand', U = null;
 let adj = NOTES[0].adj, sim = NOTES[0].sim, m = NOTES[0].m, tested = NOTES[0].tested;
 function store() { Object.assign(NOTES[cur], { adj, sim, m, tested }); }
 function selectNote(slot) {
@@ -725,6 +728,13 @@ function holdPressed(redraw) {
 }
 function refresh() { holdPressed(redraw); }
 function redraw() {
+  if (action === 'upright') {
+    for (const b of document.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.mode === U.mode);
+    const p = $('#mode');
+    p.replaceChildren(); $('#actionbar').replaceChildren();
+    if (showCredits) U.renderCredits(p, () => { showCredits = false; refresh(); }); else U.renderPanel(p);
+    return;
+  }
   for (const b of document.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.mode === mode);
   // the action's views and key buttons have nothing to work on while a tool is on the bench
   $('#views').style.display = $('#keydock').style.display = mode === 'tools' ? 'none' : '';
@@ -1647,6 +1657,7 @@ function runCue() {
 $('#k-letoff').onclick = goToLetoff;
 for (const b of document.querySelectorAll('[data-view]')) b.onclick = () => view(b.dataset.view);
 for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
+  if (action === 'upright') { if (U.busy) return; showCredits = false; U.setMode(b.dataset.mode); refresh(); return; }
   if (b.dataset.mode === mode) return;
   if (mode === 'exam' && exam.started && !exam.done && b.dataset.mode !== 'exam' && !confirm('Leave the exam? Your progress will be lost.')) return;
   toOneNote();
@@ -1666,7 +1677,7 @@ $('#level').value = Object.keys(LEVELS).find(k => LEVELS[k] === LEVEL);
 $('#level').onchange = e => { LEVEL = LEVELS[e.target.value]; hint = false; verdict = null; try { localStorage.setItem('regsim-level', e.target.value); } catch {} e.target.blur(); refresh(); };
 $('#credits').onclick = e => { e.preventDefault(); showCredits = true; refresh(); $('aside').scrollTop = 0; };
 window.addEventListener('keydown', e => {
-  if (mode === 'tools') return;   // no key on the bench while a tool is out
+  if (mode === 'tools' || action === 'upright') return;   // no key on the bench while a tool is out; the upright has its own keys
   if (e.code === 'Escape') { setLoop(false); letUp(); closePop(); }
   if (e.code === 'KeyP' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !busy && e.target === document.body) setPedal(!pedalDown);
   if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); clearPlan(); cue = null; releaseOthers(); sim.press(sim.dip, 250); pausedNote(); }
@@ -1678,7 +1689,7 @@ window.addEventListener('keydown', e => {
     if (e.key === ',') frameBack();
   }
 });
-window.addEventListener('keyup', e => { if (mode !== 'tools' && e.code === 'Space' && !busy && e.target === document.body) letGo(); });
+window.addEventListener('keyup', e => { if (mode !== 'tools' && action === 'grand' && e.code === 'Space' && !busy && e.target === document.body) letGo(); });
 
 // hover names, press the key by clicking it
 const tip = $('#tip');
@@ -1729,9 +1740,10 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 // buttons for them too, and a card on the first visit says how. A click is one step; held, a button keeps going.
 const ZOOM_STEP = 0.85, SLIDE_STEP = 0.08;   // a click: 15% closer, or 8% of the picture's height across
 let moveHold = null;   // { zoom } or { dx, dy } while a move button is held down, and when it was pressed
+const scene = () => action === 'upright' ? U.S : S;   // the picture the move buttons move
 function moveStep(m, k = 1) {   // k: fraction of one click's step
-  if (m.zoom) S.zoomBy(Math.pow(ZOOM_STEP, -m.zoom * k));
-  else S.slideBy(m.dx * SLIDE_STEP * k, m.dy * SLIDE_STEP * k);
+  if (m.zoom) scene().zoomBy(Math.pow(ZOOM_STEP, -m.zoom * k));
+  else scene().slideBy(m.dx * SLIDE_STEP * k, m.dy * SLIDE_STEP * k);
 }
 for (const b of document.querySelectorAll('[data-zoom], [data-slide]')) {
   const [dx, dy] = (b.dataset.slide || '0,0').split(',').map(Number), m = b.dataset.zoom ? { zoom: +b.dataset.zoom } : { dx, dy };
@@ -1739,7 +1751,7 @@ for (const b of document.querySelectorAll('[data-zoom], [data-slide]')) {
   b.addEventListener('click', e => { if (e.detail === 0) moveStep(m); });   // Enter on the focused button
   b.addEventListener('contextmenu', e => e.preventDefault());   // a long press on a phone
 }
-$('#nav-reset').onclick = () => S.resetView();
+$('#nav-reset').onclick = () => scene().resetView();
 // a clicked button lets go of the keyboard, so Space goes back to striking the key
 $('#navpad').addEventListener('click', e => { if (e.detail) e.target.closest('button')?.blur(); });
 const moveHelp = $('#movehelp');
@@ -1761,7 +1773,8 @@ window.addEventListener('keydown', e => {
 
 // ---------- theme ----------
 const mq = matchMedia('(prefers-color-scheme: dark)');
-function applyTheme() { S.setBackground(getComputedStyle(document.documentElement).getPropertyValue('--stage').trim() || '#eef0f2'); }
+const stageColor = () => getComputedStyle(document.documentElement).getPropertyValue('--stage').trim() || '#eef0f2';
+function applyTheme() { S.setBackground(stageColor()); U?.S.setBackground(stageColor()); }
 mq.addEventListener('change', applyTheme);
 
 // ---------- loop ----------
@@ -1802,6 +1815,7 @@ function frame(now) {
   // a frame button held down steps on (or back) every screen frame, after a moment so a click is one step
   if (frameHold && now - frameHold.t0 > 350) { if (frameHold.dir > 0) stepFrames = Math.max(stepFrames, 1); else if (frameHistory.length) frameBack(); else frameHold = null; }
   if (moveHold && now - moveHold.t0 > 350) moveStep(moveHold, dtReal * 6);   // held: about six clicks a second, smoothly
+  if (action === 'upright') { U.frame(dtReal); requestAnimationFrame(frame); return; }
   let dtSim = Math.min(dtReal * scale, 120 * H_STEP);
   if (paused) { dtSim = stepFrames ? Math.min(FRAME_S * scale, 120 * H_STEP) : 0; stepFrames = Math.max(0, stepFrames - 1); }
   if (cue?.run) runCue();
@@ -1831,3 +1845,35 @@ adj = { ...FACTORY }; applyAdj(); view('angle');
 // the exam clock keeps time even while the tab is in the background
 setInterval(tickExam, 1000);
 requestAnimationFrame(frame);
+
+// ---------- Grand / Upright ----------
+// The switch in the header, remembered like the level, and #upright in the address opens the upright. Switching lets
+// the grand's key go and leaves it as it was; the upright opens on its Sandbox at the factory regulation.
+async function setAction(kind) {
+  if (kind === action || busy || U?.busy) return;
+  if (kind === 'upright') {
+    if (mode === 'exam' && exam.started && !exam.done) { toast('Finish or leave the exam first', 'warn'); return; }
+    if (!U) {
+      const { createUprightApp } = await import('./upright-app.js');
+      U = createUprightApp({ el, put, toast, level, refresh });
+      U.S.setBackground(stageColor());
+    }
+    if (mode !== 'learn' && mode !== 'sandbox') $('.tab[data-mode=sandbox]').click();
+    setLoop(false); clearPlan(); cue = null; setPaused(false); releaseOthers(); sim.press(0, 60); closePop(); S.highlight(null); tip.hidden = true;
+  }
+  action = kind; showCredits = false;
+  $('#app').classList.toggle('upright', kind === 'upright');
+  for (const b of document.querySelectorAll('#action-switch button')) b.classList.toggle('on', b.dataset.action === kind);
+  $('header h1').textContent = kind === 'upright' ? 'Upright action regulation' : 'Grand action regulation';
+  if (kind === 'upright') U.show(); else U?.hide();
+  try { localStorage.setItem('regsim-action', kind); } catch {}
+  history.replaceState(null, '', kind === 'upright' ? '#upright' : location.pathname + location.search);
+  refresh();
+}
+for (const b of document.querySelectorAll('#action-switch button')) b.onclick = () => { setAction(b.dataset.action); b.blur(); };
+{
+  let start = 'grand';
+  try { start = localStorage.getItem('regsim-action') || 'grand'; } catch {}
+  if (location.hash === '#upright') start = 'upright';
+  if (start === 'upright') setAction('upright');
+}
