@@ -6,7 +6,7 @@
 // and the Sandbox; Find the fault, the exam, drills and tools come with C5, C7 and C8.
 import { FACTORY, ADJ, SPEC, DAMAGE, Sim, measure, grade, pose, DAMPER_PEDAL_LIFT } from './upright-model.js';
 import { createUprightScene } from './scene-upright.js';
-import { STEPS, TESTS, TIPS, TOOLS, SPEC_NAMES, REPAIRS, SCENARIOS, bandText, readingText, callouts, deregulated, creditOf } from './content-upright.js';
+import { STEPS, TESTS, TIPS, TOOLS, SPEC_NAMES, REPAIRS, SCENARIOS, bandText, readingText, callouts, deregulated, fairStart, creditOf } from './content-upright.js';
 
 const DT = 0.0001;          // s: the Sim's step (its tests' and fit's)
 // At most this many steps a screen frame. Each costs about 0.2 ms of computing, so 120 is about 24 ms: real speed
@@ -94,6 +94,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     if (busy) return;   // a running test has the Sim
     if (replace) for (const k of Object.keys(a)) delete a[k];
     Object.assign(a, b); m = measure(a);
+    verdict = null;   // a check of the work belongs to the work it checked
     sim = new Sim(a); sim.setSoft(softOn); sim.setPedal(sustainOn); sim.soft = softOn ? 1 : 0; sim.pedal = sustainOn ? 1 : 0;
     if (!keepTested) tested = new Set();
     testEvents = []; plan = null; idle = false; log.length = 0; lastEvent.textContent = '';
@@ -162,7 +163,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       // the neighbors: the exam's other notes as they are now, else the factory key on the same rail (the straightedge's)
       const nbr = slot => {
         const i = exam.started ? exam.cur + (slot === 1 ? -1 : 1) : null;
-        const an = i === null ? { ...a, railShim, balPunch: FACTORY.balPunch, frontPunch: FACTORY.frontPunch, capstan: FACTORY.capstan }
+        const an = i === null ? { ...a, railShim, balPunch: FACTORY.balPunch, frontPunch: FACTORY.frontPunch, capstan: FACTORY.capstan, damage: null }
           : exam.notes[i] ? { ...exam.notes[i].a, railShim } : null;
         if (!an) return;
         const rest = pose(an, 0);
@@ -318,11 +319,12 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   };
   function checkWork() {
     const bad = ALL_SPECS.filter(id => !gradeL(id).ok);
-    verdict = { ok: !bad.length, bad };
+    verdict = { ok: !bad.length, bad, k: level().tolK };
     refresh();
   }
   function renderDiagnose(p) {
     if (!scenario) { newCase(); return; }
+    if (verdict && verdict.k !== level().tolK) verdict = null;   // given at another skill level's tolerances
     const knobs = level().live;   // the panel lists the knobs at Apprentice; otherwise they're on the parts (click one)
     put(p, el('h2', {}, 'A customer says:'), el('p', { class: 'note' }, `“${scenario.complaint}”`),
       el('p', { class: 'muted small' }, `Find out what's wrong and put it right: run the tests that would show it, then adjust or repair. ${knobs ? '' : 'Click a part on the action to adjust it. '}Check your work when you think it's done.`),
@@ -348,7 +350,8 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   const clockText = () => { const s = Math.max(0, Math.round((exam.endAt - Date.now()) / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} left`; };
   function startExam() {
     const lv = level(), shared = deregulated();
-    const notes = [0, 1, 2].map(() => ({ a: { ...deregulated(), railShim: shared.railShim, softFelt: shared.softFelt, damage: null }, tested: new Set() }));
+    const dealt = () => { for (let i = 0; i < 50; i++) { const b = { ...deregulated(), railShim: shared.railShim, softFelt: shared.softFelt, damage: null }; if (fairStart(b)) return b; } return { ...FACTORY, damage: null }; };
+    const notes = [0, 1, 2].map(() => ({ a: dealt(), tested: new Set() }));
     // at the top level one note may hold a worn or broken part: leaving it caps the score below a pass (the sim's own;
     // in PTG's exam, repairs are a separate section)
     if (lv.tolK < 1) { const keys = Object.keys(DAMAGE); notes[Math.floor(Math.random() * 3)].a.damage = keys[Math.floor(Math.random() * keys.length)]; }
@@ -390,7 +393,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   function renderExam(p) {
     if (!exam.started) {
       put(p, el('h2', {}, 'Upright exam: three notes'),
-        el('p', {}, 'Three neighboring notes, each knocked out of regulation, to regulate in the time: the same steps as Learn, with one hammer rail and soft pedal shared by all three. You\'re scored on each note against the specs, and on how even the three are.'),
+        el('p', {}, 'Three neighboring notes, each knocked out of regulation, to regulate in the time: the same steps as Learn, with one hammer rail and soft pedal shared by all three. You\'re scored on each note against the specs, and on how even the three are: each reading\'s spread across the three within one note\'s tolerance.'),
         el('p', { class: 'muted small' }, 'PTG\'s vertical exam section is a disassembled three-note action model with pedals: you assemble it, then regulate all three notes and the pedals in 65 minutes, scored for their consistency and accuracy (Technical Exam Source Book Addendum, 2005). Here the model comes assembled and the scoring is the sim\'s own practice scoring, not PTG\'s sheet. At the top skill level one note may also hold a worn or broken part: in the real exam, repairs are a separate section.'),
         el('div', { class: 'row' }, el('span', { class: 'muted' }, 'Clock:'), EXAM_CLOCKS.map(n => el('button', { class: n === examMinutes ? 'on' : '', onclick: () => { examMinutes = n; refresh(); } }, `${n} min`))),
         el('div', { class: 'row' }, el('button', { class: 'primary', onclick: startExam }, 'Start the exam')));
@@ -439,6 +442,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
           el('td', {}, el('label', {}, el('input', { type: 'checkbox', checked: ellisShown[k] ? '' : false, onchange: e => { ellisShown[k] = e.target.checked; refresh(); } }),
             ' ', el('span', { style: `color:${ELLIS_COLORS[k]};font-weight:600` }, c.label))),
           el('td', {}, `${Math.round(c.filmRailMs)} ms`), el('td', {}, c.simRailMs ? `${Math.round(c.simRailMs)} ms` : '—'))))),
+      el('p', { class: 'muted small' }, 'The sim\'s strap-only case comes back a little faster than strap and spring together, the other way round from the film: its butt spring isn\'t right yet in that case.'),
       el('p', { class: 'muted small' }, 'To feel it on the action: in the Sandbox, break the bridle strap (the parts list) and play at Slow ×50 with a quick release, then put it right and play again.'),
       el('p', { class: 'credit' }, 'Jim Ellis RPT, "Bridle Strap Function", Piano Technicians Journal, Dec 1997; high-speed video from PTG\'s Education Hub (main videos narrated by Scott Murphy RPT).'));
     drawEllis(canvas);
@@ -457,7 +461,8 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       g.strokeStyle = ELLIS_COLORS[k]; g.lineWidth = 3;
       for (const [line, dash] of [[c.film, []], [c.sim, [10, 7]]]) {
         g.setLineDash(dash); g.beginPath();
-        line.t.forEach((t, i) => { if (t > 300) return; i ? g.lineTo(X(t), Y(line.deg[i])) : g.moveTo(X(t), Y(line.deg[i])); });
+        let started = false;   // (the film starts 10 ms before the release: those points are left off)
+        line.t.forEach((t, i) => { if (t < 0 || t > 300) return; started ? g.lineTo(X(t), Y(line.deg[i])) : g.moveTo(X(t), Y(line.deg[i])); started = true; });
         g.stroke();
       }
       g.setLineDash([]);

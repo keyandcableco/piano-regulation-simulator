@@ -665,7 +665,6 @@ export function grade(id, m, k = 1) {
     const d = DAMAGE[m.damage];
     return d?.spec === id ? { ok: false, v: null, note: d.signs } : { ok: true, v: null, note: '' };
   }
-  if (id === 'bridle' && DAMAGE[m.damage]?.spec === 'strap') return { ok: false, v: null, note: 'the strap is broken' };
   if (id === 'bridle') return m.softLifts ? { ok: false, v: m.strapSlack, note: 'soft pedal down, the strap lifts the wippen: the key goes out of level' }
     : { ok: true, v: m.strapSlack, note: '' };
   if (id === 'letoff' && v == null) return { ok: false, v: null, note: 'blocks: the jack never lets off' };

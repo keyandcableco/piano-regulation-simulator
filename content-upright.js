@@ -206,8 +206,7 @@ export const TESTS = {
       const t0 = sim.t; let back = null;
       for (let i = 0; i < 12 && back === null; i++) { await ctx.run(0.05); back = ctx.lastEvent('rail')?.t ?? null; }
       const ms = back === null ? null : Math.round(1000 * (back - t0)), d = DAMAGE[ctx.m.damage];
-      ctx.say(d?.spec === 'buttSpring' ? `It falls back slowly, by its own weight${ms ? `, ${ms} ms` : ''}: the butt spring is broken`
-        : d?.spec === 'buttCenter' ? `It comes back slowly${ms ? `, ${ms} ms` : ''}, dragging on its center pin` : `It springs back to the rail in ${ms ?? '—'} ms`, d && (d.spec === 'buttSpring' || d.spec === 'buttCenter'));
+      ctx.say(d?.spec === 'buttCenter' ? `It comes back slowly${ms != null ? `, ${ms} ms` : ''}, dragging on its center pin` : `It springs back to the rail in ${ms ?? '—'} ms`, d?.spec === 'buttCenter');
       await ctx.run(0.2); await ctx.pause(0.6);
     } },
   strapLook: { label: 'Look at the bridle strap', specs: ['strap'], view: 'check',
@@ -312,7 +311,7 @@ export const SCENARIOS = [
     cause: 'Let-off too close: the jack lets go so near the strings that the hammer can\'t get clear of them (Spurlock)',
     fix: 'Lower the let-off button until the hammer lets off 1/8" from the strings' },
   { id: 'letoffFar', complaint: 'I can\'t play this note quietly: it won\'t sound unless I play it harder.', make: f => ({ letoff: f.letoff + 0.5 }),
-    cause: 'Let-off too far: the jack lets go far from the strings, so a soft blow runs out before it gets there (Estey)',
+    cause: 'Let-off too far: the jack lets go far from the strings, so a soft blow can run out before it gets there (Estey: let-off much more than 1/8" needs work)',
     fix: 'Raise the let-off button until the hammer lets off 1/8" from the strings' },
   { id: 'blubber', complaint: 'When I hold a loud note, the hammer stays against the string and blubbers.', make: f => { const a = { ...f, railShim: f.railShim - 1.6 }; return { railShim: a.railShim, capstan: capstanFor(a) }; },
     cause: 'Not enough jack escapement: the blow is too long for the dip, so with the key held the jack top rests against the butt leather (Spurlock)',
@@ -330,7 +329,7 @@ export const SCENARIOS = [
     cause: 'The spoon lifts the damper too early: the key takes up the damper spring almost at once (Spurlock: spoons weigh in the touch)',
     fix: 'Bend the spoon away from the damper lever until the damper starts with the hammer halfway' },
   { id: 'buttLeather', complaint: 'This key feels loose and clunky at the top, even after the last regulation.', make: () => ({ damage: 'buttLeather' }),
-    cause: 'The butt leather is worn: a groove where the jack lifts it adds lost motion (Spurlock: check that leathers are usable before regulating)',
+    cause: 'The butt leather is worn past use: a groove where the jack lifts it adds lost motion. Raising the capstan takes that out for now (Spurlock), but leather worn this far is re-covered (his first check, that leathers are usable), and the sim counts it until it is',
     fix: 'Re-cover the butt; then set the lost motion' },
   { id: 'catcherLeather', complaint: 'When I hold a loud note, the hammer drops back farther than it used to.', make: () => ({ damage: 'catcherLeather' }),
     cause: 'The catcher\'s buckskin is worn thin and slick, so the backcheck catches it late',
@@ -364,11 +363,14 @@ export function deregulated(rng = Math.random) {
       const d = ADJ.find(x => x.id === k), v = FACTORY[k] + (2 * rng() - 1) * s;
       a[k] = Math.max(d.min, Math.min(d.max, Math.round(v / d.step) * d.step));
     }
-    const m = measure(a);
-    if (m.letoff == null || m.check == null || m.checkScrapes || m.jammed || m.strapSlack <= 0 || m.damperTiming == null) continue;
-    return a;
+    if (fairStart(a)) return a;
   }
   return { ...FACTORY };
+}
+// a start short of blocking, missing, scraping, jamming or a taut strap at rest
+export function fairStart(a) {
+  const m = measure(a);
+  return !(m.letoff == null || m.check == null || m.checkScrapes || m.jammed || m.strapSlack <= 0 || m.damperTiming == null);
 }
 // a small seeded generator, so the tests and the student emulation see the same keys every run
 export function seeded(seed) {
