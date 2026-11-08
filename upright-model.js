@@ -30,7 +30,8 @@ export const CENTER = {
 };
 
 // Strings: the unison's line in the side view [m: S15, x = 98.2 + 0.0137 y px]. Strike height is the crown's at rest.
-export const STRING = { x: 53.9, y: 140, lean: 0.0137 };
+// Drawn from y0 to y1, three strings (a trichord) across z [T: spacing and radius].
+export const STRING = { x: 53.9, y: 140, lean: 0.0137, y0: -60, y1: 175, unison: [-3.5, 0, 3.5], r: 0.55 };
 export const stringX = y => STRING.x + STRING.lean * (y - STRING.y);
 
 // ---------- the key and its frame: stand-ins [T] ----------
@@ -39,8 +40,7 @@ export const stringX = y => STRING.x + STRING.lean * (y - STRING.y);
 // The lengths are stand-ins scaled to that ratio; the key and its rails are drawn see-through until Greg measures one.
 export const KEY = {
   balX: 230,                 // balance pin [T]
-  capX: H[0] - 41,           // capstan, under the wippen cushion [e]
-  backX: H[0] - 41 + 32,     // back end [e]
+  backX: H[0] - 41 + 32,     // back end: 32 behind the capstan (CAPSTAN.x, action frame) [e]
   thick: 24,                 // [T]
   bottomY: 21,               // the key's underside on its rails, level at rest [T]
   dip: 0.4 * IN,             // [S1]
@@ -69,8 +69,8 @@ export const TRACE = {
   // butt spring: a wire from a coil on the flange, its end pressing the butt's back near the top [e]; a path. The coil
   // is drawn 1.6 mm in from the arc's visible start, so it sits on the flange's cheek.
   buttSpring: [[4.5, 1.5], [7, 9], [7, 13], [5.5, 18], [2.5, 23], [-1.5, 27.5]],
-  // butt flange: a foot on the main rail, a stem up to its rounded top round the centre pin [e: the foot's shelf for
-  // the screw is the colour clip's wider bottom, X -8..+5]
+  // butt flange: a foot on the main rail, a stem up to the cheeks round the centre pin (BUTT_FORK) [e: the foot's shelf
+  // for the screw is the colour clip's wider bottom, X -8..+5]
   buttFlange: [[-9, -24], [5, -24], [5, 0], [-5, 0], [-5, -17], [-9, -17]],
   // wippen: the bar, the heel block under its front end, and the cushion on the capstan [e]
   wippen: [[-66, -80.4], [20, -80.4], [20, -91.5], [-66, -91.5]],
@@ -78,9 +78,15 @@ export const TRACE = {
   heelCushion: [[-49.5, -105], [-33, -105], [-33, -109], [-49.5, -109]],
   // the post on the wippen that carries the jack's centre pin [e]
   jackFlange: [[-37, -80.4], [-29, -80.4], [-29, -66], [-30.2, -64.6], [-33, -64], [-35.8, -64.6], [-37, -66]],
-  // wippen flange: from the main rail's underside down to its rounded end round the wippen's centre pin; the foot up the
-  // rail's back face is [T] (Igrec fig. 337: wippen flange screws are at the back of the action)
-  wippenFlange: [[-1.5, -60], [10, -60], [10, -50], [6, -50], [6, -85.1], [-1.5, -85.1]],
+  // wippen flange: a tongue from the main rail's underside down to its rounded end round the wippen's centre pin [e],
+  // and a plate up the rail's back face, overlapping the tongue's top 6 mm, that its screw goes through [T] (Igrec
+  // fig. 337: wippen flange screws are at the back of the action)
+  wippenFlange: (() => {
+    const x0 = -1.5, x1 = 6, c = (x0 + x1) / 2, r = (x1 - x0) / 2, arc = [];
+    for (let i = 1; i < 12; i++) { const t = Math.PI + i * Math.PI / 12; arc.push([c + r * Math.cos(t), -85.1 + r * Math.sin(t)]); }
+    return [[x0, -60], [x1, -60], [x1, -85.1], ...arc.reverse(), [x0, -85.1]];
+  })(),
+  wippenFlangePlate: [[6, -66], [10, -66], [10, -50], [6, -50]],
   // damper spoon: a wire up from the wippen's back end to the lever's felt [e]; a path
   spoon: [[8.5, -80.4], [8.5, -75], [9.4, -70], [11.2, -66.3], [14, -63.2]],
   // jack: an L on its centre pin, the toe toward the let-off button, the arm up to the butt cushion [e]
@@ -98,13 +104,13 @@ export const TRACE = {
   backcheckFelt: [[-77.5, 19.5], [-64, 19.5], [-62.5, -10.5], [-76, -10.5]],
   // bridle strap: cloth tape from the catcher's string face, draped over the let-off screw's eye, its end hooked on the
   // bridle wire [e: S15 findings, fixing [-43, 4] and hook [-71, -41], by eye ±1.5 mm]; a path, catcher end first
-  strap: [[-43.5, 4], [-41, -1], [-40.8, -8], [-42.5, -14], [-44.5, -19.5], [-46, -22.6], [-48.5, -23.4], [-53, -27],
+  strap: [[-43.5, 4], [-41, -1], [-40.8, -8], [-42.5, -14], [-44.5, -19.8], [-46, -23.3], [-48.5, -23.9], [-53, -27.2],
     [-60, -33.3], [-66, -37.5], [-70.5, -40.5]],
   // let-off: the button (body and felt face) on its regulating screw, the screw's eye on top [e]
   letoffButton: [[-50.5, -44], [-42.5, -44], [-42.5, -49], [-50.5, -49]],
   letoffFelt: [[-50.5, -49], [-42.5, -49], [-42.5, -54], [-50.5, -54]],
   letoffScrew: [[-46.5, -49], [-46.5, -28.9]],
-  letoffEye: [-46.5, -26.3],           // a wire ring, 2.6 mm to its outside
+  letoffEye: [-46.5, -26.3],           // a wire ring (EYE), 2.6 mm to its outside
   // jack stop: a block on a threaded rod, its felt facing the jack's arm [e]
   jackStop: [[-41.7, -14.5], [-36.5, -14.5], [-36.5, -24.8], [-41.7, -24.8]],
   jackStopFelt: [[-36.5, -14.5], [-28.5, -14.5], [-28.5, -24.8], [-36.5, -24.8]],
@@ -137,6 +143,27 @@ export const shankAt = y => [SHANK.x0 - Math.tan(SHANK.lean) * y, y];
 export const CATCHER_SHANK = { from: [-24, 15.5], to: [-45, 15], r: 3 };   // from 3 mm inside the butt
 // the capstan: a wooden dowel on a wire screwed into the key [e: colour clip]
 export const CAPSTAN = { x: -41, top: -109, dowelBottom: -129, keyTop: -149, r: 5.5, wireR: 1.5 };
+// the let-off screw's eye: ring and wire radius [e: about 5.2 mm across]
+export const EYE = { R: 2.0, r: 0.6 };
+// the strap's thickness (cloth tape) [T]
+export const STRAP_T = 0.8;
+
+// ---------- forks round the centre pins, screws, offsets across the keyboard: how the parts join [T] ----------
+// None of these show in a side view; they are the usual construction, until Greg's bench photos show his action's.
+// Butt: below y the butt narrows to its tongue, between the flange's two cheeks; the cheeks are rounded about the pin.
+export const BUTT_FORK = { y: 3.5, tongue: 4.6, cheekR: 5, cheekBottom: -6 };
+// Wippen: between these x it is two cheeks round the flange's tongue (4 thick).
+export const WIPPEN_FORK = { x: [-5, 7.5], tongue: 4 };
+// Damper flange: from this x on it is two cheeks round the lever.
+export const DAMPER_FORK = { x: 17 };
+// Flange screws: the head's underside at p, going in along dir.
+export const SCREWS = {
+  buttFlange: { p: [-7, -17], dir: [0, -1], len: 16 },     // down through the foot's shelf into the rail's top
+  wippenFlange: { p: [10, -55], dir: [-1, 0], len: 14 },   // through the plate into the rail's back face
+  damperFlange: { p: [10, -26], dir: [-1, 0], len: 14 },   // through the foot into the rail's back face
+};
+// The bridle wire stands this far toward the treble of the backcheck wire (z, + toward the bass as everywhere).
+export const BRIDLE_Z = -3;
 
 // ---------- the rails: placed by the filmed model's faces, their sections stand-ins [T] ----------
 // The filmed model is a one-note model on a cast stand: a metal bracket in place of the main rail, a wire loop with a

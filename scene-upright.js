@@ -7,8 +7,8 @@
 // sideways offsets are drawn at BASS times (the grand's rule, scene.js).
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { H, KEY, CENTER, TRACE, SHANK, shankAt, CATCHER_SHANK, CAPSTAN, MAIN_RAIL, HAMMER_RAIL, LETOFF_RAIL, STRING, stringX,
-  WIDTH } from './upright-model.js';
+import { H, KEY, CENTER, TRACE, SHANK, shankAt, CATCHER_SHANK, CAPSTAN, EYE, STRAP_T, BUTT_FORK, WIPPEN_FORK, DAMPER_FORK, SCREWS,
+  BRIDLE_Z, MAIN_RAIL, HAMMER_RAIL, LETOFF_RAIL, STRING, stringX, WIDTH } from './upright-model.js';
 
 // the bass side is -z (on the player's left, as seen from the keys)
 export const BASS = -1;
@@ -156,7 +156,7 @@ export function createUprightScene(canvas, overlay) {
   }
   // a round-head wood screw (the grand's flange screw shape: #5, head Ø 5.6): its head's underside at p, going in along dir
   const SCREW_HEAD = [[0, 0], [2.8, 0], [2.8, 0.9], [2.5, 1.45], [1.9, 1.8], [1, 1.95], [0, 2]];
-  function screw(part, parent, p, dir, len, z = 0) {
+  function screw(part, parent, { p, dir, len }, z = 0) {
     const g = new THREE.Group(); g.position.set(p[0], p[1], z); parent.add(g);
     g.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), new THREE.Vector3(dir[0], dir[1], 0).normalize());
     lathe(SCREW_HEAD, COLORS.steel, part, g, { metal: true });
@@ -194,29 +194,31 @@ export function createUprightScene(canvas, overlay) {
     const root = new THREE.Group(); root.position.z = NOTE_Z[slot]; act.add(root);
     const n = { root };
 
-    // key (stand-in) with its punchings and pins, and the capstan on it
-    const key = n.key = new THREE.Group(); root.add(key);
-    const [kx0, ky0] = A(0, KEY.bottomY), kx1 = A(KEY.backX, 0)[0];
+    // key (stand-in), its group on the balance pin (where it rocks), with the capstan screwed into it; punchings and pins
+    const kp = A(KEY.balX, KEY.bottomY), K = ([x, y]) => [x - kp[0], y - kp[1]];   // action frame -> the key's frame
+    const key = n.key = new THREE.Group(); key.position.set(...kp, 0); root.add(key);
+    const [kx0, ky0] = K(A(0, KEY.bottomY)), kx1 = K(A(KEY.backX, 0))[0];
     ext(rect(kx0, ky0, kx1, ky0 + KEY.thick), WIDTH.key, 0, COLORS.keywood, 'key', key, SI);
     ext(rect(kx0, ky0 + KEY.thick, kx0 + 150, ky0 + KEY.thick + 2.5), WIDTH.key + 0.4, 0, COLORS.keytop, 'key', key, SI);
-    cyl(6, 1, 'y', [A(KEY.balX, 0)[0], railTop - 0.5, 0], COLORS.felt, 'balrail', root, SI);
-    cyl(1.5, 30, 'y', [A(KEY.balX, 0)[0], railTop + 10, 0], COLORS.steel, 'balrail', root, { ...SI, metal: true, noPick: true });
+    cyl(6, 1, 'y', [kp[0], railTop - 0.5, 0], COLORS.felt, 'balrail', root, SI);
+    cyl(1.5, 30, 'y', [kp[0], railTop + 10, 0], COLORS.steel, 'balrail', root, { ...SI, metal: true, noPick: true });
     cyl(6, 1, 'y', [A(12, 0)[0], railTop - KEY.dip - 0.5, 0], COLORS.felt, 'frontrail', root, SI);
     // the capstan: a wooden dowel turned on a wire screwed into the key [e]
-    rodBetween([CAPSTAN.x, CAPSTAN.keyTop], [CAPSTAN.x, CAPSTAN.dowelBottom + 3], CAPSTAN.wireR, COLORS.steel, 'capstan', root);
-    cyl(CAPSTAN.r, CAPSTAN.top - CAPSTAN.dowelBottom, 'y', [CAPSTAN.x, (CAPSTAN.top + CAPSTAN.dowelBottom) / 2, 0], COLORS.wood, 'capstan', root);
+    const cx = K([CAPSTAN.x, 0])[0], cy = y => K([0, y])[1];
+    rodBetween([cx, cy(CAPSTAN.keyTop)], [cx, cy(CAPSTAN.dowelBottom + 3)], CAPSTAN.wireR, COLORS.steel, 'capstan', key);
+    cyl(CAPSTAN.r, CAPSTAN.top - CAPSTAN.dowelBottom, 'y', [cx, cy((CAPSTAN.top + CAPSTAN.dowelBottom) / 2), 0], COLORS.wood, 'capstan', key);
     // the hole for the capstan tool, through the dowel
-    cyl(0.9, 2 * CAPSTAN.r + 0.4, 'z', [CAPSTAN.x, CAPSTAN.dowelBottom + 7, 0], COLORS.dark, 'capstan', root);
+    cyl(0.9, 2 * CAPSTAN.r + 0.4, 'z', [cx, cy(CAPSTAN.dowelBottom + 7), 0], COLORS.dark, 'capstan', key);
 
     // wippen: the bar on its center pin, forked round the flange's tongue; the heel and its cushion on the capstan;
     // the jack's flange; the spoon, backcheck and bridle wires; the jack spring
     const W = CENTER.wippen, wippen = n.wippen = new THREE.Group(); wippen.position.set(W[0], W[1], 0); root.add(wippen);
-    const WF = [-5, 7.5];   // between these the wippen is two cheeks round the flange's tongue
+    const WF = WIPPEN_FORK.x, wt = WIPPEN_FORK.tongue;   // between WF the wippen is two cheeks round the flange's tongue
     extPts(rel(clip(TRACE.wippen, 'x', WF[0], false), W), WIDTH.wippen, 0, COLORS.wood, 'wippen', wippen);
     extPts(rel(clip(TRACE.wippen, 'x', WF[1], true), W), WIDTH.wippen, 0, COLORS.wood, 'wippen', wippen);
-    const wCheek = (WIDTH.wippen - 4) / 2, fork = rel(clip(clip(TRACE.wippen, 'x', WF[0], true), 'x', WF[1], false), W);
-    extPts(fork, wCheek, -(4 + wCheek) / 2, COLORS.wood, 'wippen', wippen);
-    extPts(fork, wCheek, (4 + wCheek) / 2, COLORS.wood, 'wippen', wippen, { opacity: 0.3 });
+    const wCheek = (WIDTH.wippen - wt) / 2, fork = rel(clip(clip(TRACE.wippen, 'x', WF[0], true), 'x', WF[1], false), W);
+    extPts(fork, wCheek, -(wt + wCheek) / 2, COLORS.wood, 'wippen', wippen);
+    extPts(fork, wCheek, (wt + wCheek) / 2, COLORS.wood, 'wippen', wippen, { opacity: 0.3 });
     extPts(rel(TRACE.heel, W), WIDTH.wippen, 0, COLORS.wood, 'wippen', wippen);
     extPts(rel(TRACE.heelCushion, W), WIDTH.wippen + 0.4, 0, COLORS.felt, 'heel', wippen);
     const jCheek = WIDTH.jackFlange, jz = (WIDTH.jack + jCheek) / 2 + 0.2;
@@ -224,37 +226,34 @@ export function createUprightScene(canvas, overlay) {
     extPts(rel(TRACE.jackFlange, W), jCheek, jz, COLORS.wood, 'jackflange', wippen, { opacity: 0.3 });
     wire(rel(TRACE.spoon, W), 1, COLORS.brass, 'spoon', wippen);
     wire(rel(TRACE.backcheckWire, W), 1, COLORS.steel, 'bcwire', wippen);
-    wire(rel(TRACE.bridleWire, W), 0.75, COLORS.brass, 'bridle', wippen, 3 * -BASS);   // [T] which side of the backcheck wire
+    wire(rel(TRACE.bridleWire, W), 0.75, COLORS.brass, 'bridle', wippen, BASS * BRIDLE_Z);
     // its top bent over into the hook the strap's end hangs on
     const hk = rel([TRACE.bridleWire.at(-1)], W)[0];
-    wire([hk, [hk[0] + 1.2, hk[1] + 1.6], [hk[0] + 2.6, hk[1] + 0.6], [hk[0] + 2.6, hk[1] - 1.2]], 0.75, COLORS.brass, 'bridle', wippen, 3 * -BASS);
+    wire([hk, [hk[0] + 1.2, hk[1] + 1.6], [hk[0] + 2.6, hk[1] + 0.6], [hk[0] + 2.6, hk[1] - 1.2]], 0.75, COLORS.brass, 'bridle', wippen, BASS * BRIDLE_Z);
     extPts(rel(TRACE.backcheck, W), WIDTH.backcheck, 0, COLORS.wood, 'backcheck', wippen);
     extPts(rel(TRACE.backcheckFelt, W), WIDTH.backcheck, 0, COLORS.felt, 'backcheck', wippen);
     n.jackSpring = coil(rel([TRACE.jackSpring[0]], W)[0], rel([TRACE.jackSpring[1]], W)[0], 2, 0.35, 6, 'jackspring', wippen);
-    center('wcenter', wippen, [0, 0], WIDTH.wippen);
-    center('jcenter', wippen, rel([CENTER.jack], W)[0], WIDTH.jack + 2 * jCheek + 0.4);
+    center('wcenter', wippen, [0, 0], WIDTH.wippen + 0.6);
+    center('jcenter', wippen, rel([CENTER.jack], W)[0], WIDTH.jack + 2 * jCheek + 1);
 
     // jack: an L on its center pin, between the jack flange's cheeks
     const jack = n.jack = new THREE.Group(); jack.position.set(CENTER.jack[0] - W[0], CENTER.jack[1] - W[1], 0); wippen.add(jack);
     extPts(rel(TRACE.jack, CENTER.jack), WIDTH.jack, 0, COLORS.wood, 'jack', jack);
 
-    // wippen flange: a tongue hanging from the main rail's underside to its rounded end round the pin, with a foot up the
+    // wippen flange: a tongue hanging from the main rail's underside to its rounded end round the pin, with a plate up the
     // rail's back face where its screw goes in from the back [T: Igrec fig. 337]
     {
       const g = n.wflange = new THREE.Group(); root.add(g);
-      const r = 3.75, cx = (-1.5 + 6) / 2, tongue = new THREE.Shape();
-      tongue.moveTo(-1.5, -60); tongue.lineTo(-1.5, W[1]); tongue.absarc(cx, W[1], r, Math.PI, 2 * Math.PI, false); tongue.lineTo(6, -60); tongue.closePath();
-      ext(tongue, 4, 0, COLORS.wood, 'wflange', g);
-      extPts([[6, -60], [10, -60], [10, -50], [6, -50]], 8, 0, COLORS.wood, 'wflange', g);
-      screw('wflange', g, [10, -55], [-1, 0], 14);
+      extPts(TRACE.wippenFlange, WIPPEN_FORK.tongue, 0, COLORS.wood, 'wflange', g);
+      extPts(TRACE.wippenFlangePlate, WIDTH.damperFlange, 0, COLORS.wood, 'wflange', g);
+      screw('wflange', g, SCREWS.wippenFlange);
     }
 
     // hammer: the butt (its tongue between the flange's cheeks), cushion, shank, head and catcher, all turning about the
     // butt center pin
     const hammer = n.hammer = new THREE.Group(); root.add(hammer);
-    const B_FORK = 3.5;   // below this the butt is its tongue, between the flange's cheeks
-    extPts(clip(TRACE.butt, 'y', B_FORK, true), WIDTH.butt, 0, COLORS.wood, 'butt', hammer);
-    extPts(clip(TRACE.butt, 'y', B_FORK, false), 4.6, 0, COLORS.wood, 'butt', hammer);
+    extPts(clip(TRACE.butt, 'y', BUTT_FORK.y, true), WIDTH.butt, 0, COLORS.wood, 'butt', hammer);
+    extPts(clip(TRACE.butt, 'y', BUTT_FORK.y, false), BUTT_FORK.tongue, 0, COLORS.wood, 'butt', hammer);
     // the cushion: felt with a buckskin face where the jack lifts it [T: which layer is where]
     extPts(TRACE.buttCushion, WIDTH.butt - 0.6, 0, COLORS.redfelt, 'cushion', hammer);
     {
@@ -272,28 +271,29 @@ export function createUprightScene(canvas, overlay) {
       const [p, q] = [TRACE.catcherHead[0], TRACE.catcherHead[5]], dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy), nx = -dy / l, ny = dx / l;
       extPts([p, q, [q[0] + nx * 1, q[1] + ny * 1], [p[0] + nx * 1, p[1] + ny * 1]], WIDTH.catcher + 0.2, 0, COLORS.buckskin, 'catcher', hammer);
     }
-    center('hcenter', hammer, [0, 0], 4.6 + 4.8);
+    center('hcenter', hammer, [0, 0], WIDTH.flange + 0.6);
 
     // butt flange: foot and stem on the main rail, two cheeks round the butt's tongue, rounded about the pin; its screw
     // down through the foot's shelf into the rail [T]; the butt spring's coil on it
     {
       const g = n.bflange = new THREE.Group(); root.add(g);
       const f = TRACE.buttFlange;
-      extPts(clip(f, 'y', -6, false), WIDTH.flange, 0, COLORS.wood, 'bflange', g);
-      const cheek = new THREE.Shape(), r = 5;
-      cheek.moveTo(-5, -6); cheek.lineTo(5, -6); cheek.lineTo(5, 0); cheek.absarc(0, 0, r, 0, Math.PI, false); cheek.closePath();
-      const cw = (WIDTH.flange - 4.8) / 2, cz = (4.8 + cw) / 2;
+      const { cheekR: r, cheekBottom: yb, tongue } = BUTT_FORK;
+      extPts(clip(f, 'y', yb, false), WIDTH.flange, 0, COLORS.wood, 'bflange', g);
+      const cheek = new THREE.Shape();
+      cheek.moveTo(-r, yb); cheek.lineTo(r, yb); cheek.lineTo(r, 0); cheek.absarc(0, 0, r, 0, Math.PI, false); cheek.closePath();
+      const cw = (WIDTH.flange - tongue - 0.2) / 2, cz = (tongue + 0.2 + cw) / 2;   // a hair clear of the butt's tongue
       ext(cheek, cw, -cz, COLORS.wood, 'bflange', g);
       ext(cheek, cw, cz, COLORS.wood, 'bflange', g, { opacity: 0.35 });
-      screw('bscrew', g, [-7, -17], [0, -1], 16);
+      screw('bscrew', g, SCREWS.buttFlange);
       // the spring's coil on the near cheek, its leg up to the butt's back
       cyl(1.6, 2.2, 'z', [...TRACE.buttSpring[0], cz], COLORS.steel, 'buttspring', g, { metal: true });
       n.buttSpring = wire(TRACE.buttSpring, 0.5, COLORS.steel, 'buttspring', g, cz);
     }
 
     // the bridle strap, catcher to bridle wire, draped over the let-off screw's eye (C2 lays it out each frame)
-    n.strap = tape(TRACE.strap, 0.8, WIDTH.strap, 0, COLORS.tape, 'strap', root);
-    cyl(1.6, 0.6, 'z', [...TRACE.strap.at(-1), 3 * -BASS + 0.9], COLORS.buckskin, 'strap', root);   // its leather end on the hook
+    n.strap = tape(TRACE.strap, STRAP_T, WIDTH.strap, 0, COLORS.tape, 'strap', root);
+    cyl(1.6, 0.6, 'z', [...TRACE.strap.at(-1), BASS * BRIDLE_Z + 0.9], COLORS.buckskin, 'strap', root);   // its leather end on the hook
 
     // let-off: the regulating screw down through the rail, the button on its end, the eye on top
     {
@@ -303,7 +303,7 @@ export function createUprightScene(canvas, overlay) {
       cyl(br, b[0][1] - b[2][1], 'y', [bx, (b[0][1] + b[2][1]) / 2, 0], 0xe8e2d4, 'letoff', g);
       cyl(br, f[0][1] - f[2][1], 'y', [bx, (f[0][1] + f[2][1]) / 2, 0], COLORS.felt, 'letoff', g);
       cyl(1.25, sy1 - sy0, 'y', [sx, (sy0 + sy1) / 2, 0], COLORS.steel, 'letoffscrew', g, { metal: true });
-      const eye = new THREE.Mesh(new THREE.TorusGeometry(2.0, 0.6, 8, 24), mat(COLORS.steel, { metal: true }));
+      const eye = new THREE.Mesh(new THREE.TorusGeometry(EYE.R, EYE.r, 8, 24), mat(COLORS.steel, { metal: true }));
       eye.position.set(...TRACE.letoffEye, 0); g.add(eye); register(eye, 'letoffscrew', {});
     }
 
@@ -321,25 +321,25 @@ export function createUprightScene(canvas, overlay) {
     }
     extPts(rel(TRACE.damperHead, D), WIDTH.damperHead, 0, COLORS.redfelt, 'damper', damper);
     for (const f of TRACE.damperFelts) extPts(rel(f, D), WIDTH.damperHead, 0, COLORS.hammerfelt, 'damperfelt', damper);
-    center('dcenter', damper, [0, 0], WIDTH.damperLever + 4.4);
+    center('dcenter', damper, [0, 0], WIDTH.damperLever + 5);
 
     // damper flange: the arm from its foot on the main rail's back face out to two cheeks round the lever; its screw
     // into the rail from the back [T]; the damper spring's coil on it
     {
       const g = n.dflange = new THREE.Group(); root.add(g);
-      const DF_X = 17;
+      const DF_X = DAMPER_FORK.x;
       extPts(clip(TRACE.damperFlange, 'x', DF_X, false), WIDTH.damperFlange, 0, COLORS.wood, 'dflange', g);
       const cz = WIDTH.damperLever / 2 + 1.2;
       extPts(clip(TRACE.damperFlange, 'x', DF_X, true), 2, -cz, COLORS.wood, 'dflange', g);
       extPts(clip(TRACE.damperFlange, 'x', DF_X, true), 2, cz, COLORS.wood, 'dflange', g, { opacity: 0.35 });
-      screw('dflange', g, [10, -26], [-1, 0], 14);
+      screw('dflange', g, SCREWS.damperFlange);
       // the spring's coil beside the flange, its leg up the lever's player face
       cyl(1.5, 1.6, 'z', [...TRACE.damperSpring[0], WIDTH.damperFlange / 2 + 0.8], COLORS.steel, 'dspring', g, { metal: true });
       n.damperSpring = wire(TRACE.damperSpring, 0.45, COLORS.steel, 'dspring', g, WIDTH.damperFlange / 2 + 0.8);
     }
 
-    // the unison: three strings in the string plane [T: spacing]
-    for (const z of [-3.5, 0, 3.5]) rodBetween([stringX(-60), -60], [stringX(175), 175], 0.55, COLORS.string, 'string', root, {}, z);
+    // the unison in the string plane
+    for (const z of STRING.unison) rodBetween([stringX(STRING.y0), STRING.y0], [stringX(STRING.y1), STRING.y1], STRING.r, COLORS.string, 'string', root, {}, z);
     building = -1; ghost = 1;
     return n;
   }
@@ -357,7 +357,7 @@ export function createUprightScene(canvas, overlay) {
     [N0.damper, [2, 20, 5], 'Damper lever'], [N0.damper, [24, 90, 7], 'Damper'], [N0.dflange, [12, -10, 5], 'Damper flange'],
     [N0.damper, [3, 60, 2], 'Damper wire'], [fixed, [-2, -40, 41], 'Main rail'], [hammerRail, [-45, 70, 41], 'Hammer rail'],
     [N0.root, [stringX(150), 160, 0], 'Strings'], [N0.wflange, [2, -72, 3], 'Wippen flange'], [N0.wippen, [-46, 10, 2], 'Jack spring'],
-    [N0.key, [-300, -150, 11], 'Key (stand-in)'],
+    [N0.root, [-300, -150, 11], 'Key (stand-in)'],
   ].map(([obj, p, text]) => {
     const e = document.createElement('div'); e.className = 'plabel'; e.textContent = text; e.hidden = true; overlay.appendChild(e);
     return { obj, p: new THREE.Vector3(...p), e };
@@ -407,7 +407,10 @@ export function createUprightScene(canvas, overlay) {
   let viewAnim = null;
   function setNeighbors(on) { for (const n of notes.slice(1)) n.root.visible = on; }
   // a clipped view keeps only the slice of the action between two x (action frame); cut parts show their insides
+  let clipNow = null;
+  const inClip = p => !clipNow || (p.x >= H[0] + clipNow[0] && p.x <= H[0] + clipNow[1]);
   function setClip(c) {
+    clipNow = c || null;
     const P = (x, k) => new THREE.Plane(new THREE.Vector3(x, 0, 0), k);
     renderer.clippingPlanes = c ? [P(1, -(H[0] + c[0])), P(-1, H[0] + c[1])] : [];
     const side = c ? THREE.DoubleSide : THREE.FrontSide;
@@ -428,7 +431,9 @@ export function createUprightScene(canvas, overlay) {
     const r = canvas.getBoundingClientRect();
     ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObjects(pickables, false).find(h => h.object.userData.baseOpacity > 0.25);
+    // see-through parts and parts a clipped view has cut away are skipped (a ray ignores clipping planes)
+    const shown = o => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
+    const hit = ray.intersectObjects(pickables, false).find(h => h.object.userData.baseOpacity > 0.25 && shown(h.object) && inClip(h.point));
     return hit ? { part: hit.object.userData.part, name: PART_NAMES[hit.object.userData.part] || hit.object.userData.part } : null;
   }
   // where a point of a group is on the picture, in pixels from its top left
@@ -460,5 +465,12 @@ export function createUprightScene(canvas, overlay) {
     updateLabels();
     renderer.render(scene, camera);
   }
-  return { render, setView, setNeighbors, setLabels, setBackground, pick, screenOf, controls, camera, scene, notes, VIEWS, partMeshes };
+  // let go of everything this scene made (the app's switch between actions will build and drop scenes)
+  function dispose() {
+    controls.dispose();
+    scene.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+    for (const l of LABELS) l.e.remove();
+    renderer.dispose();
+  }
+  return { render, setView, setNeighbors, setLabels, setBackground, pick, screenOf, dispose, controls, camera, scene, notes, VIEWS, partMeshes };
 }

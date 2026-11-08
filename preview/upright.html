@@ -5,7 +5,7 @@
 <title>Upright action preview</title>
 <link rel="icon" href="data:,">
 <!-- Work bench for the upright drawing (research/upright/protocol.md, C1). Not linked from the app: the upright joins it
-     at the switch (C6). URL: ?view=<name> &labels=1 &at=x,y,z &from=x,y,z (world mm) &bg=#rrggbb. Click a part for its name. -->
+     at the switch (C6). URL: ?view=<name> &labels=1 &at=x,y,z &from=x,y,z (world mm) &bg=rrggbb (hex, no #). Click a part for its name. -->
 <style>
 :root { --ink: #222; --muted: #666; --panel: #fff; --line: #c9c9c9; }
 html, body { margin: 0; height: 100%; background: #eceef0; font: 13px system-ui, sans-serif; color: var(--ink); }
@@ -28,7 +28,7 @@ import { createUprightScene } from '../scene-upright.js';
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById('c');
 const S = createUprightScene(canvas, document.getElementById('overlay'));
-S.setBackground(q.get('bg') || '#eceef0');
+S.setBackground('#' + (q.get('bg') || 'eceef0').replace(/^#/, ''));
 if (q.has('shot')) document.body.classList.add('shot');
 let labels = q.get('labels') === '1';
 S.setLabels(labels);
@@ -48,6 +48,7 @@ canvas.addEventListener('pointerup', e => {
   const p = S.pick(e); document.getElementById('picked').textContent = p ? p.name : '';
 });
 window.S = S;
-(function loop() { S.render(); requestAnimationFrame(loop); })();
-setTimeout(() => { window.ready = true; }, 600);
+// ready for a screenshot once a few frames are drawn (the view is set instantly, so nothing is still moving)
+let frames = 0;
+(function loop() { S.render(); if (++frames === 3) window.ready = true; requestAnimationFrame(loop); })();
 </script></body></html>

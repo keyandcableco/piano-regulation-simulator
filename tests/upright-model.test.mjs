@@ -1,10 +1,10 @@
 // Gate 2 at rest, in the model: the traced upright geometry holds together. Every part touches what holds it, every
 // contact the drawing shows is a contact in the numbers, and the measured centres are where S15 measured them.
-// node --test   (from the repo root; Node 18+, no packages)
+// node --test   (from the repo root; Node 22 or 20.19+: upright-model.js is ES module syntax and the repo has no package.json)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { H, KEY, CENTER, TRACE, SHANK, shankAt, CATCHER_SHANK, CAPSTAN, MAIN_RAIL, HAMMER_RAIL, LETOFF_RAIL, STRING, stringX,
-  WIDTH } from '../upright-model.js';
+import { H, KEY, CENTER, TRACE, SHANK, shankAt, CATCHER_SHANK, CAPSTAN, EYE, STRAP_T, BUTT_FORK, WIPPEN_FORK, SCREWS, MAIN_RAIL,
+  HAMMER_RAIL, LETOFF_RAIL, STRING, stringX, WIDTH } from '../upright-model.js';
 
 const inside = ([x, y], poly) => {
   let c = false;
@@ -20,9 +20,19 @@ const segDist = (p, a, b) => {
 };
 // distance from a point to a polygon's outline (0 on it)
 const edgeDist = (p, poly) => Math.min(...poly.map((a, i) => segDist(p, a, poly[(i + 1) % poly.length])));
-// distance between two polygons' outlines, or 0 if they overlap
-const polyDist = (P, Q) => (P.some(p => inside(p, Q)) || Q.some(q => inside(q, P)) ? 0
+// do segments ab and cd cross (touching ends don't count)
+const cross = (a, b, c, d) => {
+  const o = (p, q, r) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]));
+  return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;
+};
+const edges = poly => poly.map((a, i) => [a, poly[(i + 1) % poly.length]]);
+// distance between two polygons' outlines, or 0 if they overlap (a vertex inside, or edges crossing)
+const polyDist = (P, Q) => (P.some(p => inside(p, Q)) || Q.some(q => inside(q, P))
+  || edges(P).some(([a, b]) => edges(Q).some(([c, d]) => cross(a, b, c, d))) ? 0
   : Math.min(...P.map(p => edgeDist(p, Q)), ...Q.map(q => edgeDist(q, P))));
+// no two edges of a closed polygon cross
+const simple = poly => edges(poly).every(([a, b], i) => edges(poly).every(([c, d], j) => Math.abs(i - j) < 2
+  || (i === 0 && j === poly.length - 1) || (j === 0 && i === poly.length - 1) || !cross(a, b, c, d)));
 const ys = poly => poly.map(p => p[1]), xs = poly => poly.map(p => p[0]);
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a.toFixed(2)} vs ${b.toFixed(2)} (tolerance ${tol})`);
 
@@ -33,22 +43,32 @@ test('centre pins are where S15 measured them (findings.md, grey rest frame)', (
   near(SHANK.lean * 180 / Math.PI, 22.3, 0.01, 'shank lean');
 });
 
-test('outlines are well formed', () => {
+const PATHS = new Set(['buttSpring', 'strap', 'spoon', 'backcheckWire', 'bridleWire', 'damperSpring', 'damperWire', 'jackSpring',
+  'letoffScrew']);
+test('outlines are well formed: finite, and every closed one simple (no edges crossing)', () => {
   for (const [k, v] of Object.entries(TRACE)) {
     if (k === 'damperBlock' || k === 'letoffEye') continue;
-    const polys = k === 'damperFelts' ? v : [v];
-    for (const p of polys) {
-      assert.ok(p.length >= 2, `${k} has points`);
+    for (const p of k === 'damperFelts' ? v : [v]) {
+      assert.ok(p.length >= (PATHS.has(k) ? 2 : 3), `${k} has points`);
       assert.ok(p.every(q => q.length === 2 && q.every(Number.isFinite)), `${k} is finite`);
+      if (!PATHS.has(k)) assert.ok(simple(p), `${k} is a simple polygon`);
     }
   }
+  for (const p of [MAIN_RAIL, HAMMER_RAIL.felt, HAMMER_RAIL.wood, LETOFF_RAIL]) assert.ok(simple(p), 'rail is a simple polygon');
+  // the crossing test itself: a bow-tie fails, a square passes, and a bar crossing a block counts as touching
+  assert.ok(!simple([[0, 0], [2, 2], [2, 0], [0, 2]]) && simple([[0, 0], [2, 0], [2, 2], [0, 2]]), 'simple() works');
+  assert.equal(polyDist([[-1, 0.4], [3, 0.4], [3, 0.6], [-1, 0.6]], [[0, 0], [2, 0], [2, 1], [0, 1]]), 0, 'polyDist sees crossings');
 });
 
 test('each centre pin is in the parts it joins', () => {
   assert.ok(inside(CENTER.butt, TRACE.butt), 'butt pin in the butt');
-  assert.ok(Math.hypot(CENTER.butt[0], CENTER.butt[1]) < 5, 'butt pin within the flange cheeks (r 5)');
+  assert.ok(Math.hypot(CENTER.butt[0], CENTER.butt[1]) < BUTT_FORK.cheekR, 'butt pin within the flange cheeks');
+  assert.ok(CENTER.butt[1] < BUTT_FORK.y && CENTER.butt[1] > BUTT_FORK.cheekBottom, 'butt pin in its tongue, between the cheeks');
   assert.ok(inside(CENTER.wippen, TRACE.wippen), 'wippen pin in the wippen');
-  assert.ok(Math.hypot(CENTER.wippen[0] - 2.25, 0) < 3.75 && CENTER.wippen[1] <= -60, 'wippen pin in the flange tongue');
+  assert.ok(inside(CENTER.wippen, TRACE.wippenFlange), 'wippen pin in the flange tongue');
+  assert.ok(edgeDist(CENTER.wippen, TRACE.wippenFlange) > 2, 'with wood round it');
+  const fx = xs(TRACE.wippenFlange);
+  assert.ok(WIPPEN_FORK.x[0] < Math.min(...fx) && WIPPEN_FORK.x[1] > Math.max(...fx), 'the wippen is forked all along the tongue');
   assert.ok(inside(CENTER.jack, TRACE.jack), 'jack pin in the jack');
   assert.ok(inside(CENTER.jack, TRACE.jackFlange), 'jack pin in its flange');
   assert.ok(inside(CENTER.damper, TRACE.damperLever), 'damper pin in the lever');
@@ -112,8 +132,10 @@ test('the strap runs from the catcher over the let-off eye to the bridle wire ho
   const s = TRACE.strap;
   assert.ok(edgeDist(s[0], TRACE.catcherHead) < 1, 'fixed on the catcher');
   near(Math.hypot(s.at(-1)[0] - TRACE.bridleWire.at(-1)[0], s.at(-1)[1] - TRACE.bridleWire.at(-1)[1]), 0, 0.6, 'end on the hook');
-  const eye = TRACE.letoffEye, over = s.filter(p => Math.abs(p[0] - eye[0]) < 1.5);
-  assert.ok(over.length && over.every(p => p[1] > eye[1] + 2.4 && p[1] < eye[1] + 4), 'draped over the eye');
+  const eye = TRACE.letoffEye, touch = EYE.R + EYE.r + STRAP_T / 2;
+  const closest = Math.min(...s.slice(1).map((q, i) => segDist(eye, s[i], q)));
+  near(closest, touch, 0.3, 'strap lying on the eye');
+  assert.ok(s.some(p => Math.abs(p[0] - eye[0]) < 1 && p[1] > eye[1]), 'over the top of it');
   const len = s.slice(1).reduce((t, q, i) => t + Math.hypot(q[0] - s[i][0], q[1] - s[i][1]), 0);
   near(len, 58.5, 1, 'strap length (S15: taut 58-59 mm)');
 });
@@ -122,8 +144,18 @@ test('flanges are on the main rail; the let-off screw goes through its rail', ()
   const [r0, r1] = [Math.min(...xs(MAIN_RAIL)), Math.max(...xs(MAIN_RAIL))], [rb, rt] = [Math.min(...ys(MAIN_RAIL)), Math.max(...ys(MAIN_RAIL))];
   near(Math.min(...ys(TRACE.buttFlange)), rt, 0.01, 'butt flange foot on the rail top');
   assert.ok(Math.min(...xs(TRACE.buttFlange)) >= r0 && Math.max(...xs(TRACE.buttFlange)) <= r1, 'butt flange foot within the rail');
-  near(Math.max(...ys(TRACE.wippenFlange)), rb + 10, 0.01, 'wippen flange foot up the back face 10 mm');
-  near(Math.min(...xs(TRACE.wippenFlange.filter(p => p[1] > -60))), r1, 0.01, 'wippen flange foot on the back face');
+  near(Math.max(...ys(TRACE.wippenFlange)), rb, 0.01, 'wippen flange tongue from the rail\'s underside');
+  const pl = TRACE.wippenFlangePlate;
+  near(Math.min(...xs(pl)), r1, 0.01, 'wippen flange plate on the rail\'s back face');
+  near(Math.min(...xs(pl)), Math.max(...xs(TRACE.wippenFlange)), 0.01, 'plate against the tongue\'s back');
+  assert.ok(rb - Math.min(...ys(pl)) >= 5, 'plate overlaps the tongue at least 5 mm (joined, not at a corner)');
+  assert.ok(Math.max(...ys(pl)) > rb + 5, 'plate up the rail\'s back face');
+  const sc = SCREWS.wippenFlange;
+  assert.ok(inside([sc.p[0] - 1, sc.p[1]], pl) && sc.p[0] - sc.len < r1, 'its screw through the plate into the rail');
+  const bs = SCREWS.buttFlange;
+  assert.ok(inside([bs.p[0], bs.p[1] - 1], TRACE.buttFlange) && bs.p[1] - bs.len < rt, 'butt flange screw through the foot into the rail');
+  const ds = SCREWS.damperFlange;
+  assert.ok(inside([ds.p[0] - 1, ds.p[1]], TRACE.damperFlange) && ds.p[0] - ds.len < r1 && ds.p[1] < rt, 'damper flange screw into the rail');
   near(Math.min(...xs(TRACE.damperFlange.filter(p => p[1] < -6))), r1, 0.01, 'damper flange foot on the back face');
   assert.ok(Math.min(...ys(TRACE.damperFlange)) < rt, 'damper flange foot reaches below the rail top');
   const [sx, sy0] = TRACE.letoffScrew[0], sy1 = TRACE.letoffScrew[1][1];
