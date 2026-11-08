@@ -5,7 +5,7 @@
 // against the model (protocol 3.8; research/upright/gate5.md lists each claim, its source and the test that shows it).
 // Where the sim doesn't model something a step talks about, the step says so.
 import {
-  FACTORY, ADJ, SPEC, measure, pose, gRail, gOnJack, stringGap, crownAt, keyFrontTop, NEIGHBOR_H, TRACE, CENTER, toSim, turn, jackPt, CORNER,
+  FACTORY, ADJ, SPEC, DAMAGE, measure, capstanFor, pose, gRail, gOnJack, gString, stringGap, crownAt, keyFrontTop, NEIGHBOR_H, TRACE, CENTER, toSim, turn, jackPt, CORNER,
 } from './upright-model.js';
 import { NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 
@@ -19,9 +19,11 @@ export const fmt = v => v == null ? '—' : `${dec(v)} mm`;
 // same action weight on its capstan. Cards marked info are steps the sim doesn't model, shown so the sequence reads
 // complete. A step: spec (graded), also (more graded specs), knobs (ADJ ids), test (the main one), tests.
 export const STEPS = [
-  { info: true, id: 'prep', title: 'Before you regulate: prepare the action',
+  { spec: 'buttLeather', also: ['catcherLeather', 'jackSpring', 'buttSpring', 'buttCenter', 'strap'], id: 'prep', title: 'Before you regulate: prepare the action',
+    knobs: [], repairs: true, test: 'inspectLeather', tests: ['inspectLeather', 'jackPush', 'hammerLift', 'strapLook'],
     what: 'Regulating over loose screws, worn parts or tight centers is wasted work, and no regulation makes up for worn-out parts. Tighten every screw, the action bracket bolts before the action comes out so the frame stays in line. Check that the felts and leathers are still usable, every center is free but not wobbly, and nothing rubs. Ease tight keys (Steinway: "A tight key will make other adjustments virtually useless."), reshape worn hammers, and take the lost motion out of the pedal rods and trapwork.',
-    how: 'Not in the sim: its screws, centers, felts and keys start out sound.' },
+    how: 'In the sim: look at the butt leather and the catcher\'s buckskin for grooves and shine; push each jack out from under its butt and let it go (it should spring straight back); lift the hammer and let it go (the butt spring brings it back briskly, and a tight center drags); look at the bridle strap. A worn leather is re-covered, a weak or broken spring replaced, a tight center eased. Its screws, keys and trapwork start out sound.',
+    note: 'Wear in the butt leather adds lost motion, which Spurlock takes out with the capstans; leather worn past use (his first check) is re-covered, and in the sim a worn butt leather is put right only by re-covering it. Upright jacks, butts and dampers all return on springs, so a tired spring shows as a part that comes back slowly or not at all. Igrec tests a butt\'s center with its spring unhooked; the sim\'s test lifts the hammer with the spring on.' },
   { info: true, id: 'seat', title: 'Seat the action and check the strike point',
     what: 'Everything is measured from the strings, so the action has to sit right against them first. On the top treble note the hammer should strike about 1/8" below the V-bar (Spurlock). Find the best tone by ear, levering the action up or down while you play the note, then set the support posts so the action rests evenly on all of them. Bend the top posts so each bracket is snug under its stud: that keeps the lost motion and the dampers stable.',
     how: 'Not in the sim: its one note is fixed in place at its strings.',
@@ -79,9 +81,9 @@ export const STEPS = [
   { info: true, id: 'sustain', title: 'Sustain pedal',
     what: 'The sustain pedal needs a little lost motion, so the damper lift rod stands clear of every damper lever at rest and each damper presses its strings with its full spring: about 1/8" (3 mm) at the lift rod (Steinway). Push some strings in by hand: their dampers should follow at least 1/16" (Spurlock). Felt under the pedal limits its travel, so it lifts the dampers about as far as the spoons do (Spurlock) and at least 1/8" clear of the strings (Steinway).',
     how: 'Set the lost motion at the trapwork adjustment screw and the travel with the blocking felt under the pedal (Steinway). Not in the sim yet: its pedal has no lost motion and lifts the damper felt about 2.6 mm, a little less than the spoon\'s 3.4 at the bottom of the key.' },
-  { info: true, id: 'damperReturn', title: 'Dampers come back freely',
+  { spec: 'damperSpring', id: 'damperReturn', title: 'Dampers come back freely', knobs: [], repairs: true, test: 'damperPull',
     what: 'Pull the bottom of the damper lever away from the spoon, or the damper away from the strings, and let it go: it should snap back. If it doesn\'t, see that the spring is whole and engaged and not badly rusted, and that it isn\'t jamming in a worn notch. Push the top of the lever toward the rail a few times: a rough feel or a faint creak means its spring notches need lubricating (Igrec).',
-    how: 'Not in the sim yet: its damper comes back freely. Tight centers and tired springs come with Find the fault.' },
+    how: 'A broken or tired spring is replaced. The sim models the spring: its notches, friction and lubrication aren\'t in it.' },
   { info: true, id: 'middle', title: 'The middle pedal',
     what: 'On some uprights, Steinway\'s among them, the middle pedal is a sostenuto: it holds up only the dampers that were already lifted when it went down, and the rest go on working normally (Steinway, whose guide gives its adjustments in full).',
     how: 'Not in the sim.' },
@@ -100,6 +102,7 @@ export const STEPS = [
 //   ctx.release() -> Promise        let the key up and bring everything to rest
 //   ctx.show(a, p) / ctx.show(null) draw a pose of its own (a hand on a part, the rail pulled) instead of the Sim
 //   ctx.grade(id)                   upright-model.js grade() of ctx.m at the current skill level
+//   ctx.lastEvent(type)             the Sim's latest event of that type since the test began (or since ctx.release)
 // specs: what the test reveals; view: where it looks from; scale: slow motion (sim seconds per real second).
 const MF = 450, FF = 1300;   // mm/s at the key front: a moderate and a hard blow (preview/upright.html VEL)
 export const TESTS = {
@@ -171,18 +174,76 @@ export const TESTS = {
     } },
   damperSlow: { label: 'Press slowly: watch the damper', specs: ['damperTiming'], view: 'action', scale: 1,
     run: async ctx => { await ctx.release(); ctx.sim.press(ctx.sim.dip, 6); await ctx.run(ctx.sim.dip / 6 + 0.2); await ctx.pause(1); } },
+  // ---------- the parts' condition (C5): looked at, or tried by hand ----------
+  inspectLeather: { label: 'Look at the butt leather and the catcher\'s buckskin', specs: ['buttLeather', 'catcherLeather'], view: 'butt',
+    run: async ctx => {
+      await ctx.release(); await ctx.pause(1.2);
+      const d = DAMAGE[ctx.m.damage], spec = d?.spec;
+      ctx.say(spec === 'buttLeather' ? `You see ${d.signs}` : 'The butt leather is firm and even: no groove', spec === 'buttLeather');
+      ctx.view('check'); await ctx.pause(1.4);
+      ctx.say(spec === 'catcherLeather' ? `You see ${d.signs}` : 'The catcher\'s buckskin has its nap: not worn smooth', spec === 'catcherLeather');
+      await ctx.pause(1);
+    } },
+  // the jack pushed out by its top and let go: its spring brings it back (drawn: ctx.show)
+  jackPush: { label: 'Push the jack out from under the butt and let it go', specs: ['jackSpring'], view: 'butt',
+    run: async ctx => {
+      await ctx.release();
+      const { a, m } = ctx, p = pose(a, 0), out = p.psi + 0.14, k = DAMAGE[m.damage]?.dyn?.jackRate ?? 1;
+      const at = psi => ({ ...p, psi });
+      for (let i = 1; i <= 10; i++) { ctx.show(a, at(p.psi + (out - p.psi) * i / 10)); await ctx.pause(0.04); }
+      await ctx.pause(0.4);
+      // back at the spring's rate: about 6 frames sound, 50 weak; broken, it stays out
+      if (k > 0) { const n = Math.round(6 / Math.max(k, 0.12)); for (let i = 1; i <= n; i++) { ctx.show(a, at(out - (out - p.psi) * i / n)); await ctx.pause(0.03); } }
+      ctx.say(k >= 1 ? 'Let go, the jack springs straight back under the butt' : k > 0 ? 'Let go, the jack creeps back: its spring is weak' : 'Let go, the jack stays out: its spring is broken', k < 1);
+      await ctx.pause(1.2); ctx.show(null);
+    } },
+  // the hammer lifted toward the strings by hand and let go: the butt spring and gravity bring it back to the rail
+  hammerLift: { label: 'Lift the hammer by hand and let it go', specs: ['buttSpring', 'buttCenter'], view: 'action', scale: 0.25,
+    run: async ctx => {
+      await ctx.release();
+      const { sim, a } = ctx, g0 = gRail(a);
+      sim.g = g0 + 0.6 * (gString() - g0); sim.w = 0;
+      const t0 = sim.t; let back = null;
+      for (let i = 0; i < 12 && back === null; i++) { await ctx.run(0.05); back = ctx.lastEvent('rail')?.t ?? null; }
+      const ms = back === null ? null : Math.round(1000 * (back - t0)), d = DAMAGE[ctx.m.damage];
+      ctx.say(d?.spec === 'buttSpring' ? `It falls back slowly, by its own weight${ms ? `, ${ms} ms` : ''}: the butt spring is broken`
+        : d?.spec === 'buttCenter' ? `It comes back slowly${ms ? `, ${ms} ms` : ''}, dragging on its center pin` : `It springs back to the rail in ${ms ?? '—'} ms`, d && (d.spec === 'buttSpring' || d.spec === 'buttCenter'));
+      await ctx.run(0.2); await ctx.pause(0.6);
+    } },
+  strapLook: { label: 'Look at the bridle strap', specs: ['strap'], view: 'check',
+    run: async ctx => { await ctx.release(); await ctx.pause(1.2); const d = DAMAGE[ctx.m.damage];
+      ctx.say(d?.spec === 'strap' ? `You see ${d.signs}` : 'The strap is whole and hooked on its wire', d?.spec === 'strap'); await ctx.pause(1); } },
+  // the damper lever pulled off its spoon and let go: its spring should snap it back (Igrec)
+  damperPull: { label: 'Pull the damper lever off the spoon and let it go', specs: ['damperSpring'], view: 'damper',
+    run: async ctx => {
+      await ctx.release();
+      const { a, m } = ctx, p = pose(a, 0), k = DAMAGE[m.damage]?.dyn?.damperAlpha ?? 1, top = 0.06;
+      const at = dl => ({ ...p, dl });
+      for (let i = 1; i <= 10; i++) { ctx.show(a, at(top * i / 10)); await ctx.pause(0.04); }
+      await ctx.pause(0.4);
+      if (k > 0) { const n = Math.round(4 / Math.sqrt(Math.max(k, 0.12))); for (let i = 1; i <= n; i++) { ctx.show(a, at(top * (1 - (i / n) ** 2))); await ctx.pause(0.03); } }
+      ctx.say(k >= 1 ? 'Let go, it snaps back onto the strings' : k > 0 ? 'Let go, it drifts back to the strings: its spring is weak' : 'Let go, it stays off the strings: its spring is broken', k < 1);
+      await ctx.pause(1.2); ctx.show(null);
+    } },
 };
+// the repairs a step or a fault can call for: each puts right the damage that its spec finds
+export const REPAIRS = [...new Map(Object.values(DAMAGE).map(d => [d.repair, { label: d.repair, spec: d.spec }])).values()];
 
 // ---------- readings: a spec's value in words ----------
 export const SPEC_NAMES = {
   keyHeight: 'Key height (vs neighbors)', dip: 'Dip', blow: 'Blow', lostMotion: 'Lost motion (at the jack)', letoff: 'Let-off',
   aftertouch: 'Aftertouch', escapement: 'Jack clear of the butt, key held', check: 'Checking', bridle: 'Strap slack at rest',
   softPedal: 'Soft pedal: share of the blow', damperTiming: 'Damper starts: share of the blow',
+  buttLeather: 'Butt leather', catcherLeather: 'Catcher buckskin', jackSpring: 'Jack spring', damperSpring: 'Damper spring',
+  buttSpring: 'Butt spring', buttCenter: 'Butt center', strap: 'Bridle strap',
 };
+const CONDITION = { buttLeather: 'firm, not grooved', catcherLeather: 'not worn smooth', jackSpring: 'springs the jack back', damperSpring: 'snaps the damper back',
+  buttSpring: 'brings the hammer back briskly', buttCenter: 'free, not wobbly', strap: 'whole and hooked' };
 // a spec's band as the step shows it
 export function bandText(id) {
   const s = SPEC[id];
   if (id === 'keyHeight') return 'level with the neighbors';
+  if (CONDITION[id]) return CONDITION[id];
   if (id === 'bridle') return 'soft pedal down: the wippen stays put';
   if (id === 'lostMotion') return 'the least that lets the jack return';
   if (id === 'damperTiming' || id === 'softPedal') return `${Math.round(100 * (s.target - s.tol))}-${Math.round(100 * (s.target + s.tol))}%`;
@@ -200,6 +261,7 @@ function frac(mm, round) {
 }
 export function readingText(id, m) {
   const v = m[id];
+  if (CONDITION[id]) { const d = DAMAGE[m.damage]; return d?.spec === id ? d.name.toLowerCase() : 'sound'; }
   if (id === 'keyHeight') return Math.abs(v) < 0.05 ? 'level' : `${fmt(Math.abs(v))} ${v > 0 ? 'high' : 'low'}`;
   if (id === 'damperTiming' || id === 'softPedal') return v == null ? '—' : `${Math.round(100 * v)}%`;
   if (id === 'bridle') return fmt(m.strapSlack);
@@ -234,6 +296,60 @@ export function callouts({ a, m, p, events = [], shown }) {
   }
   return out;
 }
+
+// ---------- Find the fault (C5): a customer's complaint, one cause ----------
+// Each case is one cause (a knob off, or a worn or broken part), sized so the action shows the complaint and nothing
+// bigger, checked in play by tests/upright-scenarios.test.mjs (protocol 3.4). make(f): the change from the factory f.
+// Complaints are worded for what the sim shows; the cause and fix name the source where there is one.
+export const SCENARIOS = [
+  { id: 'stickyJack', complaint: 'If I let a key up slowly, it sometimes won\'t play the next time.', make: f => ({ capstan: f.capstan + 0.1 }),
+    cause: 'Too little lost motion: the capstan is up so far that the jack can\'t get back under the butt on a slow release (Steinway, Spurlock)',
+    fix: 'Turn the capstan down a little, until the jack return test passes' },
+  { id: 'looseKeys', complaint: 'The keys feel loose and clunky at the top.', make: f => ({ capstan: f.capstan - 0.5 }),
+    cause: 'Too much lost motion: the capstan is low, so the key moves before the hammer does (Spurlock)',
+    fix: 'Raise the capstan until the hammer just follows a pulled rail' },
+  { id: 'letoffClose', complaint: 'Some notes buzz or bounce against the string when I play them, even softly.', make: f => ({ letoff: f.letoff - 0.4 }),
+    cause: 'Let-off too close: the jack lets go so near the strings that the hammer can\'t get clear of them (Spurlock)',
+    fix: 'Lower the let-off button until the hammer lets off 1/8" from the strings' },
+  { id: 'letoffFar', complaint: 'I can\'t play this note quietly: it won\'t sound unless I play it harder.', make: f => ({ letoff: f.letoff + 0.5 }),
+    cause: 'Let-off too far: the jack lets go far from the strings, so a soft blow runs out before it gets there (Estey)',
+    fix: 'Raise the let-off button until the hammer lets off 1/8" from the strings' },
+  { id: 'blubber', complaint: 'When I hold a loud note, the hammer stays against the string and blubbers.', make: f => { const a = { ...f, railShim: f.railShim - 1.6 }; return { railShim: a.railShim, capstan: capstanFor(a) }; },
+    cause: 'Not enough jack escapement: the blow is too long for the dip, so with the key held the jack top rests against the butt leather (Spurlock)',
+    fix: 'Shorten the blow (shim the rail felts) and reset the lost motion, until the jack stands 1/16" to 1/8" clear' },
+  { id: 'checkFar', complaint: 'When I hold this key after a loud note, its hammer falls back much farther than the others.', make: f => ({ backcheck: f.backcheck - 0.8 }),
+    cause: 'The backcheck is bent too far from the catcher, so it catches the hammer late (Spurlock)',
+    fix: 'Bend the backcheck wire toward the catcher until the hammer checks 1/2" to 5/8" from the strings' },
+  { id: 'bridleTight', complaint: 'When I use the soft pedal, some keys go out of level.', make: f => ({ bridle: f.bridle + 3 }),
+    cause: 'The bridle strap is too tight: the soft pedal, moving the hammers, lifts the wippen off its capstan (Spurlock, Steinway)',
+    fix: 'Bend the bridle wire toward the catcher until the soft pedal leaves the wippen on its capstan' },
+  { id: 'softWeak', complaint: 'The soft pedal doesn\'t do much.', make: f => ({ softFelt: f.softFelt - 5 }),
+    cause: 'The soft pedal\'s travel is short: it moves the hammers only a quarter of the way to the strings (Spurlock: halfway)',
+    fix: 'Thin the soft pedal\'s blocking felt until the hammers come halfway to the strings' },
+  { id: 'spoonEarly', complaint: 'The keys feel heavy right at the start of the stroke.', make: f => ({ spoon: f.spoon + 0.8 }),
+    cause: 'The spoon lifts the damper too early: the key takes up the damper spring almost at once (Spurlock: spoons weigh in the touch)',
+    fix: 'Bend the spoon away from the damper lever until the damper starts with the hammer halfway' },
+  { id: 'buttLeather', complaint: 'This key feels loose and clunky at the top, even after the last regulation.', make: () => ({ damage: 'buttLeather' }),
+    cause: 'The butt leather is worn: a groove where the jack lifts it adds lost motion (Spurlock: check that leathers are usable before regulating)',
+    fix: 'Re-cover the butt; then set the lost motion' },
+  { id: 'catcherLeather', complaint: 'When I hold a loud note, the hammer drops back farther than it used to.', make: () => ({ damage: 'catcherLeather' }),
+    cause: 'The catcher\'s buckskin is worn thin and slick, so the backcheck catches it late',
+    fix: 'Re-cover the catcher with new buckskin; then check the checking' },
+  { id: 'jackSpringBroken', complaint: 'One note plays once, then won\'t play again.', make: () => ({ damage: 'jackSpringBroken' }),
+    cause: 'The jack spring is broken: after let-off nothing brings the jack back under the butt (Igrec: the spring sits in the jack\'s notch)',
+    fix: 'Replace the jack spring' },
+  { id: 'jackSpringWeak', complaint: 'Fast repeated notes don\'t all sound on this key.', make: () => ({ damage: 'jackSpringWeak' }),
+    cause: 'The jack spring is weak: the jack creeps back under the butt, too slowly for a quick repeat',
+    fix: 'Replace the jack spring' },
+  { id: 'damperSpringBroken', complaint: 'One note keeps ringing after I let it go.', make: () => ({ damage: 'damperSpringBroken' }),
+    cause: 'The damper spring is broken: nothing brings the damper back to the strings (Igrec)', fix: 'Replace the damper spring' },
+  { id: 'damperSpringWeak', complaint: 'One note rings on for a moment after I let it go.', make: () => ({ damage: 'damperSpringWeak' }),
+    cause: 'The damper spring is weak: the damper drifts back to the strings (Igrec)', fix: 'Replace the damper spring' },
+  { id: 'buttCenterTight', complaint: 'This key feels stiff, and soft notes don\'t always sound.', make: () => ({ damage: 'buttCenterTight' }),
+    cause: 'The butt center is tight: the hammer drags on its pin (Igrec\'s table gives its healthy range)', fix: 'Ease or repin the butt center' },
+  { id: 'strapBroken', complaint: 'Quick repeated notes feel slow on this key.', make: () => ({ damage: 'strapBroken' }),
+    cause: 'The bridle strap is broken: nothing helps the hammer back from the backcheck on a quick release (Ellis)', fix: 'Replace the bridle strap' },
+];
 
 // ---------- the de-regulated start ----------
 // Learn's key starts out of regulation on purpose (the grand's 4adbd5f), every knob off by a random amount, but short of

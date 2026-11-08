@@ -20,7 +20,7 @@ const steps = STEPS.map((s, i) => {
     parts.push(`<p class="small"><b>Knobs:</b> ${s.knobs.map(k => { const d = ADJ.find(x => x.id === k); return `${esc(d.name)} (a step: ${d.step} ${d.unit})`; }).join('; ')}</p>`);
     parts.push(`<p class="small"><b>Tests:</b> ${(s.tests ?? [s.test]).map(t => esc(TESTS[t].label)).join('; ')}</p>`);
   }
-  const tips = TIPS[s.spec ?? s.id] ?? [];
+  const tips = TIPS[s.id ?? s.spec] ?? [];
   if (tips.length) parts.push('<h3>From the bench</h3><ul>' + tips.map(t => `<li>${esc(t.text)} <span class="credit">(${link(t)})</span></li>`).join('') + '</ul>');
   return `<section>${parts.join('\n')}</section>`;
 }).join('\n');

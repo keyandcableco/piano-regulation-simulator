@@ -407,7 +407,11 @@ export function createUprightScene(canvas, overlay) {
       if (i) along += Math.hypot(q[0] - s[i - 1][0], q[1] - s[i - 1][1]);
       return lerp(turn(q, CENTER.butt, -p.g), wipPt(p.phi, turn(q, BRIDLE_BASE, bridleAngle(a))), along / STRAP_LEN);
     });
-    reshape(n.strap, tapeGeo(strap, STRAP_T, WIDTH.strap, BASS * STRAP_Z0, BASS * BRIDLE_Z));
+    // a broken strap (upright-model.js DAMAGE) hangs from the catcher, its end gone
+    const broken = a.damage === 'strapBroken';
+    const hang = broken ? [f, [f[0] + 0.5, f[1] - 9], [f[0] + 1.2, f[1] - 18]] : strap;
+    reshape(n.strap, tapeGeo(hang, STRAP_T, WIDTH.strap, BASS * STRAP_Z0, broken ? BASS * STRAP_Z0 : BASS * BRIDLE_Z));
+    n.strapEnd.visible = !broken;
     n.strapEnd.position.set(k[0], k[1], BASS * BRIDLE_Z);
   }
 
@@ -471,7 +475,11 @@ export function createUprightScene(canvas, overlay) {
     damperangle: { t: at(30, 20), p: at(250, 90, 260) },
   };
   let viewAnim = null;
-  function setNeighbors(on) { for (const n of notes.slice(1)) n.root.visible = on; }
+  // the neighbor slots show in the views across the keyboard; present: which of them there are (the exam's end notes
+  // have one neighbor, not two)
+  let present = [true, true], nbOn = false;
+  function setNeighbors(on) { nbOn = on; notes.slice(1).forEach((n, i) => { n.root.visible = on && present[i]; }); }
+  function setPresent(p) { present = p; setNeighbors(nbOn); }
   // a clipped view keeps only the slice of the action between two x (action frame); cut parts show their insides
   let clipNow = null;
   const inClip = p => !clipNow || (p.x >= H[0] + clipNow[0] && p.x <= H[0] + clipNow[1]);
@@ -638,6 +646,6 @@ export function createUprightScene(canvas, overlay) {
     renderer.dispose();
   }
   return { render, update, setView, setNeighbors, setLabels, setBackground, pick, screenOf, setCallout, clearCallouts, zoomBy, slideBy, resetView, highlight,
-    setInset, setInsetText, insetEl: insetBox,
+    setInset, setInsetText, insetEl: insetBox, setPresent,
     dispose, controls, camera, scene, notes, VIEWS, PART_NAMES, partMeshes };
 }

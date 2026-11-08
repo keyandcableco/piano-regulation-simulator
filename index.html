@@ -58,7 +58,7 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -app
 #app:not(.upright) [data-upright] { display: none !important; }
 #app.upright #c, #app.upright #overlay, #app.upright #inset, #app.upright #partpop, #app.upright #popdot, #app.upright #examclock,
 #app.upright #views > :not([data-upright]), #app.upright #keybar > :not([data-upright]), #app.upright #keystatus > :not([data-upright]),
-#app.upright .tab:is([data-mode=diagnose], [data-mode=exam], [data-mode=drills], [data-mode=tools]), #app.upright #units { display: none !important; }
+#app.upright .tab[data-mode=tools], #app.upright #units { display: none !important; }
 #cu { cursor: grab; } #cu:active { cursor: grabbing; }
 .u-keystate { font-size: 12px; color: var(--muted); flex: none; width: 8em; } .u-keystate.down { color: var(--accent); font-weight: 600; }
 .u-lastevent { font-size: 12px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; }

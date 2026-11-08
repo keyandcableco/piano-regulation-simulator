@@ -32,7 +32,7 @@ if (!out) { console.error('usage: node tests/upright-app-check.cjs <out_dir> [ba
   check(await page.$eval('#c', e => getComputedStyle(e).display === 'none'), 'the grand picture is hidden');
   check((await text('header h1')) === 'Upright action regulation', 'header says upright');
   const tabs = await page.$$eval('.tab', bs => bs.filter(b => getComputedStyle(b).display !== 'none').map(b => b.textContent));
-  check(tabs.join() === 'Learn,Sandbox', `upright tabs: ${tabs.join(', ')}`);
+  check(tabs.join() === 'Learn,Find the fault,Sandbox,Exam,Drills', `upright tabs: ${tabs.join(', ')}`);
   check((await text('#mode')).includes('Factory regulation'), 'the Sandbox at factory');
   await shot('upright-sandbox');
   // the key: Play, then the events line
@@ -78,6 +78,37 @@ if (!out) { console.error('usage: node tests/upright-app-check.cjs <out_dir> [ba
   await page.click('#mode .steps .pip >> nth=-1'); await page.waitForTimeout(300);
   check((await text('#mode')).includes('Final check'), 'the final check');
   await shot('upright-final');
+  // Find the fault: a customer, a test, a repair or two, check the work, the answer, the next customer
+  await page.click('.tab[data-mode="diagnose"]'); await page.waitForTimeout(500);
+  check((await text('#mode')).includes('A customer says'), 'Find the fault shows a complaint');
+  await page.click('#mode button.test >> nth=0');
+  await page.waitForFunction(() => !document.querySelector('#mode button.test')?.disabled, null, { timeout: 120000 });
+  const repairs = await page.$$eval('#mode button', bs => bs.filter(b => b.textContent.startsWith('🔧')).length);
+  check(repairs >= 5, `repair buttons: ${repairs}`);
+  await page.click('#actionbar button:has-text("Check my work")'); await page.waitForTimeout(300);
+  check((await text('#mode')).includes('Still out'), 'checking the untouched work names what is still out');
+  await page.click('#actionbar button:has-text("Show what was wrong")'); await page.waitForTimeout(300);
+  check((await text('#mode')).includes('What was wrong'), 'the answer');
+  await shot('upright-diagnose');
+  await page.click('#actionbar button:has-text("Next customer")'); await page.waitForTimeout(500);
+  check(!(await text('#mode')).includes('What was wrong'), 'the next customer starts fresh');
+  // the exam: start, move between the notes, run a test, hand it in; the switch waits while it runs
+  await page.click('.tab[data-mode="exam"]'); await page.waitForTimeout(400);
+  await page.click('#mode button:has-text("Start the exam")'); await page.waitForTimeout(600);
+  check((await text('#mode')).includes('Note 1 (bass)'), 'the exam has three notes');
+  await page.click('#mode button:has-text("Note 3")'); await page.waitForTimeout(400);
+  check(await page.evaluate(() => /note 3/.test(document.querySelector('.u-keypos').textContent)), 'note 3 is the one worked on');
+  await page.click('#mode button.test >> nth=0');
+  await page.waitForFunction(() => !document.querySelector('#mode button.test')?.disabled, null, { timeout: 120000 });
+  await page.click('#action-switch [data-action="grand"]'); await page.waitForTimeout(400);
+  check(await page.evaluate(() => document.getElementById('app').classList.contains('upright')), 'the switch waits while the exam runs');
+  await page.click('#actionbar button:has-text("Hand it in")'); await page.waitForTimeout(800);
+  check(/Score: \d+%/.test(await text('#mode')), `exam scored: ${(await text('#mode')).slice(0, 40)}`);
+  await shot('upright-exam-result');
+  // drills: the strap plot
+  await page.click('.tab[data-mode="drills"]'); await page.waitForTimeout(1500);
+  check((await text('#mode')).includes('Strap or no strap') && await page.$('#mode canvas') !== null, 'the strap drill draws its plot');
+  await shot('upright-drill');
   // credits, then back to the grand
   await page.click('#credits'); await page.waitForTimeout(300);
   check((await text('#mode')).includes('upright credits'), 'upright credits');

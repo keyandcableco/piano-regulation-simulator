@@ -1865,6 +1865,7 @@ async function setAction(kind) {
   }
   // (checked after the load: a test or an exam may have started while it loaded)
   if (kind === action || busy || U?.busy) return;
+  if (U?.examRunning) { toast('Finish or leave the upright exam first', 'warn'); return; }
   if (kind === 'upright') {
     if (mode === 'exam' && exam.started && !exam.done) { toast('Finish or leave the exam first', 'warn'); return; }
     if (mode !== 'learn' && mode !== 'sandbox') $('.tab[data-mode=sandbox]').click();

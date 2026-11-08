@@ -325,6 +325,7 @@ const ctx = {
   },
   show: (an, p) => { override = an ? { a: an, p } : null; },
   grade: id => grade(id, m),
+  lastEvent: type => testEvents.filter(e => e.type === type).at(-1),
 };
 async function runTest(id) {
   if (busy) return;

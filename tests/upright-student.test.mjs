@@ -39,6 +39,8 @@ function tune(a, k, read, target) {
 const okAll = (a, ids) => { const m = measure(a); return ids.every(id => grade(id, m).ok); };
 // what each graded step has the student do (its "how")
 const STUDENT = {
+  // the condition checks: Learn's keys start with every part sound (Find the fault has the damage)
+  buttLeather: () => {}, damperSpring: () => {},
   // the jack holding the hammer off its rail first: capstan down until it rests there (the blow step's note)
   blow: a => { const d = ADJ.find(x => x.id === 'capstan'); while (rd.lostMotion(a) <= 0) a.capstan = +(a.capstan - d.step).toFixed(6); tune(a, 'railShim', rd.blow, SPEC.blow.target); },
   lostMotion: a => tune(a, 'capstan', rd.lostMotion, SPEC.lostMotion.target),
