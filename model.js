@@ -54,9 +54,18 @@ export const G = {
   dmpBounceV: 350,                  // a head landing faster than this (mm/s) bobbles on the strings
 };
 
+// Traveling paper: one strip of thin paper (about 0.001 in, the sim's own figure) under one side of a flange about 11 mm
+// wide. Under the hammer flange it tilts the swing about 0.1 mm at the string (TRAVEL_RISE below); behind the wippen
+// flange it swings the wippen like a gate, the jack top 82 mm out from the flange center pin.
+export const PAPER_T = 0.025, W_FLANGE_W = 11.6, WIPPEN_JACK_ARM = -G.jackPivotW[0] - G.jackTop[0];
+export const WIPPEN_PAPER = +(PAPER_T * WIPPEN_JACK_ARM / W_FLANGE_W).toFixed(2);   // jack swing per strip, mm
+// sideways (+ toward the bass) position of the jack top: shifted on the rail, swung by paper behind the flange
+export const jackSide = a => (a.wippenSpace || 0) + (a.wippenTravel || 0);
+
 // ---------- adjustments (the knobs a technician turns) ----------
 // value units are what the part physically moves; step lists are the
-// increments offered (screw turns or punching thicknesses).
+// increments offered (screw turns or punching thicknesses). sides: a shim that goes under one side
+// or the other (the side is the choice); dirs: a sideways move, + toward the bass (left from the keys).
 export const ADJ = [
   { id: 'balPunch', name: 'Balance rail punchings', part: 'balance', unit: 'mm', min: 0, max: 4,
     steps: [0.1, 0.25], stepLabel: ['0.004" paper', '0.010" card'], how: 'Add or remove paper punchings under the key at the balance rail. Raises or lowers the key front.' },
@@ -82,13 +91,17 @@ export const ADJ = [
     steps: [0.1], stepLabel: ['paper'], sides: ['bass', 'treble'],   // + is paper under the bass side: the path swings toward the treble
     how: 'A strip of thin paper under one side of the flange lifts that side, so the hammer\'s path swings away from it. Put it under the side the hammer drifts toward as it rises. Too much? Take a strip out: the sim counts that as one under the other side.' },
   { id: 'hammerSpace', name: 'Hammer spacing (shift on the flange)', part: 'flange', unit: 'mm', min: -4, max: 4,
-    steps: [0.1, 0.4], stepLabel: ['tap', 'shift'], how: 'Loosen the flange screw and shift the hammer sideways to center it on its unison.' },
+    steps: [0.1, 0.4], stepLabel: ['tap', 'shift'], dirs: true, how: 'Loosen the flange screw and shift the hammer sideways to center it on its unison.' },
   { id: 'hammerSquare', name: 'Burn the shank (heat and twist)', part: 'shank', unit: '°', min: -8, max: 8,
     steps: [0.5], stepLabel: ['twist'], how: 'Warm the shank and twist it so the hammer head stands square to the strings.' },
-  { id: 'wippenSpace', name: 'Wippen spacing (shift on its flange)', part: 'wflange', unit: 'mm', min: -3, max: 3,
-    steps: [0.1, 0.4], stepLabel: ['tap', 'shift'], how: 'Loosen the wippen flange screw and shift the wippen sideways (or tilt it with traveling paper under the flange) to center the jack under the knuckle. + moves it toward the bass.' },
+  { id: 'wippenSpace', name: 'Wippen spacing (loosen the flange screw, shift it)', part: 'wflange', unit: 'mm', min: -3, max: 3,
+    steps: [0.1, 0.4], stepLabel: ['tap', 'shift'], dirs: true,
+    how: 'Loosen the wippen flange screw a little, slide the whole wippen sideways on the rail and snug the screw again: jack, heel and flange all move the same amount. Center the jack under the knuckle.' },
+  { id: 'wippenTravel', name: 'Traveling paper between the wippen flange and its rail', part: 'wflange', unit: 'mm', min: -16 * WIPPEN_PAPER, max: 16 * WIPPEN_PAPER,
+    steps: [WIPPEN_PAPER], stepLabel: ['paper'], sides: ['bass', 'treble'],   // + is paper behind the bass side: the jack swings toward the bass
+    how: 'The flange screws to the back face of the wippen rail. A strip of thin paper behind one side of the flange stands that side off the rail, so the wippen swings on the screw like a gate. The wippen points forward over the rail, so its front end swings toward the side the paper is on: paper behind the bass side moves the jack toward the bass (the opposite of the hammer flange\'s rule). The jack, farthest from the flange, moves most; the heel moves about three quarters as much across the capstan. Steinway: traveling paper between the flange and the rail shifts or tilts the wippen left or right.' },
   { id: 'backcheckSpace', name: 'Backcheck wire, bent sideways', part: 'backcheck', unit: 'mm', min: -3, max: 3,
-    steps: [0.1, 0.4], stepLabel: ['nudge', 'bend'], how: 'Bend the wire sideways with a backcheck bender to center the head behind the hammer tail. + moves it toward the bass.' },
+    steps: [0.1, 0.4], stepLabel: ['nudge', 'bend'], dirs: true, how: 'Bend the wire sideways with a backcheck bender to center the head behind the hammer tail.' },
   { id: 'backcheckSquare', name: 'Backcheck head, twisted on its wire', part: 'backcheck', unit: '°', min: -10, max: 10,
     steps: [0.5, 2], stepLabel: ['twist', 'twist ×4'], how: 'Twist the head with parallel pliers so its face is square to the tail.' },
   { id: 'damperGap', name: 'Damper lift timing (underlever on its wire)', part: 'damper', unit: 'mm', min: 0, max: 10,
@@ -100,7 +113,7 @@ export const ADJ = [
   { id: 'damperDrag', name: 'Damper wire in its guide bushing', part: 'damperwire', unit: '', min: 0, max: 0.9,
     steps: [0.05], stepLabel: ['ease'], how: 'A wire bent off line drags in its bushing and the damper falls late. − straightens and eases it.' },
   { id: 'damperCenter', name: 'Damper wire, bends 3 and 4 (sideways)', part: 'damperwire', unit: 'mm', min: -3, max: 3,
-    steps: [0.1, 0.4], stepLabel: ['nudge', 'bend'], how: 'Bend the wire at its top bends to move the head sideways over its unison. + moves it toward the bass.' },
+    steps: [0.1, 0.4], stepLabel: ['nudge', 'bend'], dirs: true, how: 'Bend the wire at its top bends to move the head sideways over its unison.' },
   { id: 'damperLevel', name: 'Damper wire, seen from the side (seat the head)', part: 'damperwire', unit: 'mm', min: -1.5, max: 1.5,
     steps: [0.05, 0.2], stepLabel: ['nudge', 'bend'], how: 'Bend the wire, seen from the side, so both ends of the head sit on the strings with equal force. + lifts the head\'s back end off the strings.' },
 ];
@@ -191,7 +204,7 @@ export function eff(a) {
   wearNow = w;
   const e = { ...a, _eff: true, wear: w, power: 1 };
   for (const k of ['balPunch', 'frontPunch', 'capstan', 'letoff', 'restRail', 'backcheck', 'repSpring']) e[k] = a[k] + WEAR[k] * w;
-  for (const k of ['hammerTravel', 'hammerSpace', 'hammerSquare', 'wippenSpace', 'backcheckSpace', 'backcheckSquare', 'damperCenter', 'damperLevel']) e[k] = a[k] ?? 0;
+  for (const k of ['hammerTravel', 'hammerSpace', 'hammerSquare', 'wippenSpace', 'wippenTravel', 'backcheckSpace', 'backcheckSquare', 'damperCenter', 'damperLevel']) e[k] = a[k] ?? 0;
   const dmg = DAMAGE[a.damage];
   if (dmg) {
     for (const [k, v] of Object.entries(dmg.add || {})) e[k] += v;
@@ -515,7 +528,7 @@ export function measure(a) {
     jackPos: jg.backX - coreBack(g, jg.backY),
     jackUnder: jg.backX >= slipBack(L, L.psiRest, gJ) + RESET_CLEAR,   // the sim's own test for a jack back under the knuckle
     jackSlips: sp.slipped,
-    wippenSpacing: a.wippenSpace - sideZ(a, kc[1] - G.H[1]),
+    wippenSpacing: jackSide(a) - sideZ(a, kc[1] - G.H[1]),
     // trip the jack at rest: the hammer settles onto the repetition lever. That small drop is the wink.
     // Negative means the lever is already holding the hammer off the jack.
     wink: crownY(Math.max(gJ, gRail(a))) - crownY(gL),   // a hammer on the rail (lost motion) doesn't move at all
@@ -628,7 +641,7 @@ const bis = (a, id, f, target, lo, hi) => { a[id] = solve(x => { a[id] = x; retu
 export function factory() {
   const a = { balPunch: 1.5, jackScrew: 0, repStop: 0, capstan: 13.5, restRail: 110, frontPunch: 2.5,
               letoff: 94, drop: 140, repSpring: 0.8, backcheck: 0, damperGap: 4, damperStop: 8, pedalLift: 8, damperDrag: 0.05,
-              hammerTravel: 0, hammerSpace: 0, hammerSquare: 0, wippenSpace: 0, backcheckSpace: 0, backcheckSquare: 0, damperCenter: 0, damperLevel: 0 };
+              hammerTravel: 0, hammerSpace: 0, hammerSquare: 0, wippenSpace: 0, wippenTravel: 0, backcheckSpace: 0, backcheckSquare: 0, damperCenter: 0, damperLevel: 0 };
   for (let pass = 0; pass < 5; pass++) {
     bis(a, 'jackScrew', () => measure(a).jackPos, 0, -7, 2);
     bis(a, 'repStop', () => measure(a).wink, SPEC.wink.target, -2, 2);
@@ -862,4 +875,4 @@ export class Sim {
 }
 
 // Factory regulation solved offline with factory() (node), so the page loads fast.
-export const FACTORY = {"balPunch":1.5,"jackScrew":-0.5732,"repStop":-0.4591,"capstan":13.8078,"restRail":110.7759,"frontPunch":2.299,"letoff":95.6693,"drop":140.2303,"repSpring":1.3553,"backcheck":0.5226,"damperGap":3.5071,"damperStop":5.0557,"pedalLift":5.0057,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0,"wippenSpace":0,"backcheckSpace":0,"backcheckSquare":0,"damperCenter":0,"damperLevel":0};
+export const FACTORY = {"balPunch":1.5,"jackScrew":-0.5732,"repStop":-0.4591,"capstan":13.8078,"restRail":110.7759,"frontPunch":2.299,"letoff":95.6693,"drop":140.2303,"repSpring":1.3553,"backcheck":0.5226,"damperGap":3.5071,"damperStop":5.0557,"pedalLift":5.0057,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0,"wippenSpace":0,"wippenTravel":0,"backcheckSpace":0,"backcheckSquare":0,"damperCenter":0,"damperLevel":0};

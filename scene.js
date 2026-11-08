@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { G, FACTORY, NEIGHBOR_H, WEAR, TRAVEL_RISE, SIDE_K, keyAngle, hamPt, repRho, knuckleBottom } from './model.js';
+import { G, FACTORY, NEIGHBOR_H, WEAR, TRAVEL_RISE, SIDE_K, WIPPEN_JACK_ARM, WIPPEN_PAPER, keyAngle, hamPt, repRho, knuckleBottom } from './model.js';
 
 const COLORS = {
   keybed: 0x6e4c2e, rail: 0xa47a4c, wood: 0xd7b98c, keywood: 0xe6d3ad, keytop: 0xf6f3ea,
@@ -22,7 +22,7 @@ const PART_NAMES = {
   jack: 'Jack', tender: 'Jack tender (toe)', jackscrew: 'Jack regulating screw', rep: 'Repetition lever',
   repscrew: 'Repetition lever height screw', repspring: 'Repetition spring', shank: 'Hammer shank',
   knuckle: 'Knuckle (a felt roll in buckskin)', knucklecore: 'Knuckle core: a thin wood tongue through the roll, glued up into a groove in the shank. The back of the jack lines up with its back face', hammer: 'Hammer', flange: 'Hammer flange', flangescrew: 'Hammer flange screw', flangerail: 'Hammer flange rail',
-  wflange: 'Wippen flange', support: 'Repetition lever support', jackstop: 'Jack stop (wire)', repbutton: 'Repetition lever button',
+  wflange: 'Wippen flange: screwed to the back face of the wippen rail. Loosen its screw to shift the wippen, or put traveling paper behind one side to swing it', support: 'Repetition lever support', jackstop: 'Jack stop (wire)', repbutton: 'Repetition lever button',
   dropfelt: 'Drop screw felt', windowfelt: 'Jack stop felt in the repetition lever window',
   wcenter: 'Wippen flange center pin (bushed in the flange)', jcenter: 'Jack center pin (bushed in the wippen)',
   rcenter: 'Repetition lever center pin (bushed in the support)', hcenter: 'Hammer flange center pin (bushed in the flange)',
@@ -281,6 +281,11 @@ export function createScene(canvas, overlay) {
     const wfl = n.wfl = new THREE.Group(); wfl.position.set(G.W[0], G.W[1], 0); root.add(wfl);
     ext(shapeFrom(W_FLANGE), 3, -4.3, COLORS.wood, 'wflange', wfl);
     ext(shapeFrom(W_FLANGE), 3, 4.3, COLORS.wood, 'wflange', wfl, { opacity: 0.4 });
+    // traveling paper: a strip between the flange's front face and the rail's back face, at one cheek, peeking over the
+    // rail top. Drawn 0.3 mm a strip (real strips are about a tenth of that) so it shows; it grows into the rail face so
+    // the flange needn't move (the swing itself is the group's yaw).
+    n.wPaper = new THREE.Group(); n.wPaper.position.set(-4, 0, 0); wfl.add(n.wPaper);
+    ext(rect(-1, -24, 0, -8.5), 3, 0, COLORS.ghost, 'wflange', n.wPaper);
     // hammer flange: a foot screwed on the flange rail, a body standing over the repetition lever's front end with the
     // drop screw threaded down through it, and a fork round the shank's center pin. Spacing shifts it on the rail.
     const fl = n.flange = new THREE.Group(); root.add(fl);
@@ -694,6 +699,13 @@ export function createScene(canvas, overlay) {
     n.hammer.rotation.z = hammerOverride ?? sim.g;
     // side to side: the wippen shifted on its flange, the backcheck wire bent over and its head twisted
     n.wippen.position.z = n.wfl.position.z = BASS * (a.wippenSpace || 0);
+    // traveling paper behind one side of the wippen flange swings the wippen on the rail like a gate: the jack top, 82 mm
+    // forward of the flange, moves toward the paper's side by the knob's amount, the heel about 72% of it
+    const wt = a.wippenTravel || 0, wYaw = Math.asin(Math.max(-0.1, Math.min(0.1, BASS * wt / WIPPEN_JACK_ARM)));
+    n.wippen.rotation.y = n.wfl.rotation.y = wYaw;
+    n.wPaper.visible = Math.abs(wt) > 0.005;
+    n.wPaper.scale.x = Math.round(Math.abs(wt) / WIPPEN_PAPER) * 0.3 || 0.3;
+    n.wPaper.position.z = BASS * Math.sign(wt) * 4.3;
     n.bc.rotation.x = Math.asin(Math.max(-0.5, Math.min(0.5, BASS * (a.backcheckSpace || 0) / BC_ARM)));
     n.bcHeadG.rotation.y = (a.backcheckSquare || 0) * Math.PI / 180;
     // alignment: spacing, traveling (drift at the string = 47 mm of rise times the tilt), squaring
