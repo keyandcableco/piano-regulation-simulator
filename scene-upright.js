@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { H, KEY, CENTER, TRACE, SHANK, shankAt, CATCHER_SHANK, CAPSTAN, EYE, STRAP_T, BUTT_FORK, WIPPEN_FORK, DAMPER_FORK, SCREWS,
   BRIDLE_Z, MAIN_RAIL, HAMMER_RAIL, LETOFF_RAIL, STRING, stringX, WIDTH, RAIL_N, SPOON_BASE, spoonAngle, BC_BEND, bcAngle,
-  BRIDLE_BASE, bridleAngle, strapEnds, STRAP_LEN, turn, wipPt, KEY_RAILS } from './upright-model.js';
+  BRIDLE_BASE, bridleAngle, strapEnds, STRAP_LEN, STRAP_Z0, turn, wipPt, KEY_RAILS } from './upright-model.js';
 
 // the bass side is -z (on the player's left, as seen from the keys)
 export const BASS = -1;
@@ -120,7 +120,8 @@ export function createUprightScene(canvas, overlay) {
   // reshape() swaps a mesh's geometry for a new one.
   const wireGeo = (pts, r, z) => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(([x, y]) => new THREE.Vector3(x, y, z)), false,
     'centripetal'), Math.max(8, pts.length * 8), r, 8);
-  function tapeGeo(pts, thick, width, z) {
+  // a tape along a path, z its middle; z1: a different middle at the path's far end, reached along its length
+  function tapeGeo(pts, thick, width, z, z1 = z) {
     const n = pts.map((p, i) => {
       const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
       return [-dy / l, dx / l];
@@ -128,6 +129,17 @@ export function createUprightScene(canvas, overlay) {
     const side = s => pts.map((p, i) => [p[0] + s * n[i][0] * thick / 2, p[1] + s * n[i][1] * thick / 2]);
     const geo = new THREE.ExtrudeGeometry(shapeFrom([...side(1), ...side(-1).reverse()]), { depth: width, bevelEnabled: false });
     geo.translate(0, 0, z - width / 2);
+    if (z1 !== z) {
+      const cum = [0];
+      for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+      const pos = geo.attributes.position;
+      for (let v = 0; v < pos.count; v++) {
+        let best = 0, d = Infinity;
+        for (let i = 0; i < pts.length; i++) { const e = Math.hypot(pos.getX(v) - pts[i][0], pos.getY(v) - pts[i][1]); if (e < d) { d = e; best = i; } }
+        pos.setZ(v, pos.getZ(v) + (z1 - z) * cum[best] / cum.at(-1));
+      }
+      geo.computeVertexNormals();
+    }
     return geo;
   }
   function coilGeo(a, b, R, r, turns, z) {
@@ -148,7 +160,7 @@ export function createUprightScene(canvas, overlay) {
   // a bent wire through side-view points, at depth z
   const wire = (pts, r, color, part, parent, z = 0, opts = {}) => mesh(wireGeo(pts, r, z), color, part, parent, { metal: true, ...opts });
   // a cloth tape through side-view points: thick across the side view, wide across the keyboard
-  const tape = (pts, thick, width, z, color, part, parent) => mesh(tapeGeo(pts, thick, width, z), color, part, parent);
+  const tape = (pts, thick, width, z, color, part, parent, z1 = z) => mesh(tapeGeo(pts, thick, width, z, z1), color, part, parent);
   // a coil spring along a side-view axis from a to b, coil radius R, wire radius r
   const coil = (a, b, R, r, turns, part, parent, z = 0) => mesh(coilGeo(a, b, R, r, turns, z), COLORS.steel, part, parent, { metal: true });
   // a turned part about +y, from [radius, height] points listed bottom to top
@@ -206,10 +218,12 @@ export function createUprightScene(canvas, overlay) {
     const kp = A(KEY.balX, KEY.bottomY), K = ([x, y]) => [x - kp[0], y - kp[1]];   // action frame -> the key's frame
     const key = n.key = new THREE.Group(); key.position.set(...kp, 0); root.add(key);
     const [kx0, ky0] = K(A(0, KEY.bottomY)), kx1 = K(A(KEY.backX, 0))[0];
-    ext(rect(kx0, ky0, kx1, ky0 + KEY.thick), WIDTH.key, 0, COLORS.keywood, 'key', key, SI);
-    ext(rect(kx0, ky0 + KEY.thick, kx0 + 150, ky0 + KEY.thick + 2.5), WIDTH.key + 0.4, 0, COLORS.keytop, 'key', key, SI);
+    // a stand-in too, but drawn nearly solid, it and its punchings, so its travel reads in the key-front inset
+    const KS = { opacity: 0.85 };
+    ext(rect(kx0, ky0, kx1, ky0 + KEY.thick), WIDTH.key, 0, COLORS.keywood, 'key', key, KS);
+    ext(rect(kx0, ky0 + KEY.thick, kx0 + 150, ky0 + KEY.thick + 2.5), WIDTH.key + 0.4, 0, COLORS.keytop, 'key', key, KS);
     // the punchings: 1 mm discs stacked to the knob's thickness on their rails (update() sets the stacks)
-    const punch = (x, top, part) => { const m = cyl(6, 1, 'y', [x, 0, 0], COLORS.felt, part, root, SI); m.geometry.translate(0, 0.5, 0); m.position.y = top; return m; };
+    const punch = (x, top, part) => { const m = cyl(6, 1, 'y', [x, 0, 0], COLORS.felt, part, root, KS); m.geometry.translate(0, 0.5, 0); m.position.y = top; return m; };
     n.balPunch = punch(kp[0], A(0, KEY_RAILS.balTop)[1], 'balrail');
     n.frontPunch = punch(A(FX, 0)[0], A(0, KEY_RAILS.frontTop)[1], 'frontrail');
     cyl(1.5, 30, 'y', [kp[0], railTop + 10, 0], COLORS.steel, 'balrail', root, { ...SI, metal: true, noPick: true });
@@ -309,8 +323,9 @@ export function createUprightScene(canvas, overlay) {
     }
 
     // the bridle strap, catcher to bridle wire, draped over the let-off screw's eye (C2 lays it out each frame)
-    n.strap = tape(TRACE.strap, STRAP_T, WIDTH.strap, 0, COLORS.tape, 'strap', root);
-    n.strapEnd = cyl(1.6, 0.6, 'z', [...TRACE.strap.at(-1), BASS * BRIDLE_Z + 0.9], COLORS.buckskin, 'strap', root);   // its leather end on the hook
+    n.strap = tape(TRACE.strap, STRAP_T, WIDTH.strap, BASS * STRAP_Z0, COLORS.tape, 'strap', root, BASS * BRIDLE_Z);
+    // its end: a leather tab with a hole, slipped over the wire's hook (red on the filmed model [S15])
+    n.strapEnd = cyl(2.2, 1.2, 'z', [...TRACE.strap.at(-1), BASS * BRIDLE_Z], COLORS.redfelt, 'strap', root);
 
     // let-off: the regulating screw down through the rail, the button on its end, the eye on top
     {
@@ -392,8 +407,12 @@ export function createUprightScene(canvas, overlay) {
       if (i) along += Math.hypot(q[0] - s[i - 1][0], q[1] - s[i - 1][1]);
       return lerp(turn(q, CENTER.butt, -p.g), wipPt(p.phi, turn(q, BRIDLE_BASE, bridleAngle(a))), along / STRAP_LEN);
     });
-    reshape(n.strap, tapeGeo(strap, STRAP_T, WIDTH.strap, 0));
-    n.strapEnd.position.set(k[0], k[1], BASS * BRIDLE_Z + 0.9);
+    // a broken strap (upright-model.js DAMAGE) hangs from the catcher, its end gone
+    const broken = a.damage === 'strapBroken';
+    const hang = broken ? [f, [f[0] + 0.5, f[1] - 9], [f[0] + 1.2, f[1] - 18]] : strap;
+    reshape(n.strap, tapeGeo(hang, STRAP_T, WIDTH.strap, BASS * STRAP_Z0, broken ? BASS * STRAP_Z0 : BASS * BRIDLE_Z));
+    n.strapEnd.visible = !broken;
+    n.strapEnd.position.set(k[0], k[1], BASS * BRIDLE_Z);
   }
 
   // ---------- part labels (on the middle note) ----------
@@ -438,6 +457,7 @@ export function createUprightScene(canvas, overlay) {
   const VIEWS = {
     action: { t: at(-12, 0), p: at(-12, 6, 700) },                   // from the treble end: strings on the right
     whole: { t: at(-200, -60), p: at(-200, -40, 1250) },             // the action on its (stand-in) key
+    keyfront: { t: [8, 36, 0], p: [-130, 90, 110], nb: true },       // the key's front and its front rail punching (sim frame)
     angle: { t: at(-15, 0), p: at(-420, 170, 470), nb: true },       // from the player's side, above, toward the treble
     front: { t: at(-20, 20), p: at(-760, 40, 0), nb: true },         // from the keys: the bass on the left
     back: { t: at(10, 20), p: at(700, 60, -160), nb: true },         // from behind the strings
@@ -455,7 +475,11 @@ export function createUprightScene(canvas, overlay) {
     damperangle: { t: at(30, 20), p: at(250, 90, 260) },
   };
   let viewAnim = null;
-  function setNeighbors(on) { for (const n of notes.slice(1)) n.root.visible = on; }
+  // the neighbor slots show in the views across the keyboard; present: which of them there are (the exam's end notes
+  // have one neighbor, not two)
+  let present = [true, true], nbOn = false;
+  function setNeighbors(on) { nbOn = on; notes.slice(1).forEach((n, i) => { n.root.visible = on && present[i]; }); }
+  function setPresent(p) { present = p; setNeighbors(nbOn); }
   // a clipped view keeps only the slice of the action between two x (action frame); cut parts show their insides
   let clipNow = null;
   const inClip = p => !clipNow || (p.x >= H[0] + clipNow[0] && p.x <= H[0] + clipNow[1]);
@@ -466,10 +490,10 @@ export function createUprightScene(canvas, overlay) {
     const side = c ? THREE.DoubleSide : THREE.FrontSide;
     act.traverse(o => { if (o.isMesh && o.material.side !== side) { o.material.side = side; o.material.needsUpdate = true; } });
   }
-  let home = 'action';   // the view Reset view goes back to
+  let home = 'action', viewName = 'action';   // the view Reset view goes back to; the view shown
   function setView(name, instant = false) {
     const v = VIEWS[name] || VIEWS.action;
-    home = VIEWS[name] ? name : 'action';
+    home = VIEWS[name] ? name : 'action'; viewName = home;
     setNeighbors(!!v.nb); setClip(v.clip);
     const toT = new THREE.Vector3(...v.t), toP = new THREE.Vector3(...v.p);
     if (instant) { controls.target.copy(toT); camera.position.copy(toP); viewAnim = null; return; }
@@ -534,6 +558,43 @@ export function createUprightScene(canvas, overlay) {
       camera.aspect = w / h; camera.updateProjectionMatrix();
     }
   }
+  // ---------- key-front inset (the grand's scene.js idiom): the key's travel beside whatever part the view is on ----------
+  // from in front of the key, above and to the treble side; it takes the pointer (a click opens the Key front view)
+  const INSET = { t: [8, 38, 0], p: [-80, 66, 40] };
+  const insetCam = new THREE.PerspectiveCamera(30, 4 / 3, 5, 5000);
+  const insetBox = document.createElement('div'); insetBox.id = 'inset-u'; insetBox.hidden = true; overlay.appendChild(insetBox);
+  insetBox.style.pointerEvents = 'auto'; insetBox.title = 'The key front: click for the full view';
+  const insetText = document.createElement('div'); insetText.className = 'inset-text'; insetBox.appendChild(insetText);
+  let insetOn = false, insetAt = null;
+  const setInset = on => { insetOn = on; };
+  const setInsetText = t => { if (insetText.textContent !== t) insetText.textContent = t; };
+  // top right, under the view buttons, left of the move buttons; measured again when the stage changes size
+  function insetRect() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (insetAt?.sw === w && insetAt.sh === h) return insetAt;
+    const views = document.getElementById('views'), navpad = document.getElementById('navpad');
+    const iw = Math.round(Math.max(150, Math.min(280, w * 0.26))), ih = Math.round(iw * 0.72);
+    const top = Math.max(56, views ? views.offsetTop + views.offsetHeight + 8 : 0);
+    const right = navpad?.offsetParent ? navpad.offsetLeft - 8 : w - 10;
+    insetAt = { x: right - iw, top, w: iw, h: ih, sw: w, sh: h };
+    insetBox.style.cssText = `left:${insetAt.x}px;top:${top}px;width:${iw}px;height:${ih}px;pointer-events:auto`;
+    return insetAt;
+  }
+  if (window.ResizeObserver) { const ro = new ResizeObserver(() => { insetAt = null; }); for (const id of ['views', 'navpad']) { const e = document.getElementById(id); if (e) ro.observe(e); } }
+  function renderInset() {
+    const show = insetOn && viewName !== 'keyfront' && !clipNow;   // not in the clipped views (their planes would need swapping out)
+    if (insetBox.hidden === show) insetBox.hidden = !show;
+    if (!show) return;
+    const r = insetRect(), y = r.sh - r.top - r.h;   // the renderer counts from the bottom
+    insetCam.position.set(...INSET.p); insetCam.lookAt(...INSET.t);
+    insetCam.aspect = r.w / r.h; insetCam.updateProjectionMatrix();
+    for (const c of callouts.values()) c.line.visible = false;   // their labels are placed for the main view only
+    renderer.setScissorTest(true); renderer.setScissor(r.x, y, r.w, r.h); renderer.setViewport(r.x, y, r.w, r.h);
+    renderer.render(scene, insetCam);
+    renderer.setScissorTest(false); renderer.setViewport(0, 0, r.sw, r.sh);
+    for (const c of callouts.values()) c.line.visible = true;
+  }
+
   // ---------- callouts: measurement lines with labels (content-upright.js callouts(); the grand's scene.js idiom) ----------
   const callouts = new Map(), cv = new THREE.Vector3();
   function setCallout(id, p1, p2, text) {
@@ -573,6 +634,7 @@ export function createUprightScene(canvas, overlay) {
     controls.update();
     updateLabels();
     renderer.render(scene, camera);
+    renderInset();
     placeCallouts();
   }
   // let go of everything this scene made (the app's switch between actions will build and drop scenes)
@@ -584,5 +646,6 @@ export function createUprightScene(canvas, overlay) {
     renderer.dispose();
   }
   return { render, update, setView, setNeighbors, setLabels, setBackground, pick, screenOf, setCallout, clearCallouts, zoomBy, slideBy, resetView, highlight,
+    setInset, setInsetText, insetEl: insetBox, setPresent,
     dispose, controls, camera, scene, notes, VIEWS, PART_NAMES, partMeshes };
 }

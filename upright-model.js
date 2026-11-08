@@ -166,8 +166,12 @@ export const SCREWS = {
   wippenFlange: { p: [10, -55], dir: [-1, 0], len: 14 },   // through the plate into the rail's back face
   damperFlange: { p: [10, -26], dir: [-1, 0], len: 14 },   // through the foot into the rail's back face
 };
-// The bridle wire stands this far toward the treble of the backcheck wire (z, + toward the bass as everywhere).
-export const BRIDLE_Z = -3;
+// The bridle wire stands this far toward the treble of the backcheck wire (z, + toward the bass as everywhere): on
+// the filmed model its hook sits beside the backcheck wire, so the strap hangs in the bridle wire's plane, clear of the
+// backcheck wire (Greg 2026-11-08: it read as hooked on the backcheck). The strap leaves the catcher at STRAP_Z0 and
+// runs over to the wire as it hangs [T: the side offsets aren't in the side-on clips].
+export const BRIDLE_Z = -4.5;
+export const STRAP_Z0 = -1.5;
 
 // ---------- the rails: placed by the filmed model's faces, their sections stand-ins [T] ----------
 // The filmed model is a one-note model on a cast stand: a metal bracket in place of the main rail, a wire loop with a
@@ -298,6 +302,14 @@ export const SPEC = {
   // functional: soft pedal down, the strap must not lift the wippen [S1, S2]; its slack is a reading (rule 4: no
   // published figure). Ellis set straps with just enough slack for that [S14]
   bridle: { functional: true, src: 'soft pedal down: the wippens don\'t move [S1, S2]; just enough slack for that [S14]' },
+  // the parts' condition (C5): sound, or worn or broken (DAMAGE), found by looking or by a hand test, put right by a repair
+  buttLeather: { functional: true, src: 'butt leather not grooved [S2: worn butt leather]' },
+  catcherLeather: { functional: true, src: 'catcher buckskin not worn smooth [T]' },
+  jackSpring: { functional: true, src: 'the jack springs back under the butt [S3 fig. 338]' },
+  damperSpring: { functional: true, src: 'the damper snaps back when pulled off the spoon [S3]' },
+  buttSpring: { functional: true, src: 'the butt spring whole and seated [S3]' },
+  buttCenter: { functional: true, src: 'the butt center free but not wobbly [S2]; Igrec\'s table [S3]' },
+  strap: { functional: true, src: 'the bridle strap whole and hooked [S1, S2]' },
 };
 // a spec's pass band, [lo, hi]
 export const band = s => s.lo !== undefined ? [s.lo, s.hi] : [s.target - s.tol, s.target + s.tol];
@@ -551,8 +563,8 @@ export function slowPress(a, step = 0.02) {
 }
 // the gap (mm) between the jack and the butt cushion: at rest it is the lost motion; held down, the escapement
 const jackCushionGap = p => polyGap(TRACE.jack.map(q => jackPt(p.phi, p.psi, q)), TRACE.buttCushion.map(q => turn(q, CENTER.butt, -p.g)));
-export function measure(a) {
-  const sp = slowPress(a), rest = pose(a, 0), bottom = pose(a, sp.dip, { held: true }), soft = pose(a, 0, { soft: true });
+export function measure(a0) {
+  const a = eff(a0), sp = slowPress(a), rest = pose(a, 0), bottom = pose(a, sp.dip, { held: true }), soft = pose(a, 0, { soft: true });
   const blow = stringGap(rest.g), lostMotion = jackGap(rest.phi, 0, rest.gRail);
   return {
     keyHeight: keyHeightOf(a) - NEIGHBOR_H, dip: sp.dip, blow,   // key height: mm above its neighbours
@@ -569,7 +581,8 @@ export function measure(a) {
     damperTiming: sp.damperAt?.share ?? null, damperDepth: sp.damperAt?.d ?? null,
     damperLift: bottom.dl * Math.hypot(...sub(TRACE.damperFelts[0][2], CENTER.damper)),   // the felt off the strings, mm
     softBlow: stringGap(soft.g), softPedal: 1 - stringGap(soft.g) / blow,
-    strapSlack: rest.slack, softStrapSlack: soft.slack, softLifts: soft.slack <= 0,
+    strapSlack: rest.slack, softStrapSlack: soft.slack, softLifts: !a.noStrap && soft.slack <= 0,
+    damage: a0.damage ?? null,
     jammed: bottom.jammed,
   };
 }
@@ -608,12 +621,50 @@ export function factory(a0 = {}) {
   return a;
 }
 
+// ---------- damage (C5): worn or broken parts, put right by a repair, not a knob ----------
+// Each is written as what it does: to the knobs it imitates (adj, added to them, or a flag), or to the Sim's constants
+// (dyn, a factor on DYN). Sizes are the sim's own [T], set so the action shows the customer's complaint and nothing
+// bigger (protocol 3.4; tests/upright-scenarios.test.mjs). spec: the condition check that finds it.
+export const DAMAGE = {
+  buttLeather: { spec: 'buttLeather', name: 'Butt leather worn', adj: { capstan: -0.5 }, part: 'cushion', repair: 'Re-cover the butt: new felt and buckskin',
+    signs: 'a groove worn in the butt leather where the jack lifts it' },
+  catcherLeather: { spec: 'catcherLeather', name: 'Catcher buckskin worn', adj: { backcheck: -0.45 }, part: 'catcher', repair: 'Re-cover the catcher with new buckskin',
+    signs: 'the catcher\'s buckskin worn thin and slick' },
+  jackSpringWeak: { spec: 'jackSpring', name: 'Jack spring weak', dyn: { jackRate: 0.12 }, part: 'jackspring', repair: 'Replace the jack spring',
+    signs: 'the jack creeps back under the butt' },
+  jackSpringBroken: { spec: 'jackSpring', name: 'Jack spring broken', dyn: { jackRate: 0 }, part: 'jackspring', repair: 'Replace the jack spring',
+    signs: 'the jack stays where it is pushed: its spring is broken' },
+  damperSpringWeak: { spec: 'damperSpring', name: 'Damper spring weak', dyn: { damperAlpha: 0.005 }, part: 'dspring', repair: 'Replace the damper spring',
+    signs: 'the damper drifts back to the strings' },
+  damperSpringBroken: { spec: 'damperSpring', name: 'Damper spring broken', dyn: { damperAlpha: 0 }, part: 'dspring', repair: 'Replace the damper spring',
+    signs: 'the damper stays off the strings: its spring is broken' },
+  // (a broken butt spring waits for the C3 gap: in the Sim the spring slows the strap's return, so without it the hammer
+  // comes back faster, not slower: tests/upright-dynamics.test.mjs todo)
+  buttCenterTight: { spec: 'buttCenter', name: 'Butt center tight', dyn: { frictionT: 6 }, part: 'hcenter', repair: 'Ease or repin the butt center',
+    signs: 'the hammer drags on its center pin' },
+  strapBroken: { spec: 'strap', name: 'Bridle strap broken', adj: { noStrap: true }, part: 'strap', repair: 'Replace the bridle strap',
+    signs: 'the bridle strap is broken and hangs from the catcher' },
+};
+// the regulation with its damage folded in: what the parts actually do
+export function eff(a) {
+  const d = DAMAGE[a.damage];
+  if (!d?.adj) return a;
+  const e = { ...a };
+  for (const [k, v] of Object.entries(d.adj)) e[k] = typeof v === 'number' ? (a[k] ?? 0) + v : v;
+  return e;
+}
+
 // ---------- grading ----------
 // Pass or fail for one spec, with what's wrong in a technician's words; k scales the tolerance (skill level: 1.5
 // Apprentice, 1 Journeyman, 0.75 the top level). A band from a source's range (lo, hi) only widens: at k <= 1 the
 // source's own range stands, so its endpoints always pass (protocol 3.2 rule 2). Functional specs don't scale.
 export function grade(id, m, k = 1) {
   const s = SPEC[id], v = m[id];
+  // a part's condition: sound, or what is wrong with it
+  if (s.functional && id !== 'bridle') {
+    const d = DAMAGE[m.damage];
+    return d?.spec === id ? { ok: false, v: null, note: d.signs } : { ok: true, v: null, note: '' };
+  }
   if (id === 'bridle') return m.softLifts ? { ok: false, v: m.strapSlack, note: 'soft pedal down, the strap lifts the wippen: the key goes out of level' }
     : { ok: true, v: m.strapSlack, note: '' };
   if (id === 'letoff' && v == null) return { ok: false, v: null, note: 'blocks: the jack never lets off' };
@@ -695,7 +746,10 @@ export const DYN = {
 };
 
 export class Sim {
-  constructor(a, d = 0, { soft = false } = {}) { this.a = { ...a }; this.dip = dipOf(this.a); this.reset(d, { soft }); }
+  constructor(a, d = 0, { soft = false } = {}) {
+    this.a = eff({ ...a }); this.k = DAMAGE[a.damage]?.dyn ?? {};   // damage: folded into the knobs, or factors on DYN
+    this.dip = dipOf(this.a); this.reset(d, { soft });
+  }
   // at rest (or held at depth d on a slow press), the soft pedal up or already down
   reset(d = 0, { soft = false } = {}) {
     const a = this.a, p = pose(a, d, { soft });
@@ -776,7 +830,7 @@ export class Sim {
       const psiHome = psiAtX(phi, this.g, x0), q = cornerInButt(phi, psiHome, this.g);
       const clear = q[1] < CUSH_FACE.y - JACK_CLEAR;
       const psiTo = Math.max(pb, clear ? psiHome : psiAtX(phi, this.g, CUSH_FACE.x[0] - 0.05));
-      this.psi += Math.sign(psiTo - this.psi) * Math.min(Math.abs(psiTo - this.psi), DYN.jackRate * dt);
+      this.psi += Math.sign(psiTo - this.psi) * Math.min(Math.abs(psiTo - this.psi), DYN.jackRate * (this.k.jackRate ?? 1) * dt);
       if (clear && pb <= psiHome && Math.abs(this.psi - psiHome) < 1e-6) {
         this.jack = 'under';
         const share = this.dPeak > 0 ? 1 - this.d / this.dPeak : null;   // how far the key had come back up
@@ -787,7 +841,7 @@ export class Sim {
     // ---- the hammer ----
     const lean = DYN.hammerLean - this.g;
     let acc = (GRAV * (-DYN.hammerMR * Math.sin(lean) - (a.noSpring ? 0 : DYN.springT0 + DYN.springK * this.g)) + tauH) / DYN.hammerI;
-    if (Math.abs(this.w) > 1e-6) acc -= Math.sign(this.w) * GRAV * DYN.frictionT / DYN.hammerI;
+    if (Math.abs(this.w) > 1e-6) acc -= Math.sign(this.w) * GRAV * DYN.frictionT * (this.k.frictionT ?? 1) / DYN.hammerI;
     let w = this.w + acc * dt, g = this.g + w * dt;
     // the jack carries it (a hammer it meets falling is taken at the jack's own speed: no snap)
     if (g < gJack) { w = Math.max(w, (gJack - gPrev) / dt); g = gJack; }
@@ -824,7 +878,7 @@ export class Sim {
 
     // ---- the damper: the spoon or the lift rod holds it off; else its spring brings it back to the strings ----
     const dlSpoon = damperAngle(a, phi), dlPedal = this.pedal * DAMPER_PEDAL_LIFT;
-    let vd = this.vd - DYN.damperAlpha * dt, dl = this.dl + vd * dt;
+    let vd = this.vd - DYN.damperAlpha * (this.k.damperAlpha ?? 1) * dt, dl = this.dl + vd * dt;
     const floor = Math.max(dlSpoon, dlPedal);
     if (dl < floor) { vd = Math.max(vd, (floor - this.dl) / dt); dl = floor; }
     if (dl <= 0) { dl = 0; vd = 0; if (!this.seated) { this.seated = true; this.emit('seated'); } }

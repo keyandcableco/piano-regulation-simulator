@@ -4,9 +4,9 @@
 // this module's, which sit in the same bars so the phone layouts carry over.
 // The upright's model, drawing and content are upright-model.js, scene-upright.js and content-upright.js. It has Learn
 // and the Sandbox; Find the fault, the exam, drills and tools come with C5, C7 and C8.
-import { FACTORY, ADJ, SPEC, Sim, measure, grade, pose, DAMPER_PEDAL_LIFT } from './upright-model.js';
+import { FACTORY, ADJ, SPEC, DAMAGE, Sim, measure, grade, pose, DAMPER_PEDAL_LIFT } from './upright-model.js';
 import { createUprightScene } from './scene-upright.js';
-import { STEPS, TESTS, TIPS, TOOLS, SPEC_NAMES, bandText, readingText, callouts, deregulated, creditOf } from './content-upright.js';
+import { STEPS, TESTS, TIPS, TOOLS, SPEC_NAMES, REPAIRS, SCENARIOS, bandText, readingText, callouts, deregulated, fairStart, creditOf } from './content-upright.js';
 import { markView } from './controls.js';
 
 const DT = 0.0001;          // s: the Sim's step (its tests' and fit's)
@@ -27,18 +27,23 @@ const PART_KNOBS = { key: ['balPunch', 'frontPunch'], balrail: ['balPunch'], fro
 const KNOB_VIEW = { balPunch: 'whole', frontPunch: 'whole', railShim: 'action', capstan: 'wippen', letoff: 'butt', backcheck: 'check', spoon: 'damper',
   bridle: 'check', softFelt: 'action' };
 // the Sandbox's parts of the action, each with its knobs and what they set (the grand's AREAS)
+// (with each part's tests and condition checks, for Find the fault)
 const AREAS = [
-  { name: 'Key', knobs: ['balPunch', 'frontPunch'], specs: ['keyHeight', 'dip'] },
-  { name: 'Hammer and hammer rail', knobs: ['railShim', 'softFelt'], specs: ['blow', 'softPedal'] },
-  { name: 'Wippen and jack', knobs: ['capstan', 'letoff'], specs: ['lostMotion', 'letoff', 'aftertouch', 'escapement'] },
-  { name: 'Backcheck and bridle', knobs: ['backcheck', 'bridle'], specs: ['check', 'bridle'] },
-  { name: 'Damper', knobs: ['spoon'], specs: ['damperTiming'] },
+  { name: 'Key', knobs: ['balPunch', 'frontPunch'], specs: ['keyHeight', 'dip'], tests: ['straightedge', 'dipBlock'] },
+  { name: 'Hammer and hammer rail', knobs: ['railShim', 'softFelt'], specs: ['blow', 'softPedal', 'buttSpring', 'buttCenter'], tests: ['blowGauge', 'softBlow', 'hammerLift'] },
+  { name: 'Wippen and jack', knobs: ['capstan', 'letoff'], specs: ['lostMotion', 'letoff', 'aftertouch', 'escapement', 'jackSpring', 'buttLeather'],
+    tests: ['railPull', 'topPlay', 'jackReturn', 'slowPress', 'holdLook', 'jackPush', 'inspectLeather'] },
+  { name: 'Backcheck and bridle', knobs: ['backcheck', 'bridle'], specs: ['check', 'bridle', 'catcherLeather', 'strap'], tests: ['strikeHold', 'softWatch', 'strapLook'] },
+  { name: 'Damper', knobs: ['spoon'], specs: ['damperTiming', 'damperSpring'], tests: ['damperSlow', 'damperPull'] },
 ];
+const ALL_SPECS = AREAS.flatMap(ar => ar.specs);
+const SHARED = new Set(['railShim', 'softFelt']);   // one hammer rail (and its soft pedal) under all the notes
 // the View menu (controls.js): the whole action, then the close views, each with what the tests check in it
 const VIEW_GROUPS = [
   ['Whole action', [['action', 'Action', 'from the treble end: let-off, damper'], ['angle', '3/4', 'from the player\'s side, above'],
     ['front', 'From the keys', 'the key and its neighbors']]],
-  ['Close up', [['whole', 'Key', 'key height, dip'], ['wippen', 'Wippen', 'and the capstan'], ['butt', 'Jack & butt', 'lost motion, escapement'],
+  ['Close up', [['keyfront', 'Key front', 'the key travel, the front rail punching'], ['whole', 'Key', 'key height, dip'],
+    ['wippen', 'Wippen', 'and the capstan'], ['butt', 'Jack & butt', 'lost motion, escapement'],
     ['jackfront', 'Jack from the keys', 'a slice through the jack'], ['check', 'Backcheck', 'check, bridle'], ['damper', 'Damper', 'damper lever and spoon']]],
 ];
 const TEST_VIEWS = { head: 'Hammer head' };   // views only a test uses, named on the View button
@@ -70,7 +75,12 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   }
   const labelsBtn = item('menuitemcheckbox', 'Part names', 'a name beside each part',
     { onclick: () => { labelsOn = !labelsOn; S.setLabels(labelsOn); labelsBtn.classList.toggle('on', labelsOn); } });
-  $('#showmenu').append(labelsBtn);
+  // the key front in a corner, as the grand has it: on where the stage has room
+  const insetBtn = item('menuitemcheckbox', 'Key inset', 'the key front in a corner, to watch its travel while the view shows the action',
+    { onclick: () => setInset(!insetBtn.classList.contains('on')) });
+  const setInset = on => { S.setInset(on); insetBtn.classList.toggle('on', on); };
+  S.insetEl.onclick = () => view('keyfront');
+  $('#showmenu').append(labelsBtn, insetBtn);
   const keyState = mark(el('span', { class: 'u-keystate' })), lastEvent = mark(el('span', { class: 'u-lastevent' })), keyPos = mark(el('span', { class: 'u-keypos' }));
   $('#keystatus').append(keyState, lastEvent, mark(el('span', { class: 'sep' })), keyPos);
   const kb = (label, title, onclick, attrs = {}) => mark(el('button', { title, onclick, ...attrs }, label));
@@ -99,9 +109,11 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   const log = [];
 
   // ---------- the regulation ----------
-  function setRegulation(b, { keepTested = true } = {}) {
+  function setRegulation(b, { keepTested = true, replace = false } = {}) {
     if (busy) return;   // a running test has the Sim
+    if (replace) for (const k of Object.keys(a)) delete a[k];
     Object.assign(a, b); m = measure(a);
+    verdict = null;   // a check of the work belongs to the work it checked
     sim = new Sim(a); sim.setSoft(softOn); sim.setPedal(sustainOn); sim.soft = softOn ? 1 : 0; sim.pedal = sustainOn ? 1 : 0;
     if (!keepTested) tested = new Set();
     testEvents = []; plan = null; idle = false; log.length = 0; lastEvent.textContent = '';
@@ -111,10 +123,15 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     if (busy) return;
     const d = ADJ.find(x => x.id === k);
     S.highlight(KNOB_PARTS[k]);
-    setRegulation({ [k]: Math.max(d.min, Math.min(d.max, +(a[k] + dir * d.step).toFixed(6))) });
+    const v = Math.max(d.min, Math.min(d.max, +(a[k] + dir * d.step).toFixed(6)));
+    // the exam's three notes share one hammer rail: its rest felts and the soft pedal move all three
+    if (exam.started && !exam.done && SHARED.has(k)) for (const n of exam.notes) n.a[k] = v;
+    setRegulation({ [k]: v });
   }
   const gradeL = id => grade(id, m, level().tolK);
-  const revealed = id => level().live || mode === 'sandbox' || tested.has(id);
+  const revealed = id => level().live || mode === 'sandbox' || tested.has(id) || (mode === 'diagnose' && (gaveUp || verdict?.ok));
+  // Find the fault: the customer's case, the last check of the work, and whether the answer was shown
+  let scenario = null, verdict = null, gaveUp = false, lastCase = null;
 
   // ---------- the key and pedals ----------
   function play(kind) {
@@ -165,16 +182,26 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
         idle = n > 0 && !busy && !plan && sim.d === sim.dTarget && state().every((v, i) => Math.abs(v - s0[i]) < 1e-9);
         if (idle) lagging = false;
       }
-      const p = sim.pose(), an = { ...a, railShim: sim.railShim(), balPunch: FACTORY.balPunch, frontPunch: FACTORY.frontPunch, capstan: FACTORY.capstan };
-      const rest = pose(an, 0);
-      rest.dl = Math.max(rest.dl, sim.pedal * DAMPER_PEDAL_LIFT);   // the neighbors' dampers on the sustain pedal's rod
-      S.update(an, rest, 1); S.update(an, rest, 2); S.update(a, p, 0);
+      const p = sim.pose(), railShim = sim.railShim();
+      // the neighbors: the exam's other notes as they are now, else the factory key on the same rail (the straightedge's)
+      const nbr = slot => {
+        const i = exam.started ? exam.cur + (slot === 1 ? -1 : 1) : null;
+        const an = i === null ? { ...a, railShim, balPunch: FACTORY.balPunch, frontPunch: FACTORY.frontPunch, capstan: FACTORY.capstan, damage: null }
+          : exam.notes[i] ? { ...exam.notes[i].a, railShim } : null;
+        if (!an) return;
+        const rest = pose(an, 0);
+        rest.dl = Math.max(rest.dl, sim.pedal * DAMPER_PEDAL_LIFT);   // their dampers on the sustain pedal's rod
+        S.update(an, rest, slot);
+      };
+      nbr(1); nbr(2); S.update(a, p, 0);
     }
     lastEvent.textContent = log.join(' · ');
     const d = override ? override.p.d : sim.d;
     keyState.textContent = d < 0.05 && sim.dTarget < 0.05 ? 'Key at rest' : sim.dTarget > sim.d + 0.01 ? 'Key going down' : sim.dTarget > 0.05 ? 'Key held down' : 'Key coming up';
     keyState.classList.toggle('down', d > 0.05);
-    keyPos.textContent = `key ${d.toFixed(2)} mm down${lagging ? ' · slower than chosen' : ''}`;
+    keyPos.textContent = `${exam.started && !exam.done ? `note ${exam.cur + 1} · ${clockText()} · ` : ''}key ${d.toFixed(2)} mm down${lagging ? ' · slower than chosen' : ''}`;
+    if (exam.started && !exam.done && Date.now() >= exam.endAt && !busy) handIn();
+    S.setInsetText(`Key front · ${d.toFixed(2)} mm down${d >= sim.dip - 0.01 ? ' (dip)' : ''}`);
     for (const b of keyBtns) b.disabled = busy;
     const list = callouts({ a, m, p: override ? override.p : sim.pose(), events: testEvents, shown: revealed });
     for (const c of list) S.setCallout(c.id, c.from, c.to, c.text);
@@ -195,6 +222,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     },
     show: (an, p) => { override = an ? { a: an, p } : null; },
     grade: id => gradeL(id),
+    lastEvent: type => testEvents.filter(e => e.type === type).at(-1),
   };
   async function runTest(id) {
     if (busy) return;
@@ -280,18 +308,194 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       el('div', { class: 'row' }, (st.tests ?? [st.test]).map(testButton)),
       readingsTable(specsOf(st)),
       el('div', { class: 'knobs' }, st.knobs.map(k => knobRow(k))),
-      benchTips(st.spec), nav(stepDone(st)),
+      st.repairs ? repairButtons(specsOf(st)) : null,
+      benchTips(st.id ?? st.spec), nav(stepDone(st)),
       earlier.length ? el('details', {}, el('summary', {}, 'Earlier steps'), readingsTable(earlier)) : null);
   }
   function renderSandbox(p) {
-    put(p, el('p', { class: 'muted small' }, 'An upright action at its factory regulation. Play it with the buttons under the picture, or press and hold on the key; change anything below and watch what it does. Find the fault, the exam and the drills come later for the upright.'),
+    put(p, el('p', { class: 'muted small' }, 'An upright action at its factory regulation. Play it with the buttons under the picture, or press and hold on the key; change anything below and watch what it does. Wear or break a part to see what it does in play.'),
       el('div', { class: 'row' },
-        el('button', { disabled: busy ? '' : false, onclick: () => setRegulation({ ...FACTORY }) }, 'Factory regulation'),
-        el('button', { disabled: busy ? '' : false, onclick: () => setRegulation(deregulated()) }, 'Mess it up')),
+        el('button', { disabled: busy ? '' : false, onclick: () => setRegulation({ ...FACTORY, damage: null }) }, 'Factory regulation'),
+        el('button', { disabled: busy ? '' : false, onclick: () => setRegulation({ ...deregulated(), damage: null }) }, 'Mess it up'),
+        el('select', { title: 'Wear or break one part', disabled: busy ? '' : false, onchange: e => setRegulation({ damage: e.target.value || null }) },
+          el('option', { value: '' }, 'All parts sound'),
+          Object.entries(DAMAGE).map(([k, d]) => el('option', { value: k, selected: a.damage === k ? '' : false }, d.name)))),
       AREAS.map(ar => el('details', { class: 'fold', open: '' }, el('summary', {}, ar.name),
-        readingsTable(ar.specs), el('div', { class: 'knobs' }, ar.knobs.map(k => knobRow(k))))));
+        readingsTable(ar.specs), el('div', { class: 'knobs' }, ar.knobs.map(k => knobRow(k))), repairButtons(ar.specs))));
   }
-  function renderPanel(p) { if (mode === 'learn') renderLearn(p); else renderSandbox(p); renderCard(); }
+  // ---------- Find the fault: a customer's complaint, one cause, the tests and the work to put it right ----------
+  function newCase() {
+    if (busy) return;
+    const pool = SCENARIOS.filter(s => s.id !== lastCase);
+    scenario = pool[Math.floor(Math.random() * pool.length)]; lastCase = scenario.id;
+    verdict = null; gaveUp = false;
+    setRegulation({ ...FACTORY, damage: null, ...scenario.make(FACTORY) }, { keepTested: false });
+  }
+  function repair(r) {
+    if (busy) return;
+    if (DAMAGE[a.damage]?.spec === r.spec) { setRegulation({ damage: null }); toast(`Done: ${r.label.toLowerCase()}`); }
+    else toast('That part was sound: nothing there to put right', 'warn');
+  }
+  const repairButtons = specs => {
+    const list = REPAIRS.filter(r => specs.includes(r.spec));
+    return list.length ? el('div', { class: 'row' }, list.map(r => el('button', { disabled: busy ? '' : false, onclick: () => repair(r) }, `🔧 ${r.label}`))) : null;
+  };
+  function checkWork() {
+    const bad = ALL_SPECS.filter(id => !gradeL(id).ok);
+    verdict = { ok: !bad.length, bad, k: level().tolK };
+    refresh();
+  }
+  function renderDiagnose(p) {
+    if (!scenario) { newCase(); return; }
+    if (verdict && verdict.k !== level().tolK) verdict = null;   // given at another skill level's tolerances
+    const knobs = level().live;   // the panel lists the knobs at Apprentice; otherwise they're on the parts (click one)
+    put(p, el('h2', {}, 'A customer says:'), el('p', { class: 'note' }, `“${scenario.complaint}”`),
+      el('p', { class: 'muted small' }, `Find out what's wrong and put it right: run the tests that would show it, then adjust or repair. ${knobs ? '' : 'Click a part on the action to adjust it. '}Check your work when you think it's done.`),
+      verdict ? el('div', { class: 'verdict ' + (verdict.ok ? 'ok' : 'bad') },
+        verdict.ok ? el('p', {}, el('b', {}, 'Fixed. '), scenario.cause, '.') : el('p', {}, 'Still out: ', verdict.bad.map(id => SPEC_NAMES[id]).join(', '), '.')) : null,
+      gaveUp ? el('div', { class: 'verdict bad' }, el('p', {}, el('b', {}, 'What was wrong: '), scenario.cause, '. ', el('b', {}, 'The fix: '), scenario.fix, '.')) : null,
+      AREAS.map(ar => el('details', { class: 'fold', open: '' }, el('summary', {}, ar.name),
+        el('div', { class: 'row' }, ar.tests.map(testButton)), readingsTable(ar.specs),
+        knobs ? el('div', { class: 'knobs' }, ar.knobs.map(k => knobRow(k))) : null, repairButtons(ar.specs))));
+    put($('#actionbar'), el('div', { class: 'row' },
+      el('button', { class: 'primary', disabled: busy ? '' : false, onclick: checkWork }, 'Check my work'),
+      el('button', { disabled: busy || gaveUp ? '' : false, onclick: () => { gaveUp = true; refresh(); } }, 'Show what was wrong'),
+      el('button', { disabled: busy ? '' : false, onclick: newCase }, 'Next customer')));
+  }
+  // ---------- the exam (C7): three notes, de-regulated, scored per note and for evenness (protocol 3.7) ----------
+  // PTG's vertical section is a disassembled three-note model with pedals, assembled and regulated in 65 minutes, scored
+  // for the consistency and accuracy of all three notes [S13]. Here it comes assembled; the scoring is the sim's own.
+  const EXAM_CLOCKS = [65, 45, 30];
+  const EVEN = ['keyHeight', 'dip', 'blow', 'lostMotion', 'letoff', 'check', 'damperTiming'];
+  const SCORED = STEPS.filter(s => !s.info).flatMap(specsOf);
+  const CONDITION = new Set(['buttLeather', 'catcherLeather', 'jackSpring', 'damperSpring', 'buttSpring', 'buttCenter', 'strap']);
+  let exam = { started: false }, examMinutes = 65;
+  const clockText = () => { const s = Math.max(0, Math.round((exam.endAt - Date.now()) / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} left`; };
+  function startExam() {
+    const lv = level(), shared = deregulated();
+    const dealt = () => { for (let i = 0; i < 50; i++) { const b = { ...deregulated(), railShim: shared.railShim, softFelt: shared.softFelt, damage: null }; if (fairStart(b)) return b; } return { ...FACTORY, damage: null }; };
+    const notes = [0, 1, 2].map(() => ({ a: dealt(), tested: new Set() }));
+    // at the top level one note may hold a worn or broken part: leaving it caps the score below a pass (the sim's own;
+    // in PTG's exam, repairs are a separate section)
+    if (lv.tolK < 1) { const keys = Object.keys(DAMAGE); notes[Math.floor(Math.random() * 3)].a.damage = keys[Math.floor(Math.random() * keys.length)]; }
+    exam = { started: true, done: false, level: lv, notes, cur: 1, minutes: examMinutes, endAt: Date.now() + examMinutes * 60000,
+      damaged: notes.map(n => n.a.damage) };
+    document.getElementById('level').disabled = true;
+    goNote(1, true);
+  }
+  // work on another of the three notes: this one's regulation and tests kept, that one's taken up
+  function goNote(i, first = false) {
+    if (busy) return;
+    if (!first) { exam.notes[exam.cur] = { a: { ...a }, tested }; }
+    exam.cur = i;
+    S.setPresent([i > 0, i < 2]);
+    setRegulation({ ...exam.notes[i].a }, { replace: true });
+    tested = exam.notes[i].tested;
+    refresh();
+  }
+  const evenTol = id => { const s = SPEC[id]; return (s.lo !== undefined ? (s.hi - s.lo) / 2 : s.tol) * exam.level.tolK; };
+  function examScore() {
+    exam.notes[exam.cur] = { a: { ...a }, tested };
+    const ms = exam.notes.map(n => measure(n.a)), g = (id, i) => grade(id, ms[i], exam.level.tolK);
+    // a part's condition is scored only on the note that had something wrong with it
+    const rows = SCORED.filter(id => !CONDITION.has(id) || exam.damaged.some(d => DAMAGE[d]?.spec === id)).map(id => ({ id, cells: ms.map((m2, i) =>
+      CONDITION.has(id) && DAMAGE[exam.damaged[i]]?.spec !== id ? { skip: true } : { ok: g(id, i).ok, txt: readingText(id, m2) }) }));
+    const even = EVEN.map(id => {
+      const v = ms.map((m2, i) => g(id, i).v);
+      const spread = v.every(x => x != null) ? Math.max(...v) - Math.min(...v) : null;
+      return { id, spread, ok: spread !== null && spread <= evenTol(id) };
+    });
+    const items = rows.flatMap(r => r.cells.filter(c => !c.skip).map(c => c.ok)).concat(even.map(e => e.ok));
+    let pct = Math.round(100 * items.filter(Boolean).length / items.length);
+    const missed = exam.notes.some(n => n.a.damage);
+    if (missed) pct = Math.min(pct, 79);
+    return { rows, even, pct, missed };
+  }
+  function handIn() { if (busy || !exam.started || exam.done) return; exam.result = examScore(); exam.done = true; document.getElementById('level').disabled = false; refresh(); }
+  function leaveExam() { exam = { started: false }; S.setPresent([true, true]); document.getElementById('level').disabled = false; }
+  function renderExam(p) {
+    if (!exam.started) {
+      put(p, el('h2', {}, 'Upright exam: three notes'),
+        el('p', {}, 'Three neighboring notes, each knocked out of regulation, to regulate in the time: the same steps as Learn, with one hammer rail and soft pedal shared by all three. You\'re scored on each note against the specs, and on how even the three are: each reading\'s spread across the three within one note\'s tolerance.'),
+        el('p', { class: 'muted small' }, 'PTG\'s vertical exam section is a disassembled three-note action model with pedals: you assemble it, then regulate all three notes and the pedals in 65 minutes, scored for their consistency and accuracy (Technical Exam Source Book Addendum, 2005). Here the model comes assembled and the scoring is the sim\'s own practice scoring, not PTG\'s sheet. At the top skill level one note may also hold a worn or broken part: in the real exam, repairs are a separate section.'),
+        el('div', { class: 'row' }, el('span', { class: 'muted' }, 'Clock:'), EXAM_CLOCKS.map(n => el('button', { class: n === examMinutes ? 'on' : '', onclick: () => { examMinutes = n; refresh(); } }, `${n} min`))),
+        el('div', { class: 'row' }, el('button', { class: 'primary', onclick: startExam }, 'Start the exam')));
+      return;
+    }
+    if (exam.done) {
+      const r = exam.result, note = ['Note 1', 'Note 2', 'Note 3'];
+      put(p, el('h2', {}, `Score: ${r.pct}%${r.pct >= 80 ? ', a pass' : ''}`),
+        r.missed ? el('p', { class: 'verdict bad' }, 'A worn or broken part was left in the action, so the score is capped below a pass.') : null,
+        el('table', { class: 'specs score' }, el('thead', {}, el('tr', {}, el('th', {}, 'Check'), note.map(n => el('th', {}, n)))),
+          el('tbody', {}, r.rows.map(row => el('tr', {}, el('td', {}, SPEC_NAMES[row.id]),
+            row.cells.map(c => c.skip ? el('td', { class: 'muted' }, '—') : el('td', { class: c.ok ? 'okc' : 'badc' }, `${c.ok ? '✓' : '✗'} ${c.txt}`)))))),
+        el('h3', {}, 'Evenness across the three'),
+        el('table', { class: 'specs score' }, el('tbody', {}, r.even.map(e => el('tr', {}, el('td', {}, SPEC_NAMES[e.id]),
+          el('td', { class: e.ok ? 'okc' : 'badc' }, `${e.ok ? '✓' : '✗'} spread ${e.spread == null ? '—' : e.id === 'damperTiming' ? `${Math.round(100 * e.spread)}%` : `${e.spread.toFixed(2)} mm`}`))))),
+        el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { exam = { started: false }; S.setPresent([true, true]); refresh(); } }, 'Start a new exam')));
+      return;
+    }
+    put(p, el('div', { class: 'row notes' }, [0, 1, 2].map(i => el('button', { class: i === exam.cur ? 'on' : '', disabled: busy ? '' : false, onclick: () => goNote(i) },
+      `Note ${i + 1}${i === 0 ? ' (bass)' : i === 2 ? ' (treble)' : ''}`))),
+      el('p', { class: 'muted small' }, `${clockText()}. Run the tests, adjust and repair; the hammer rail\'s rest felts and the soft pedal are shared by all three notes. ${level().live ? '' : 'Click a part on the action to adjust it.'}`),
+      AREAS.map(ar => el('details', { class: 'fold', open: '' }, el('summary', {}, ar.name),
+        el('div', { class: 'row' }, ar.tests.map(testButton)), readingsTable(ar.specs),
+        level().live ? el('div', { class: 'knobs' }, ar.knobs.map(k => knobRow(k))) : null, repairButtons(ar.specs))));
+    put(document.getElementById('actionbar'), el('div', { class: 'row' }, el('button', { class: 'primary', disabled: busy ? '' : false, onclick: handIn }, 'Hand it in')));
+  }
+  // ---------- drills (C8): strap or no strap, Jim Ellis's test as S15 filmed it, beside the sim's own runs ----------
+  // data/upright-ellis.json (tests/upright-ellis-data.mjs): the hammer's angle from rest after a quick release from
+  // check, every case filmed and simulated
+  let ellis = null, ellisShown = { bs: true, b: true, s: true, 0: true };
+  const ELLIS_COLORS = { bs: '#c4482a', b: '#3a6ea5', s: '#2f8a52', 0: '#8a6a20' };
+  function renderDrills(p) {
+    if (!ellis) {
+      put(p, el('p', { class: 'muted' }, 'Loading the filmed runs…'));
+      fetch('./data/upright-ellis.json').then(r => r.json()).then(d => { ellis = d; refresh(); }).catch(() => { ellis = { failed: true }; refresh(); });
+      return;
+    }
+    if (ellis.failed) { put(p, el('p', {}, 'The filmed runs could not load. Try reloading the page.')); return; }
+    const canvas = el('canvas', { class: 'drillcanvas', width: 720, height: 420 });
+    put(p, el('h2', {}, 'Strap or no strap'),
+      el('p', {}, 'Jim Ellis RPT timed the hammer coming back from the backcheck to its rail on a quick release, with the bridle strap and the butt spring each on or off. He found the strap\'s main job is repetition: strap and spring together bring the hammer home fastest, and with neither it takes about twice as long. PTG\'s high-speed clips redo his test on an upright action model; the sim\'s physics were fitted to them.'),
+      canvas,
+      el('p', { class: 'muted small' }, 'Solid: filmed. Dashed: the sim. The hammer\'s angle from where it rests, from the moment the key is let go; each line ends on the rail.'),
+      el('table', { class: 'specs' }, el('thead', {}, el('tr', {}, el('th', {}, 'Case'), el('th', {}, 'Filmed'), el('th', {}, 'Sim'))),
+        el('tbody', {}, Object.entries(ellis.cases).map(([k, c]) => el('tr', {},
+          el('td', {}, el('label', {}, el('input', { type: 'checkbox', checked: ellisShown[k] ? '' : false, onchange: e => { ellisShown[k] = e.target.checked; refresh(); } }),
+            ' ', el('span', { style: `color:${ELLIS_COLORS[k]};font-weight:600` }, c.label))),
+          el('td', {}, `${Math.round(c.filmRailMs)} ms`), el('td', {}, c.simRailMs ? `${Math.round(c.simRailMs)} ms` : '—'))))),
+      el('p', { class: 'muted small' }, 'The sim\'s strap-only case comes back a little faster than strap and spring together, the other way round from the film: its butt spring isn\'t right yet in that case.'),
+      el('p', { class: 'muted small' }, 'To feel it on the action: in the Sandbox, break the bridle strap (the parts list) and play at Slow ×50 with a quick release, then put it right and play again.'),
+      el('p', { class: 'credit' }, 'Jim Ellis RPT, "Bridle Strap Function", Piano Technicians Journal, Dec 1997; high-speed video from PTG\'s Education Hub (main videos narrated by Scott Murphy RPT).'));
+    drawEllis(canvas);
+  }
+  function drawEllis(cv) {
+    const g = cv.getContext('2d'), W = cv.width, Hh = cv.height, L = 56, B = 40, T = 14, R = 14;
+    const css = getComputedStyle(document.documentElement), ink = css.getPropertyValue('--ink').trim() || '#222', muted = css.getPropertyValue('--muted').trim() || '#777';
+    const all = Object.values(ellis.cases).flatMap(c => c.film.deg.concat(c.sim.deg)), yMax = Math.ceil(Math.max(...all) / 5) * 5, yMin = Math.floor(Math.min(0, ...all));
+    const X = t => L + (W - L - R) * t / 300, Y = d => T + (Hh - T - B) * (yMax - d) / (yMax - yMin);
+    g.clearRect(0, 0, W, Hh); g.font = '20px system-ui'; g.fillStyle = muted; g.strokeStyle = muted; g.lineWidth = 1;
+    for (let t = 0; t <= 300; t += 50) { g.beginPath(); g.moveTo(X(t), Y(yMin)); g.lineTo(X(t), Y(yMin) + 5); g.stroke(); g.fillText(`${t}`, X(t) - 12, Hh - 12); }
+    for (let d = yMin; d <= yMax; d += 5) { g.fillText(`${d}°`, 4, Y(d) + 6); g.globalAlpha = 0.25; g.beginPath(); g.moveTo(L, Y(d)); g.lineTo(W - R, Y(d)); g.stroke(); g.globalAlpha = 1; }
+    g.fillStyle = ink; g.fillText('ms', W - R - 26, Y(yMin) - 8);
+    for (const [k, c] of Object.entries(ellis.cases)) {
+      if (!ellisShown[k]) continue;
+      g.strokeStyle = ELLIS_COLORS[k]; g.lineWidth = 3;
+      for (const [line, dash] of [[c.film, []], [c.sim, [10, 7]]]) {
+        g.setLineDash(dash); g.beginPath();
+        let started = false;   // (the film starts 10 ms before the release: those points are left off)
+        line.t.forEach((t, i) => { if (t < 0 || t > 300) return; started ? g.lineTo(X(t), Y(line.deg[i])) : g.moveTo(X(t), Y(line.deg[i])); started = true; });
+        g.stroke();
+      }
+      g.setLineDash([]);
+    }
+  }
+  function renderPanel(p) {
+    if (mode === 'learn') renderLearn(p); else if (mode === 'diagnose') renderDiagnose(p); else if (mode === 'exam') renderExam(p);
+    else if (mode === 'drills') renderDrills(p); else renderSandbox(p);
+    renderCard();
+  }
   function renderCredits(p, back) {
     const all = Object.values(TIPS).flat(), people = [...new Set(all.map(t => t.who))].sort();
     put(p, el('h2', {}, 'From the bench: upright credits'),
@@ -352,14 +556,23 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   window.addEventListener('keyup', e => { if (active && e.code === 'Space' && e.target === document.body) letUp(); });
 
   // ---------- shown and hidden by the app's switch ----------
-  function show() { active = true; view(viewNow); }
+  let insetSet = false;
+  function show() {
+    active = true; view(viewNow);
+    if (!insetSet) { insetSet = true; setInset(document.getElementById('stage').clientWidth >= 700); }
+  }
   function hide() { active = false; closeCard(); tip.hidden = true; plan = null; letUp(); }
   function setMode(next) {
     if (busy || next === mode) return;
-    mode = next === 'learn' ? 'learn' : 'sandbox';
+    if (exam.started && !exam.done && !confirm('Leave the exam? Your progress will be lost.')) return;
+    if (exam.started) leaveExam();
+    mode = ['learn', 'diagnose', 'exam', 'drills'].includes(next) ? next : 'sandbox';
     closeCard(); S.highlight([]);
-    if (mode === 'learn') { setRegulation(deregulated(), { keepTested: false }); goStep(0); }
-    else setRegulation({ ...FACTORY }, { keepTested: false });
+    if (mode === 'exam') { exam = { started: false }; setRegulation({ ...FACTORY, damage: null }, { keepTested: false, replace: true }); return; }
+    if (mode === 'learn') { setRegulation({ ...deregulated(), damage: null }, { keepTested: false }); goStep(0); }
+    else if (mode === 'diagnose') { scenario = null; newCase(); }
+    else setRegulation({ ...FACTORY, damage: null }, { keepTested: false });
   }
-  return { S, show, hide, frame, setMode, renderPanel, renderCredits, get mode() { return mode; }, get busy() { return busy; } };
+  return { S, show, hide, frame, setMode, renderPanel, renderCredits, get mode() { return mode; }, get busy() { return busy; },
+    get examRunning() { return exam.started && !exam.done; } };
 }

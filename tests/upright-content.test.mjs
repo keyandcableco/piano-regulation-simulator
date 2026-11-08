@@ -33,7 +33,7 @@ test('every step has its text; graded steps name real knobs, tests and specs, an
   for (const [t, d] of Object.entries(TESTS)) for (const sp of d.specs) assert.ok(SPEC[sp], `test ${t}: spec ${sp}`);
 });
 test('tips sit on real steps and carry their credit; tools name their maker', () => {
-  const ids = new Set(STEPS.map(s => s.spec ?? s.id));
+  const ids = new Set(STEPS.map(s => s.id ?? s.spec));   // a step's tips go by its id where it has one (prep), else its spec
   for (const [k, list] of Object.entries(TIPS)) {
     assert.ok(ids.has(k), `tips for ${k}, which is no step`);
     for (const t of list) { assert.ok(t.text && t.who && t.src, `${k}: text, who, src`); assert.ok(creditOf(t).length > 0); }

@@ -14,7 +14,7 @@ const SIZES = [['desktop', 1280, 800], ['phone360', 360, 740], ['phone375', 375,
 // the views only tests use, as app.js names them on the View button (TEST_VIEWS there; upright-app.js's too)
 const TEST_VIEW_NAMES = ['Traveling', 'Jack from the keys', 'Backcheck, end on', 'Backcheck, above', 'Damper heads', 'Three dampers', 'Key tops', 'Hammer head'];
 const GRAND_VIEWS = ['action', 'angle', 'keyfront', 'escapement', 'hammer', 'rails', 'hammerline', 'backcheck', 'dampers'];
-const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'whole', 'wippen', 'butt', 'jackfront', 'check', 'damper'];
+const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'keyfront', 'whole', 'wippen', 'butt', 'jackfront', 'check', 'damper'];
 
 (async () => {
   fs.mkdirSync(out, { recursive: true });
@@ -223,6 +223,17 @@ const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'whole', 'wippen', 'butt', 'j
     await tap('#cat-view .cat-btn'); await page.waitForTimeout(300);
     check(await page.evaluate(() => [...document.querySelectorAll('#menu-view button')].filter(b => b.offsetParent).every(b => b.dataset.uview)), t('upright View menu holds only the upright views'));
     await shot('upright-menu-view'); await page.keyboard.press('Escape');
+    // its key inset, from the Show menu, off and on (it starts on where the stage is 700 px wide; shown in any view but the key front)
+    await pick('cat-view', '[data-uview="action"]');
+    const uInset = '#showmenu button[data-upright]:has-text("Key inset")';
+    const insetState = () => page.evaluate(() => [[...document.querySelectorAll('#showmenu button[data-upright]')].find(b => b.textContent.includes('Key inset')).getAttribute('aria-checked'),
+      !document.getElementById('inset-u').hidden].join());
+    const inset0 = await insetState();
+    await pick('cat-show', uInset); await page.waitForTimeout(400);
+    const inset1 = await insetState();
+    await pick('cat-show', uInset); await page.waitForTimeout(400);
+    const inset2 = await insetState();
+    check([inset0, inset1].sort().join('|') === 'false,false|true,true' && inset2 === inset0, t(`upright: Key inset from the Show menu (${inset0} | ${inset1} | ${inset2})`));
     await tap('#keybar button[data-upright].kplay'); await page.waitForTimeout(300);
     await pick('cat-key', '#keymenu button[data-upright]:has-text("Sustain pedal")');
     check(await page.$eval('#cat-key', e => e.classList.contains('latched')), t('upright: Sustain pedal on, dot on Key & pedals'));
