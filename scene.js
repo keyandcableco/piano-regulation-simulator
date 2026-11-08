@@ -65,9 +65,14 @@ const DH_WOOD = (() => {
 // Wippen, jack and repetition lever outlines, side profile, mm. Digitized from Renner USA's dimensioned
 // wippen drawing and fitted to Hirschkorn's measured Boston GP-178 (research/wippen/spec.md).
 // wippen-local: origin at the wippen center pin, body level
+// The body is solid across its 11 mm back from the jack's slot. In front of the slot its two front cheeks, either side of
+// the 5.5 mm jack, carry the jack's center pin (spec §3, §4.5); the slot runs back clear of the jack's heel at either end
+// of the jack screw's range.
+const W_SLOT_X = -90.5, W_SLOT = 5.7, W_CHEEK = (11 - W_SLOT) / 2;
 const W_BODY = [[6.3, -3.7], [7.3, 0], [6.3, 3.7], [3.7, 6.3], [0, 7.3], [-3.7, 6.3], [-5.3, 5.5], [-7.4, 4.7], [-8.6, 1.5], [-9.6, 0.7],
-  [-37, 0.7], [-38.5, 1.2], [-39.6, 3], [-40.5, 5.1], [-56.5, 5.1], [-57.3, 3], [-58.2, 1], [-60, 0], [-101, 0],
-  [-103.6, -1.2], [-104.8, -3.8], [-103.8, -6.4], [-101.5, -7.6], [-75, -7.6], [-6, -7.3], [-5.2, -4.6]];
+  [-37, 0.7], [-38.5, 1.2], [-39.6, 3], [-40.5, 5.1], [-56.5, 5.1], [-57.3, 3], [-58.2, 1], [-60, 0], [W_SLOT_X, 0],
+  [W_SLOT_X, -7.6], [-75, -7.6], [-6, -7.3], [-5.2, -4.6]];
+const W_CHEEKS = [[W_SLOT_X, 0], [-101, 0], [-103.6, -1.2], [-104.8, -3.8], [-103.8, -6.4], [-101.5, -7.6], [W_SLOT_X, -7.6]];
 const W_HEEL = [[-48.5, -7.6], [-51, -17.5], [-52.5, -19.2], [-54.5, -19.8], [-56.5, -20.1], [-58.5, -20.3], [-59.5, -20.3], [-60.5, -20.3],
   [-62.5, -20.1], [-64.5, -19.8], [-66.5, -19.2], [-68, -17.5], [-72.5, -7.6]];
 const W_HEEL_FELT = [[-52.5, -19.2], [-54.5, -19.8], [-56.5, -20.1], [-59.5, -20.3], [-62.5, -20.1], [-64.5, -19.8], [-66.5, -19.2],
@@ -75,10 +80,18 @@ const W_HEEL_FELT = [[-52.5, -19.2], [-54.5, -19.8], [-56.5, -20.1], [-59.5, -20
 const W_SUPPORT = [[-44.3, -0.7], [-51.7, -0.7], [-51.7, 27.9], [-51.2, 29.8], [-49.9, 31.1], [-48, 31.6], [-46.1, 31.1], [-44.8, 29.8], [-44.3, 27.9]];
 const W_JACK_POST = [[-81.56, -7.4], [-75.4, 21.6]];   // the jack stop wire's axis, foot to end (Ø2: its front face is W_STOP_FACE)
 const W_FLANGE = [[3.2, -24.7], [-4, -24.7], [-4, 1.4], [-3.5, 3.2], [-2.2, 4.5], [-0.4, 5], [1.4, 4.5], [2.7, 3.2], [3.2, 1.4]];
+// Below the wippen's rear end the flange is solid between its cheeks. Its screw (spec §4.1: a Ø3.7 hole 12.3 mm under the
+// pin) runs level through it into the rail's back face, head on the strings side: drawn as the hammer flange's #5 × ¾ in
+// screw (FS_* below), since no source gives the wippen's own.
+const W_FLANGE_WEB = -8.5, W_FS = [3.2, -12.3];
 const W_STOP_FACE = { p: [-76.87, 19.15], n: [-0.969, 0.247] };   // where the jack button rests: the stop wire's face
 const W_SPRING_COIL = [-49.1, 17.0];
 const W_SPRING_UPPER = [[-49.1, 17.0], [-51.6, 19.6], [-60.4, 21.8], [-63.6, 24.7], [-67.6, 26.9], [-71.5, 29.3]];
 const W_SPRING_LOWER = [[-49.1, 17.0], [-51.6, 15.3], [-61.1, 16.0], [-69.8, 12.7], [-74.9, 9.1], [-80.7, 4.4], [-90.9, 1.5], [-95.4, -0.7]];
+// where the legs' ends bear, in the frames of the parts they press (spec §4.2, §4.4): the upper on the underside of the
+// fine-adjust plate under the repetition lever, the lower on the jack's spring seat, 3.5 mm behind and 2.8 above its pin.
+// The spec's notch there isn't cut in the jack's outline, so the wire's end runs into the jack's back.
+const R_SPRING_SEAT = [-23.2, 1.8], J_SPRING_SEAT = [3.5, 2.8];
 // jack-local: origin at the jack center pin, drawn at its rest lean
 // the top's back corner is rounded so the knuckle slips off it: Hirschkorn's 1 mm arc (Table A.5, Pj2), the curve
 // model.js lifts the knuckle with, running from the back edge round to the top face
@@ -287,6 +300,12 @@ export function createScene(canvas, overlay) {
     const wfl = n.wfl = new THREE.Group(); wfl.position.set(G.W[0], G.W[1], 0); root.add(wfl);
     ext(shapeFrom(W_FLANGE), 3, -4.3, COLORS.wood, 'wflange', wfl);
     ext(shapeFrom(W_FLANGE), 3, 4.3, COLORS.wood, 'wflange', wfl, { opacity: 0.4 });
+    ext(rect(-4, -24.7, 3.2, W_FLANGE_WEB), 5.7, 0, COLORS.wood, 'wflange', wfl);   // into the cheeks a hair: no slit
+    // its screw, the one you loosen to space the wippen: built about +y like the hammer flange's, turned to point into the rail
+    const wfs = new THREE.Group(); wfs.position.set(...W_FS, 0); wfs.rotation.z = -Math.PI / 2; wfl.add(wfs);
+    lathe(FS_HEAD, COLORS.steel, 'wflange', wfs, { metal: true });
+    ext(shapeFrom(FS_SLOT), 0.7, 0, COLORS.dark, 'wflange', wfs);
+    cyl(FS_R, FS_LEN, 'y', [0, -FS_LEN / 2, 0], COLORS.steel, 'wflange', wfs, { metal: true });
     // traveling paper: a strip between the flange's front face and the rail's back face, at one cheek, peeking over the
     // rail top. Drawn 0.3 mm a strip (real strips are about a tenth of that) so it shows; it grows into the rail face so
     // the flange needn't move (the swing itself is the group's yaw).
@@ -359,6 +378,10 @@ export function createScene(canvas, overlay) {
     const wippen = n.wippen = new THREE.Group(); root.add(wippen);
     wippen.position.set(G.W[0], G.W[1], 0);
     ext(shapeFrom(W_BODY), 11, 0, COLORS.wood, 'wippen', wippen);
+    // its front cheeks round the jack; the near one see-through (and clicked through: pick skips 0.3 and under), so the
+    // jack's foot and center pin show between them and a click there picks the jack
+    ext(shapeFrom(W_CHEEKS), W_CHEEK, -(W_SLOT + W_CHEEK) / 2, COLORS.wood, 'wippen', wippen);
+    ext(shapeFrom(W_CHEEKS), W_CHEEK, (W_SLOT + W_CHEEK) / 2, COLORS.wood, 'wippen', wippen, { opacity: 0.3 });
     ext(shapeFrom(W_HEEL), 12, 0, COLORS.wood, 'wippen', wippen);
     n.heelG = new THREE.Group(); n.heelG.position.y = -19.2; wippen.add(n.heelG);   // the cushion packs down toward the heel
     ext(shapeFrom(W_HEEL_FELT.map(([x, y]) => [x, y + 19.2])), 12.4, 0, COLORS.redfelt, 'heel', n.heelG);
@@ -368,8 +391,14 @@ export function createScene(canvas, overlay) {
     rodBetween(W_JACK_POST[0], W_JACK_POST[1], 1, COLORS.steel, 'jackstop', wippen);
     lathe([[0, -1], [0.7, -0.7], [1, 0], [0.7, 0.7], [0, 1]], COLORS.steel, 'jackstop', wippen, { metal: true }).position.set(...W_JACK_POST[1], 0);
     cyl(1.6, 4.4, 'z', [...W_SPRING_COIL, 0], COLORS.steel, 'repspring', wippen, { metal: true });
-    tube(W_SPRING_UPPER.map(([x, y]) => [x, y, -1.2]), 0.5, COLORS.steel, 'repspring', wippen);
-    tube(W_SPRING_LOWER.map(([x, y]) => [x, y, 1.6]), 0.5, COLORS.steel, 'repspring', wippen);
+    // each leg is built along the line from the coil to its end, so update() can swing it about the coil and stretch it
+    // to keep its end on the part it presses
+    n.springLegs = [[W_SPRING_UPPER, -1.2], [W_SPRING_LOWER, 1.6]].map(([pts, z]) => {
+      const [cx, cy] = W_SPRING_COIL, [ex, ey] = pts[pts.length - 1], a = Math.atan2(ey - cy, ex - cx), c = Math.cos(a), s = Math.sin(a);
+      const leg = new THREE.Group(); leg.position.set(cx, cy, 0); wippen.add(leg);
+      tube(pts.map(([x, y]) => [(x - cx) * c + (y - cy) * s, (y - cy) * c - (x - cx) * s, z]), 0.5, COLORS.steel, 'repspring', leg);
+      return { leg, len: Math.hypot(ex - cx, ey - cy) };
+    });
     center('wcenter', wippen, [0, 0], 12);
     center('jcenter', wippen, G.jackPivotW, 12);
     center('rcenter', wippen, G.repPivotW, 10.6);
@@ -724,6 +753,9 @@ export function createScene(canvas, overlay) {
     // repetition lever: horn sits under the knuckle or at its stop/drop limit
     const kb = knuckleBottom(hammerOverride ?? sim.g)[1];
     n.rep.rotation.z = -repRho(L, Math.min(L.hornTop, kb));
+    // the butterfly spring's legs follow the lever's fine-adjust plate and the jack's heel
+    legTo(n.springLegs[0], G.repPivotW, R_SPRING_SEAT, n.rep.rotation.z);
+    legTo(n.springLegs[1], G.jackPivotW, J_SPRING_SEAT, n.jack.rotation.z);
     n.hammer.rotation.z = hammerOverride ?? sim.g;
     // side to side: the wippen shifted on its flange, the backcheck wire bent over and its head twisted
     n.wippen.position.z = n.wfl.position.z = BASS * (a.wippenSpace || 0);
@@ -799,6 +831,11 @@ export function createScene(canvas, overlay) {
     const gap = (G.jackPivotW[0] + f[0] - p[0]) * nn[0] + (G.jackPivotW[1] + f[1] - p[1]) * nn[1];
     const k = -gap / (u[0] * nn[0] + u[1] * nn[1]);
     return [scrU[0] * k, scrU[1] * k];
+  }
+  // swing and stretch a spring leg about the coil so its end sits on point p of a part pinned at o and turned to angle a
+  function legTo({ leg, len }, o, [px, py], a) {
+    const x = o[0] + px * Math.cos(a) - py * Math.sin(a) - W_SPRING_COIL[0], y = o[1] + px * Math.sin(a) + py * Math.cos(a) - W_SPRING_COIL[1];
+    leg.rotation.z = Math.atan2(y, x); leg.scale.x = Math.hypot(x, y) / len;
   }
   // rep-local drop of the height screw's button that seats it on the wippen top (y 0.7) with the lever at rho
   function repBtnShift(rho) {

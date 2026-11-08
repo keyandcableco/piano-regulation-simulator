@@ -26,8 +26,18 @@ export const G = {
   jackTop: [16.5, 46.7], jackTopR: 1, jackFront: [11.9, 48.9], toe: [-25.0, 5.1],   // jackFront: front end of the top face
   // repetition lever (local to its centre pin): where the knuckle sits on the horn, top of the drop screw's felt
   horn: [-33.5, 16.5], tip: [-51.6, 22.1],
-  windowFelt: [[-43.3, 12.6], [-42.8, 19.0]],   // face of the jack stop felt on the window's front wall, bottom to top
-  // hammer (local to the shank centre pin, +x along the shank): the knuckle, the crown's arc, the tail
+  // Face of the jack stop felt on the window's front wall, bottom to top. It sits nearer the jack than the Boston's: at
+  // factory the jack's top-front corner rests 4.95 mm from it, and would rest 6.5 from Hirschkorn's felt (contact 9,
+  // research/wippen/spec.md §3: a circle r 5 at [-49.4, 18.5], §5, 6.2 from the jack at his own regulation). It stays here
+  // because it is where a tripped jack stops (updateJack): at factory the jack clears it by 1.7 mm at the bottom of a slow
+  // press, and jams once aftertouch passes about 2.5 mm. The corner moves only 3.7 mm against the lever from rest to there,
+  // so no felt can be 6.2 away at rest and keep that: moved 1.25 mm out, to 6.2, it would clear by 2.95 and let about
+  // 0.7 mm more aftertouch through before the jack jams. No source gives that clearance.
+  windowFelt: [[-43.3, 12.6], [-42.8, 19.0]],
+  // hammer (local to the shank centre pin, +x along the shank): the knuckle, the crown's arc, the tail.
+  // At factory the shank rests 15.35° head-down, not the Boston's measured 16.42° (research/wippen/spec.md §1): the factory
+  // solve sets the capstan for the textbook 1¾ in blow (44.45 mm), not his 47.0, so the head rests 2.5 mm higher. Set to a
+  // 47.0 blow, this geometry rests at 16.42°.
   H: [323.3, 146.1], knuckleC: [16.96, -9.08], knuckleR: 4.4,
   coreT: 1.2, coreEnd: 1.2,         // the knuckle's wood core: a thin tongue through the roll's middle, ending this far past its centre (Greg's photo)
   crownC: [132.13, 35.6], crownR: 10.2,  // felt top 45.8 above the shank, 140 out from the centre pin
@@ -120,6 +130,10 @@ export const ADJ = [
 
 // ---------- textbook specs ----------
 // Generic textbook targets of the kind a PTG exam expects. Change them here.
+// They are not the measured Boston's regulation: Hirschkorn set his GP-178 to dip 10.0 mm, blow 48 (47.0 as measured),
+// let-off 1.0 mm from the string, drop to 3.0 and check at 15 (research/wippen/spec.md §1, §6), and at rest it shows
+// 6.3 mm from the let-off button to the jack's toe, 4.9 from the drop screw to its felt and 0.9 from the shank to the rest
+// rail. factory() regulates the same geometry to these targets instead, which leaves 7.75, 6.04 and 3.18 mm at rest.
 export const SPEC = {
   // Action centers: friction in grams on a gram gauge at the stated distance (CENTERS), and no side play. Graded on the
   // published ranges as they stand, not scaled with the skill level: they are part specs, not regulation tolerances. Not
@@ -399,7 +413,9 @@ export function linkage(a, d) {
     G.heelR + G.capDomeR, 0.4, -0.6);
   const wp = p => add(G.W, rot(p, phi));
   const J = wp(G.jackPivotW), R = wp(G.repPivotW);
-  // jack
+  // jack: jackScrew is how far the screw moves the jack's top, mm along its arc about the pin (the top corner's centre is
+  // 49.5 mm out). The wippen spec (research/wippen/spec.md §5) divides by 47, the top's height above the pin, which turns
+  // it about 5% more per mm; dividing by the radius keeps the knob's millimetres true at the top.
   const psiRest = a.jackScrew / Math.hypot(...G.jackTop);
   const jackPt = (psi, p) => add(J, rot(p, phi + psi));
   const btn = a.letoff;
@@ -770,6 +786,9 @@ export function factory() {
     bis(a, 'letoff', () => measure(a).letoff ?? 0, SPEC.letoff.target, 84, 102);
     bis(a, 'drop', () => measure(a).drop ?? 0, SPEC.drop.target, 128, 152);
     bis(a, 'backcheck', () => measure(a).check, SPEC.check.target, -4, 4);
+    // set for SPEC.spring's rise from check (net 0.55 hammer weights), which takes about 1.355 at rest. The Boston's
+    // measured spring is 1.16 at rest (research/wippen/spec.md §3, §5): here that rises from check with 0.35, still a
+    // pass, but toward the sluggish end.
     bis(a, 'repSpring', () => measure(a).spring, SPEC.spring.target, 0.3, 2.4);
     bis(a, 'damperGap', () => measureDampers(a).damperTiming ?? 1, SPEC.damperTiming.target, 0, 9);
     const kl = measureDampers(a).keyLiftBottom;
@@ -802,7 +821,19 @@ const REP_CENTER = 0.088, REP_SLIDE = 0.05;
 const LAND_LOSS = 1.0;
 const POP_W = 2.0;   // leaving the lever faster than this is a visible pop
 const STRIKE_W = 0.5; // reaching the string slower than this, the hammer just leans on it (rad/s)
-const REST_E = 0.35; // rebound off the string
+// Rebound off the string. In Scott Murphy's high-speed videos (PTG Education Hub, "High Speed Video of the Grand Piano
+// Action") a clean strike, the jack escaped and the key held, comes back at 0.41-0.63 of its speed over seven blows from
+// pp to fff on a Shigeru Kawai action model (median 0.49, a little less the harder the blow), and at 0.59 off a grand's
+// string.
+const REST_E = 0.5;
+// The backcheck gives like a spring: a hammer coming down into it goes on by CHECK_TAU (s) times its speed, slowing
+// evenly, and is held where it stops. On the Shigeru model the check came 3.7 mm deeper for each m/s the hammer left the
+// string at (19.4 mm after p, 26.5 after ff), 13-36 ms after the strike. It starts to take the hammer CHECK_GIVE (mm at
+// the crown) above its face, the give of the Strike and hold test's blow (250 mm/s) at factory, so that blow stops at the
+// face and the check reading, the factory and the miss and scrape leans stay where they were. A softer blow is held short
+// of the face, a harder one past it; the drawn backcheck doesn't give.
+const CHECK_TAU = 0.0037;
+const CHECK_GIVE = 2.2;
 const STRIKE_R = Math.hypot(G.crownC[0], G.crownC[1] + G.crownR);   // centre pin to the felt that meets the string, mm
 const BOUNCE_V = 0.01;  // a knuckle landing on the jack slower than this (m/s) just settles
 // A jack spring working the jack's rounded top back under a knuckle that sits a hair below where the jack would hold
@@ -929,7 +960,7 @@ export class Sim {
     if (this.wedge0 > 0) {
       const x = Math.min(1, this.wedgeT / WEDGE_T);
       jackG = wasEsc ? g : jackG - this.wedge0 * (1 - x * x * (3 - 2 * x));   // at the reset exactly at the hammer, not a rounding error above it
-      if (!st.checked) this.wedgeT += dt;
+      if (!st.checked && !st.catching) this.wedgeT += dt;
       if (x >= 1) this.wedge0 = 0;
     }
     const jackDriving = jackG >= this.g - 1e-6;
@@ -958,20 +989,38 @@ export class Sim {
     if (g < gR) { g = gR; w = Math.max(0, w); }
     // backcheck
     const gC = gFromTail(L.bcCatchY);
+    const gTake = gC + CHECK_GIVE / STRIKE_R;   // where the backcheck starts to take the hammer
     const catchActive = L.depth >= G.bcInPath && a.backcheck >= -G.bcMissLean;
-    if (catchActive && g > gC + 0.02) st.aboveCheck = true;
+    if (catchActive && g > gC + 0.02) st.aboveCheck = true;   // 0.02 rad is above gTake too
     if (!catchActive) st.aboveCheck = false;
     if (catchActive && w > 0 && g < gC && a.backcheck > G.bcScrapeLean && !this.scraped) { this.scraped = true; this.emit('scrape'); }
-    if (!st.checked && catchActive && st.aboveCheck && this.g >= gC && g < gC && w < 0) {
-      st.checked = true; st.dChecked = this.d; g = gC; w = 0;
-      this.emit('checked', { dist: G.stringY - crownY(gC) });
+    // the hammer falls past where the backcheck takes it, or a key still going down carries that point up past the
+    // hammer within the step (so the hammer was above where it stood a step ago)
+    if (!st.checked && !st.catching && catchActive && st.aboveCheck && g < gTake && w < 0 &&
+        (this.g >= gTake || this.g >= gFromTail(this.L.bcCatchY) + CHECK_GIVE / STRIKE_R)) {
+      // the tail meets the backcheck, which takes up the hammer's speed over CHECK_TAU x that speed
+      st.catching = true; st.dChecked = this.d; st.wCatch = -this.w;
+      g = this.g; w = this.w;
+    }
+    if (st.catching) {
+      // a key coming up lets go of the tail while it's still being caught, as it does once it's held
+      if (this.d < st.dChecked - 0.8 || !catchActive) { st.catching = false; st.aboveCheck = false; this.emit('uncheck'); }
+      else {
+        st.dChecked = Math.max(st.dChecked, this.d);
+        w = Math.min(0, this.w + st.wCatch / (2 * CHECK_TAU) * dt);
+        g = this.g + w * dt;
+        if (w >= 0) {
+          st.catching = false; st.checked = true; st.give = gTake - g; w = 0;
+          this.emit('checked', { dist: G.stringY - crownY(g) });
+        }
+      }
     }
     if (st.checked) {
       st.dChecked = Math.max(st.dChecked, this.d);
-      const net = springF(a, L, Math.min(knuckleBottom(gC)[1], L.hornTop)) - 1;
+      const net = springF(a, L, Math.min(knuckleBottom(gTake - st.give)[1], L.hornTop)) - 1;   // the spring where the knuckle is held
       if (net > G.checkHold) { st.checked = false; this.emit('jumpcheck'); }
       else if (this.d < st.dChecked - 0.8 || !catchActive) { st.checked = false; st.aboveCheck = false; this.emit('uncheck'); }
-      else { g = gC; w = 0; } // the backcheck grips the tail
+      else { g = gTake - st.give; w = 0; } // the backcheck grips the tail where it stopped it
     }
     // string
     if (g > gString()) {
