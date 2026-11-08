@@ -122,6 +122,12 @@ const FS_R = 1.6, FS_LEN = 19;       // #5, ¾ in: its tip stays inside the rail
 const FS_LOOSE_LIFT = 1.5, FS_LOOSE_LEAN = 0.1;   // loose: backed up off the flange and leaning in its hole (mm, rad)
 const SHANK_R = -G.shankRest[1];     // the shank's radius where the rest rail meets it
 const KNUCKLE_LEATHER = 1.5;         // buckskin round the knuckle's felt roll (proportions from Greg's photo)
+// The shank's butt (WNG's Renner-type shank and flange drawing, 06-5110-03): a squared block as wide as the flange that
+// carries the center pin and the knuckle, then tapers in a cone to the round shank. A tongue off its end runs between
+// the flange's cheeks round the pin. hammer-local, mm.
+const BUTT_W = 10.6, BUTT_TOP = 4, BUTT_END = 22, BUTT_CONE = 6;   // width, top and bottom off the shank line, length
+const BUTT_TONGUE_W = 6.6, BUTT_TONGUE_R = 2.4;   // the tongue's width, and its rounded end (clear of the drop screw)
+const FL_CHEEK_R = BUTT_TOP;        // the flange cheeks' rounded ends about the pin, flush with the butt; its block starts just past them
 
 // Hammer head and backcheck, side profile, mm: Hirschkorn's Boston GP-178 parts traced full size, the crown on
 // G.crownC / G.crownR and the tail's back face on his measured arc (research/hammer-shape/spec.md §5).
@@ -292,8 +298,14 @@ export function createScene(canvas, overlay) {
     // the top slopes up to the body; the screw's head sits on a level shelf behind it
     ext(shapeFrom([[290, 140], [309, 140], [311.5, 145.5], [322, 145.5], [322, 149.5], [FS_X + 3.6, 144 + (FS_X + 3.6 - 290) * 5.5 / 32],
       [FS_X + 3.6, FS_SEAT], [290, FS_SEAT]]), 11, 0, COLORS.wood, 'flange', fl);
-    ext(rect(321, 140, 331, 153.5), 3.5, -5, COLORS.wood, 'flange', fl);
-    ext(rect(321, 140, 331, 153.5), 3.5, 5, COLORS.wood, 'flange', fl, { opacity: 0.4 });
+    // its two short cheeks round the center pin, rounded about it and flush with the shank's butt (WNG's Renner-type
+    // drawing, 06-5110-03): from the side the flange runs straight on into the shank
+    const cheek = new THREE.Shape();
+    cheek.moveTo(322, G.H[1] - FL_CHEEK_R); cheek.lineTo(G.H[0], G.H[1] - FL_CHEEK_R);
+    cheek.absarc(G.H[0], G.H[1], FL_CHEEK_R, -Math.PI / 2, Math.PI / 2, false);
+    cheek.lineTo(322, G.H[1] + FL_CHEEK_R); cheek.closePath();
+    ext(cheek, 2, -(BUTT_TONGUE_W / 2 + 1), COLORS.wood, 'flange', fl);
+    ext(cheek, 2, BUTT_TONGUE_W / 2 + 1, COLORS.wood, 'flange', fl);
     // its screw, on the flat behind the body; a loose one stands up off the flange and leans
     const fs = n.flangeScrew = new THREE.Group(); fs.position.set(FS_X, FS_SEAT, 0); fl.add(fs);
     lathe(FS_HEAD, COLORS.steel, 'flangescrew', fs, { metal: true });
@@ -397,8 +409,8 @@ export function createScene(canvas, overlay) {
     const align = n.align = new THREE.Group(); root.add(align);
     align.position.set(G.H[0], G.H[1], 0);
     const hammer = n.hammer = new THREE.Group(); align.add(hammer);
-    cyl(SHANK_R, 132, 'x', [66, 0, 0], COLORS.wood, 'shank', hammer);   // ends hidden inside the molding
-    center('hcenter', hammer, [0, 0], 13.6);
+    cyl(SHANK_R, 132 - BUTT_END, 'x', [(132 + BUTT_END) / 2, 0, 0], COLORS.wood, 'shank', hammer);   // ends hidden inside the molding
+    center('hcenter', hammer, [0, 0], BUTT_W + 0.4);
     // a split along the shank: only there when the shank is damaged
     n.crack = ext(rect(30, 2.2, 95, 3.6), 1.2, 3.4, COLORS.dark, 'shank', hammer, { noPick: true });
     // the head twists about the shank's axis when the shank is out of square
@@ -408,11 +420,21 @@ export function createScene(canvas, overlay) {
     // its end grain shows on each side of the knuckle, and the back of the jack lines up with its back face.
     {
       const [kx, ky] = G.knuckleC, R = G.knuckleR, t = G.coreT, rollTop = ky + R;
-      // the shank's underside at the knuckle, flat where the roll is glued on (the drawn shank is thinner than a real one)
-      const pad = new THREE.Shape();
-      pad.moveTo(kx - R + 0.6, -SHANK_R + 1.6); pad.lineTo(kx + R - 0.6, -SHANK_R + 1.6);
-      pad.lineTo(kx + 2.4, rollTop - 0.15); pad.lineTo(kx - 2.4, rollTop - 0.15); pad.closePath();
-      ext(pad, 8, 0, COLORS.wood, 'shank', hammer);
+      // the butt: the tongue between the flange cheeks, then the block, its underside coming down flat onto the roll
+      const tongue = new THREE.Shape();
+      tongue.moveTo(FL_CHEEK_R + 1, -BUTT_TONGUE_R); tongue.lineTo(FL_CHEEK_R + 1, BUTT_TONGUE_R); tongue.lineTo(0, BUTT_TONGUE_R);
+      tongue.absarc(0, 0, BUTT_TONGUE_R, Math.PI / 2, 3 * Math.PI / 2, false); tongue.closePath();
+      ext(tongue, BUTT_TONGUE_W - 0.6, 0, COLORS.wood, 'shank', hammer);
+      // its back end cups round the cheeks' rounded ends, so the flange runs straight on into the shank at any angle
+      const rc = FL_CHEEK_R + 0.25, a0 = Math.asin(BUTT_TOP / rc), block = new THREE.Shape();
+      block.moveTo(rc * Math.cos(a0), BUTT_TOP);
+      [[BUTT_END, BUTT_TOP], [BUTT_END, rollTop], [kx - R, rollTop], [kx - R - 2.5, -BUTT_TOP], [rc * Math.cos(a0), -BUTT_TOP]]
+        .forEach(([x, y]) => block.lineTo(x, y));
+      block.absarc(0, 0, rc, -a0, a0, false); block.closePath();
+      ext(block, BUTT_W, 0, COLORS.wood, 'shank', hammer);
+      const cone = new THREE.Mesh(new THREE.CylinderGeometry(SHANK_R, BUTT_TOP, BUTT_CONE, 20).rotateZ(-Math.PI / 2),
+        mat(COLORS.wood));
+      cone.position.x = BUTT_END + BUTT_CONE / 2; hammer.add(cone); register(cone, 'shank', {});
       // the tongue: from just past the roll's centre, up through the roll and 1.8 mm into the groove
       ext(rect(kx - t / 2, ky - G.coreEnd, kx + t / 2, rollTop + 1.8), 8.4, 0, COLORS.core, 'knucklecore', hammer);
       // felt and buckskin hang from the roll's top, so wear (the knuckle packing down) flattens only its bottom
