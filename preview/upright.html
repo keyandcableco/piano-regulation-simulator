@@ -23,11 +23,20 @@ body.shot #bar, body.shot #picked { display: none; }
 </style>
 <script type="importmap">{ "imports": { "three": "../vendor/three/three.module.min.js", "three/addons/": "../vendor/three/addons/" } }</script>
 </head><body><div id="stage"><canvas id="c"></canvas><div id="overlay"></div><div id="bar"></div><div id="picked"></div></div>
+<div id="why" hidden style="position:absolute;inset:0;align-items:center;justify-content:center;padding:24px;text-align:center"></div>
+<script>
+// a page opened from disk can't load its modules, and a browser without WebGL can't draw: say so rather than stay blank
+function why(text) { const e = document.getElementById('why'); e.textContent = text; e.hidden = false; e.style.display = 'flex'; }
+if (location.protocol === 'file:') why('This page has to come from a local server, not straight from disk. In the checkout run: '
+  + '/usr/bin/python3 -m http.server 8812, then open http://localhost:8812/preview/upright.html in Chrome.');
+</script>
 <script type="module">
 import { createUprightScene } from '../scene-upright.js';
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById('c');
-const S = createUprightScene(canvas, document.getElementById('overlay'));
+let S;
+try { S = createUprightScene(canvas, document.getElementById('overlay')); }
+catch (e) { why('This browser could not start WebGL, so the drawing can\'t show (the Claude app\'s browser pane has it off). Open the page in Chrome. (' + e.message + ')'); throw e; }
 S.setBackground('#' + (q.get('bg') || 'eceef0').replace(/^#/, ''));
 if (q.has('shot')) document.body.classList.add('shot');
 let labels = q.get('labels') === '1';
