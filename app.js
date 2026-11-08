@@ -5,6 +5,7 @@ import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
 import { TOOLBAG } from './toolbag.js';
 import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS } from './model.js';
+import { initControls, markView, closeMenu } from './controls.js';
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -97,7 +98,14 @@ let viewNow = 'action';
 let travelRestG = null;   // the hammer's rest angle in the traveling view, held while a test lifts it
 const TOGETHER = new Set(['angle', 'damperline', 'damperrow']);
 const focusFor = name => !multi() || name === 'hammerline' || (examActive() ? exam.done : TOGETHER.has(name)) ? null : cur;
-const view = name => { viewNow = name; travelRestG = null; S.setFocus(focusFor(name)); S.setView(name, NOTE_Z[cur]); };
+const view = name => { viewNow = name; travelRestG = null; S.setFocus(focusFor(name)); S.setView(name, NOTE_Z[cur]); showView(); };
+// the View button names the view, and its menu marks it; the views only tests use are named here
+const TEST_VIEWS = { travel: 'Traveling', jackfront: 'Jack from the keys', checkfront: 'Backcheck from the keys', checktop: 'Backcheck from above',
+  damperline: 'Damper heads', damperrow: 'Three dampers', keytop: 'Key tops' };
+function showView() {
+  for (const b of document.querySelectorAll('[data-view]')) b.classList.toggle('on', b.dataset.view === viewNow);
+  markView(document.querySelector(`[data-view="${viewNow}"] b`)?.textContent ?? TEST_VIEWS[viewNow] ?? viewNow);
+}
 
 // ---------- learn steps (standard grand order) ----------
 // The order follows the published grand sequences (Randy Potter School checklist, Steinway and
@@ -737,7 +745,7 @@ function redraw() {
   }
   for (const b of document.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.mode === mode);
   // the action's views and key buttons have nothing to work on while a tool is on the bench
-  $('#views').style.display = $('#keydock').style.display = mode === 'tools' ? 'none' : '';
+  $('#views').style.display = $('#keydock').style.display = $('#framepad').style.display = mode === 'tools' ? 'none' : '';
   // the measured distances drawn on the action: the Sandbox can hide them
   $('#dist-btn').hidden = mode !== 'sandbox';
   S.setCallouts(mode !== 'sandbox' || distancesOn);
@@ -1592,7 +1600,16 @@ function restoreFrame(h) {
 function setPaused(on) {
   paused = on; if (on) setLoop(false); else cue = null;   // run, the frames go by at the screen's own rate
   $('#k-pause').classList.toggle('on', on); $('#k-pause').textContent = on ? 'Run' : 'Pause';
+  if (on) $('#framepad').hidden = false;   // the frame buttons come out whenever the action is paused, and stay out till Done
 }
+// Done puts the frame buttons away, and the action runs again (nothing on the bar would say it was still paused)
+const framesDone = () => { if (paused && !busy) setPaused(false); if (!paused) $('#framepad').hidden = true; };
+$('#frames-done').onclick = framesDone;
+$('#framepad').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); framesDone(); } });
+$('#k-frames').onclick = () => { if (busy) return; setPaused(true); if (idleNow()) explain('Paused: Play or Go to let-off, then Frame ▶ steps through it'); };
+$('#k-letoff-m').onclick = () => $('#k-letoff').click();
+// a clicked frame button lets go of the keyboard, so Space goes back to striking the key (the frame keys work anywhere)
+$('#framepad').addEventListener('click', e => { if (e.detail) e.target.closest('button')?.blur(); });
 const frameFwd = () => {
   if (busy) return;
   if (cue?.run) { explain('Still going to let-off'); return; }
@@ -1665,6 +1682,7 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   if (mode === 'drills') { drillsStop?.(); drillsEl = null; }
   if (mode === 'tools') { S.hideTool(); toolSel = null; S.setLabels(labelsOn); }
   mode = b.dataset.mode; tested = new Set(); verdict = null; S.clearCallouts(); setPaused(false); clearFrames(); closePop();
+  $('#framepad').hidden = true;
   if (mode === 'tools') { S.setLabels(false); if (sim.dTarget > 0) sim.press(0, 60); if (TOOLBAG.length) pickTool(TOOLBAG[0].id); }
   if (mode === 'exam' || mode === 'drills' || mode === 'tools') { exam = { started: false, done: false }; refresh(); return; }
   if (mode === 'learn') { stepIdx = 0; messUp(); focusStep(); }
@@ -1842,7 +1860,9 @@ function frame(now) {
   placePop();
   requestAnimationFrame(frame);
 }
-const keyButtons = [...document.querySelectorAll('#keybar button:not([data-speed])')];
+// the key's buttons in the bar, its menu and the frame buttons (not the menus' own buttons, nor the speeds)
+const keyButtons = [...document.querySelectorAll('button[id^="k-"]')];
+initControls();
 applyTheme();
 adj = { ...FACTORY }; applyAdj(); view('angle');
 // the exam clock keeps time even while the tab is in the background
@@ -1869,12 +1889,14 @@ async function setAction(kind) {
     if (mode === 'exam' && exam.started && !exam.done) { toast('Finish or leave the exam first', 'warn'); return; }
     if (mode !== 'learn' && mode !== 'sandbox') $('.tab[data-mode=sandbox]').click();
     setLoop(false); clearPlan(); cue = null; setPaused(false); releaseOthers(); sim.press(0, 60); closePop(); S.highlight(null); tip.hidden = true;
+    $('#framepad').hidden = true;
   }
+  closeMenu();
   action = kind; showCredits = false;
   $('#app').classList.toggle('upright', kind === 'upright');
   for (const b of document.querySelectorAll('#action-switch button')) b.classList.toggle('on', b.dataset.action === kind);
   $('header h1').textContent = kind === 'upright' ? 'Upright action regulation' : 'Grand action regulation';
-  if (kind === 'upright') U.show(); else U?.hide();
+  if (kind === 'upright') U.show(); else { U?.hide(); showView(); }
   try { localStorage.setItem('regsim-action', kind); } catch {}
   history.replaceState(null, '', kind === 'upright' ? '#upright' : location.pathname + location.search);
   refresh();

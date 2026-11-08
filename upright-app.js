@@ -7,6 +7,7 @@
 import { FACTORY, ADJ, SPEC, Sim, measure, grade, pose, DAMPER_PEDAL_LIFT } from './upright-model.js';
 import { createUprightScene } from './scene-upright.js';
 import { STEPS, TESTS, TIPS, TOOLS, SPEC_NAMES, bandText, readingText, callouts, deregulated, creditOf } from './content-upright.js';
+import { markView } from './controls.js';
 
 const DT = 0.0001;          // s: the Sim's step (its tests' and fit's)
 // At most this many steps a screen frame. Each costs about 0.2 ms of computing, so 120 is about 24 ms: real speed
@@ -33,8 +34,14 @@ const AREAS = [
   { name: 'Backcheck and bridle', knobs: ['backcheck', 'bridle'], specs: ['check', 'bridle'] },
   { name: 'Damper', knobs: ['spoon'], specs: ['damperTiming'] },
 ];
-const VIEW_BUTTONS = [['action', 'Action'], ['angle', '3/4'], ['whole', 'Key'], ['butt', 'Jack & butt'], ['jackfront', 'Jack from the keys'],
-  ['check', 'Backcheck'], ['wippen', 'Wippen'], ['damper', 'Damper'], ['front', 'From the keys']];
+// the View menu (controls.js): the whole action, then the close views, each with what the tests check in it
+const VIEW_GROUPS = [
+  ['Whole action', [['action', 'Action', 'from the treble end: let-off, damper'], ['angle', '3/4', 'from the player\'s side, above'],
+    ['front', 'From the keys', 'the key and its neighbors']]],
+  ['Close up', [['whole', 'Key', 'key height, dip'], ['wippen', 'Wippen', 'and the capstan'], ['butt', 'Jack & butt', 'lost motion, escapement'],
+    ['jackfront', 'Jack from the keys', 'a slice through the jack'], ['check', 'Backcheck', 'check, bridle'], ['damper', 'Damper', 'damper lever and spoon']]],
+];
+const TEST_VIEWS = { head: 'Hammer head' };   // views only a test uses, named on the View button
 const EVENT_TEXT = {
   letoff: e => `Let off ${e.dist.toFixed(1)} mm from the strings`, strike: e => `Struck at ${e.v.toFixed(1)} m/s`, blocked: () => 'Blocked on the strings',
   checked: e => `Checked ${e.dist.toFixed(1)} mm from the strings`, reset: () => 'Jack back under the butt', seated: () => 'Damper back on the strings',
@@ -53,23 +60,34 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   $('#c').after(canvas); $('#overlay').after(overlay);
   const S = createUprightScene(canvas, overlay);
   canvas.scene = S;   // for the headless checks (tests/upright-app-check.cjs)
-  const viewBtns = VIEW_BUTTONS.map(([v, label]) => mark(el('button', { 'data-uview': v, onclick: () => view(v) }, label)));
-  const labelsBtn = mark(el('button', { title: 'Show part names', onclick: () => { labelsOn = !labelsOn; S.setLabels(labelsOn); labelsBtn.classList.toggle('on', labelsOn); } }, 'Labels'));
-  $('#views').append(...viewBtns, labelsBtn);
+  // the page's View, Show, Key & pedal and Speed menus take the upright's buttons beside the grand's (index.html, controls.js)
+  const item = (role, label, caption, attrs) => mark(el('button', { role, ...attrs }, el('b', {}, label), caption ? el('small', {}, caption) : null));
+  const viewBtns = [];
+  for (const [head, views] of VIEW_GROUPS) {
+    const btns = views.map(([v, label, caption]) => item('menuitemradio', label, caption, { 'data-uview': v, onclick: () => view(v) }));
+    viewBtns.push(...btns);
+    $('#menu-view').append(mark(el('div', { role: 'group', 'aria-label': head }, el('div', { class: 'mhead' }, head), el('div', { class: 'mgrid' }, btns))));
+  }
+  const labelsBtn = item('menuitemcheckbox', 'Part names', 'a name beside each part',
+    { onclick: () => { labelsOn = !labelsOn; S.setLabels(labelsOn); labelsBtn.classList.toggle('on', labelsOn); } });
+  $('#showmenu').append(labelsBtn);
   const keyState = mark(el('span', { class: 'u-keystate' })), lastEvent = mark(el('span', { class: 'u-lastevent' })), keyPos = mark(el('span', { class: 'u-keypos' }));
   $('#keystatus').append(keyState, lastEvent, mark(el('span', { class: 'sep' })), keyPos);
-  const kb = (label, title, onclick) => mark(el('button', { title, onclick }, label));
-  const softBtn = kb('Soft pedal', 'Soft pedal down or up', () => setSoft(!softOn));
-  const susBtn = kb('Sustain pedal', 'Sustain pedal down or up (P)', () => setSustain(!sustainOn));
-  const speedBtns = [[1, 'Real speed'], [0.1, 'Slow ×10'], [0.02, 'Slow ×50']].map(([s, label]) =>
-    mark(el('button', { 'data-uspeed': s, class: s === speed ? 'on' : '', onclick: () => setSpeed(s) }, label)));
+  const kb = (label, title, onclick, attrs = {}) => mark(el('button', { title, onclick, ...attrs }, label));
+  const softBtn = item('menuitemcheckbox', 'Soft pedal', 'the hammer rail moves in', { title: 'Soft pedal down or up', onclick: () => setSoft(!softOn) });
+  const susBtn = item('menuitemcheckbox', 'Sustain pedal', 'all the dampers off', { title: 'Sustain pedal down or up (P)', onclick: () => setSustain(!sustainOn) });
+  const speedBtns = [[1, 'Real speed', 'as fast as a real blow'], [0.1, 'Slow ×10', 'ten times slower'], [0.02, 'Slow ×50', 'fifty times slower']].map(([s, label, caption]) =>
+    item('menuitemradio', label, caption, { 'data-uspeed': s, 'data-short': label, class: s === speed ? 'on' : '', onclick: () => setSpeed(s) }));
+  // Play and Let key up stay on the bar, after the grand's own; the others go in the Key & pedals menu
   const keyBtns = [
-    kb('Play', 'Strike the key and let it come back up', () => play('play')),
-    kb('Strike & hold', 'Strike and keep holding the key down (or hold Space, or press and hold on the key)', () => play('hold')),
-    kb('Press slowly', 'Press the key slowly to the bottom and hold it there', () => play('slow')),
+    kb([el('span', { class: 'glyph' }, '▶ '), 'Play'], 'Strike the key and let it come back up', () => play('play'), { class: 'kplay' }),
     kb('Let key up', 'Let the key all the way up (Esc)', () => play('up')),
+    item('menuitem', 'Strike & hold', 'strike, and keep it down', { title: 'Strike and keep holding the key down (or hold Space, or press and hold on the key)', onclick: () => play('hold') }),
+    item('menuitem', 'Press slowly', 'to the bottom, and hold it', { title: 'Press the key slowly to the bottom and hold it there', onclick: () => play('slow') }),
     softBtn, susBtn];
-  $('#keybar').append(...keyBtns, mark(el('span', { class: 'sep' })), ...speedBtns);
+  $('#k-release').after(...keyBtns.slice(0, 2));
+  $('#keymenu').append(...keyBtns.slice(2));
+  $('#speedmenu').append(...speedBtns);
   const card = mark(el('div', { id: 'partpop-u', hidden: '' }));
   $('#stage').append(card);
 
@@ -111,7 +129,11 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   function setSoft(on) { if (busy) return; idle = false; testEvents = []; softOn = on; sim.setSoft(on); softBtn.classList.toggle('on', on); }
   function setSustain(on) { if (busy) return; idle = false; testEvents = []; sustainOn = on; sim.setPedal(on); susBtn.classList.toggle('on', on); }
   function setSpeed(s) { speed = s; for (const b of speedBtns) b.classList.toggle('on', +b.dataset.uspeed === s); }
-  function view(name) { viewNow = name; S.setView(name); for (const b of viewBtns) b.classList.toggle('on', b.dataset.uview === name); }
+  function view(name) {
+    viewNow = name; S.setView(name);
+    for (const b of viewBtns) b.classList.toggle('on', b.dataset.uview === name);
+    markView(viewBtns.find(b => b.dataset.uview === name)?.querySelector('b').textContent ?? TEST_VIEWS[name] ?? name);
+  }
 
   // ---------- the loop (app.js's frame() calls this while the upright is shown) ----------
   // returns how many steps it ran (none when the frame is shorter than a step)

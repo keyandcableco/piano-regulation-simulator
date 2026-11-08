@@ -27,11 +27,13 @@ if (!out) { console.error('usage: node tests/grand-baseline.cjs <out_dir> [base_
   const shot = async name => { await page.waitForTimeout(900); await page.locator('#stage canvas#c').screenshot({ path: path.join(out, `${name}.png`) }); };
   const text = sel => page.$eval(sel, e => e.innerText.replace(/\s+/g, ' ').trim());
   record.sandbox = await text('#mode');
-  for (const v of ['action', 'angle', 'escapement', 'backcheck', 'dampers']) { await page.click(`#views [data-view="${v}"]`); await shot(`view-${v}`); }
+  // a button in one of the picture's menus (controls.js): open its category first, where the page has them
+  const pick = async (cat, sel) => { if (await page.$(`#${cat}`)) await page.click(`#${cat} .cat-btn`); await page.click(sel); };
+  for (const v of ['action', 'angle', 'escapement', 'backcheck', 'dampers']) { await pick('cat-view', `#views [data-view="${v}"]`); await shot(`view-${v}`); }
   // Strike & hold at real speed, then the events line once it has checked
-  await page.click('#views [data-view="action"]');
-  await page.click('[data-speed="1"]');
-  await page.click('#k-strike'); await page.waitForTimeout(1500);
+  await pick('cat-view', '#views [data-view="action"]');
+  await pick('cat-speed', '[data-speed="1"]');
+  await pick('cat-key', '#k-strike'); await page.waitForTimeout(1500);
   record.strike = { keystate: await text('#keystate'), lastevent: await text('#lastevent') };
   await shot('strike-held');
   await page.click('#k-release'); await page.waitForTimeout(1000);

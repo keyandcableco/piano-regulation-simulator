@@ -57,7 +57,7 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -app
 #action-switch button:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
 #app:not(.upright) [data-upright] { display: none !important; }
 #app.upright #c, #app.upright #overlay, #app.upright #inset, #app.upright #partpop, #app.upright #popdot, #app.upright #examclock,
-#app.upright #views > :not([data-upright]), #app.upright #keybar > :not([data-upright]), #app.upright #keystatus > :not([data-upright]),
+#app.upright [data-grand], #app.upright #keystatus > :not([data-upright]),
 #app.upright .tab:is([data-mode=diagnose], [data-mode=exam], [data-mode=drills], [data-mode=tools]), #app.upright #units { display: none !important; }
 #cu { cursor: grab; } #cu:active { cursor: grabbing; }
 .u-keystate { font-size: 12px; color: var(--muted); flex: none; width: 8em; } .u-keystate.down { color: var(--accent); font-weight: 600; }
@@ -67,12 +67,52 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -app
   padding: 3px 6px; border-radius: 4px; margin: -10px 0 0 6px; }
 #tip { position: absolute; left: 0; top: 0; pointer-events: none; background: var(--panel); color: var(--ink); border: 1px solid var(--line);
   padding: 2px 7px; border-radius: 4px; font-size: 12px; }
-#views { position: absolute; top: 10px; left: 10px; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 20px); }
+#views { position: absolute; top: 10px; left: 10px; max-width: calc(100% - 20px); }
 /* the key buttons along the bottom, and above them a line of what the key is doing: its text changes every frame, so
    it sits on its own line, and the buttons never move as it grows and shrinks */
 #keydock { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; flex-direction: column; gap: 4px; }
-#keybar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-#keybar .sep, #keystatus .sep { flex: 1; }
+#keystatus .sep { flex: 1; }
+/* the two bars hold a few buttons each, never a row to scroll: View and Show at the top; Play, Let key up, Key & pedal
+   and Speed at the bottom. A category opens its menu over the picture (controls.js); a button whose words change
+   (the view, the speed) keeps one width, so nothing beside it moves. */
+.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }   /* (wraps only if a font runs wider than any tried) */
+.cat { flex: none; }
+.bar > button, .cat-btn { white-space: nowrap; flex: none; }
+.cat-btn { position: relative; display: inline-flex; align-items: center; gap: 6px; }
+.cat-btn::after { content: '▾'; color: var(--muted); font-size: 11px; }
+#stage .cat-btn[aria-expanded="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.cat-btn .k { color: var(--muted); font-size: 12px; }
+.cat-btn .v { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+#view-btn { width: 14.4em; }
+#speed-btn { width: 8em; }
+.kplay { font-weight: 600; }
+#stage .kplay:not(:disabled) { border-color: var(--accent); }
+/* a dot on Key & pedal while something in it stays on: Loop, a pedal */
+.cat.latched .cat-btn::before { content: ''; position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+/* placed beside its button by controls.js */
+.menu { position: fixed; z-index: 4; left: 0; top: 0; width: 400px; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,.2); padding: 2px 8px 8px; }
+#menu-show { width: 300px; }
+.menu[hidden], .menu [hidden] { display: none !important; }
+.mhead { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 8px 2px 4px; }
+.mgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.mgrid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mgrid.one { grid-template-columns: 1fr; }
+#stage .menu button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; padding: 6px 10px; background: var(--btn); min-height: 44px; }
+#stage .menu button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.menu button b { font-weight: 600; }
+.menu button small { font-size: 12px; color: var(--muted); line-height: 1.25; }
+.menu button.on small { color: inherit; opacity: .9; }
+/* the switches say whether they are on, not by color alone */
+.menu [role="menuitemcheckbox"] b::after { content: ' · off'; font-weight: 400; opacity: .75; }
+.menu [role="menuitemcheckbox"].on b::after { content: ' · on'; }
+.bar button:focus-visible, #framepad button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* frame by frame: out on the picture's left edge while the action is paused, as the move buttons are on its right */
+#framepad { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 104px; display: grid; gap: 4px; z-index: 1;
+  background: color-mix(in srgb, var(--panel) 80%, transparent); border: 1px solid var(--line); border-radius: 8px; padding: 5px; }
+#framepad[hidden] { display: none; }
+#framepad .cap { font-size: 11px; color: var(--muted); text-align: center; line-height: 1; }
+#framepad button { padding: 4px; min-height: 32px; white-space: nowrap; }
 #keystatus { display: flex; gap: 10px; align-items: baseline; white-space: nowrap; overflow: hidden; font-size: 12px; min-height: 1.45em; pointer-events: none; }
 #keypos { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; flex: none; }
 #toasts { position: absolute; top: 48px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; }
@@ -90,7 +130,7 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -app
 #lastevent { font-size: 12px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; pointer-events: auto; }
 /* buttons whose words change keep one width: Pause / Run, inches / mm */
 #k-pause, #units { min-width: 4.6em; }
-#k-loop.on, #k-pause.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+#k-pause.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 @keyframes nudge { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); } }
 #k-release.attn { background: var(--accent); border-color: var(--accent); color: #fff; animation: nudge 1.6s ease-in-out infinite; }
 #c { cursor: grab; }
@@ -248,20 +288,25 @@ a { color: var(--accent); }
   .nudge { flex: 1; }
   #keypos { display: none; }
   #toasts { top: 52px; font-size: 13px; width: calc(100% - 32px); }
-  #views, #keybar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   #keystatus .sep { display: none; }
-  #views button, #keybar button { font-size: 12px; padding: 4px 8px; white-space: nowrap; flex: none; }
+  /* Play, Let key up, Key & pedal and Speed fit a 360 px phone */
+  .bar > button, .cat-btn { padding: 5px 6px; font-size: 13px; }
+  .bar { gap: 4px; }
+  #view-btn { width: 14em; }
+  #speed-btn { width: 7.5em; }
+  .cat-btn { gap: 4px; }
+  #framepad { top: 58px; transform: none; width: 88px; }   /* under the view button */
+  #framepad button { min-height: 36px; font-size: 13px; }
   #keystate { display: none; }
   #examclock { top: auto; bottom: 70px; right: 84px; font-size: 16px; }   /* left of the move buttons, never over Help */
   #navpad { top: 46px; transform: none; }   /* up under the view buttons, clear of the exam clock */
   #partpop { width: 250px; max-width: calc(100% - 84px); padding: 6px 8px; }   /* clear of the zoom buttons */
 }
-/* a mouse can't swipe a button row sideways: show a thin scrollbar under it (a short window, or zoomed in) */
-@media (max-width: 820px) and (pointer: fine), (orientation: landscape) and (max-height: 500px) and (pointer: fine) {
-  #views, #keybar { scrollbar-width: thin; }
-}
+/* the narrowest phones: Play without its ▶, so the bottom bar stays one row */
+@media (max-width: 370px) { .kplay .glyph { display: none; } }
 /* fingers, at any width (most phones are wider than 820px on their side) */
 @media (pointer: coarse) {
+  .bar > button, .cat-btn { min-height: 40px; }
   .nudge { min-height: 44px; }
   #navpad button { min-height: 40px; }
   button.test, details.fold > summary { min-height: 42px; }
@@ -293,19 +338,43 @@ a { color: var(--accent); }
     <canvas id="c"></canvas>
     <div id="overlay"></div>
     <div id="tip" hidden></div>
-    <div id="views">
-      <button data-view="action">Action</button>
-      <button data-view="angle">3/4</button>
-      <button data-view="keyfront">Key front</button>
-      <button data-view="escapement">Jack &amp; knuckle</button>
-      <button data-view="rails">Rails</button>
-      <button data-view="hammer">Hammer</button>
-      <button data-view="backcheck">Backcheck</button>
-      <button data-view="hammerline">Hammer line</button>
-      <button data-view="dampers">Dampers</button>
-      <button id="labels" title="Show part names">Labels</button>
-      <button id="inset-btn" title="A small view of the key front in the corner, so you can watch the key travel while the main view shows the action">Key inset</button>
-      <button id="dist-btn" class="on" title="Show or hide the measured distances drawn on the action" hidden>Distances</button>
+    <!-- the picture's two bars: a few categories, each a menu (controls.js); the upright adds its own items, data-upright -->
+    <div id="views" class="bar" role="toolbar" aria-label="The picture">
+      <div class="cat" id="cat-view">
+        <button class="cat-btn" id="view-btn"><span class="k">View</span><span class="v" id="view-now">3/4</span></button>
+        <div class="menu" id="menu-view" role="menu" aria-label="Views" hidden>
+          <div role="group" aria-labelledby="vh-whole" data-grand>
+            <div class="mhead" id="vh-whole">Whole action</div>
+            <div class="mgrid">
+              <button role="menuitemradio" data-view="action"><b>Action</b><small>the whole action, side on</small></button>
+              <button role="menuitemradio" data-view="angle"><b>3/4</b><small>from above the keys, at an angle</small></button>
+            </div>
+          </div>
+          <div role="group" aria-labelledby="vh-close" data-grand>
+            <div class="mhead" id="vh-close">Close up, in regulation order</div>
+            <div class="mgrid">
+              <button role="menuitemradio" data-view="keyfront"><b>Key front</b><small>key height, dip</small></button>
+              <button role="menuitemradio" data-view="escapement"><b>Jack &amp; knuckle</b><small>jack position, wink</small></button>
+              <button role="menuitemradio" data-view="hammer"><b>Hammer</b><small>blow, let-off, drop, aftertouch</small></button>
+              <button role="menuitemradio" data-view="rails"><b>Rails</b><small>the rest rail gap</small></button>
+              <button role="menuitemradio" data-view="hammerline"><b>Hammer line</b><small>the line, spacing, squaring</small></button>
+              <button role="menuitemradio" data-view="backcheck"><b>Backcheck</b><small>the checking distance</small></button>
+              <button role="menuitemradio" data-view="dampers"><b>Dampers</b><small>lift timing, the pedal</small></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="cat" id="cat-show">
+        <button class="cat-btn" title="Part names and other things drawn on the picture">Show</button>
+        <div class="menu" id="menu-show" role="menu" aria-label="Show on the picture" hidden>
+          <div class="mhead">On the picture</div>
+          <div class="mgrid one" id="showmenu">
+            <button id="labels" role="menuitemcheckbox" data-grand><b>Part names</b><small>a name beside each part</small></button>
+            <button id="inset-btn" role="menuitemcheckbox" data-grand><b>Key inset</b><small>the key front in a corner, to watch its travel while the view shows the action</small></button>
+            <button id="dist-btn" role="menuitemcheckbox" class="on" data-grand hidden><b>Distances</b><small>the measured distances drawn on the action</small></button>
+          </div>
+        </div>
+      </div>
     </div>
     <div id="toasts"></div>
     <div id="examclock" hidden></div>
@@ -345,23 +414,51 @@ a { color: var(--accent); }
       <span class="sep"></span>
       <span id="keypos"></span>
     </div>
-    <div id="keybar">
-      <button id="k-play" title="Strike the key and let it come back up">Play</button>
-      <button id="k-loop" title="Keep playing the key, one normal blow after another, so you can watch the action work">Loop</button>
-      <button id="k-strike" title="Strike and keep holding the key down (or hold Space, or press and hold on the key)">Strike &amp; hold</button>
-      <button id="k-slow" title="Press the key slowly to the bottom and hold it there">Press slowly</button>
-      <button id="k-ease" title="Let a held key up a little (pressed while the key is still going down, it waits until the hammer has checked)">Ease up</button>
-      <button id="k-release" title="Let the key all the way up (Esc)">Let key up</button>
-      <button id="k-pedal" title="Damper pedal down or up (P)">Pedal</button>
-      <span class="sep"></span>
-      <button data-speed="1">Real speed</button>
-      <button data-speed="0.1" class="on">Slow ×10</button>
-      <button data-speed="0.02">Slow ×50</button>
+    <!-- Play and Let key up stay one tap; the rest of the key's buttons, and the speeds, are a menu each -->
+    <div id="keybar" class="bar" role="toolbar" aria-label="Play the key">
+      <button id="k-play" class="kplay" data-grand title="Strike the key and let it come back up"><span class="glyph">▶ </span>Play</button>
+      <button id="k-release" data-grand title="Let the key all the way up (Esc)">Let key up</button>
+      <div class="cat" id="cat-key" data-dot>
+        <button class="cat-btn" title="More ways to play the key, and the pedal">Key &amp; pedal<span data-upright>s</span></button>
+        <div class="menu" id="menu-key" role="menu" aria-label="Play the key" hidden>
+          <div class="mhead">Play the key</div>
+          <div class="mgrid" id="keymenu">
+            <button id="k-loop" role="menuitemcheckbox" data-grand title="Keep playing the key, one normal blow after another, so you can watch the action work"><b>Loop</b><small>one normal blow after another</small></button>
+            <button id="k-strike" role="menuitem" data-grand title="Strike and keep holding the key down (or hold Space, or press and hold on the key)"><b>Strike &amp; hold</b><small>strike, and keep it down</small></button>
+            <button id="k-slow" role="menuitem" data-grand title="Press the key slowly to the bottom and hold it there"><b>Press slowly</b><small>to the bottom, and hold it</small></button>
+            <button id="k-ease" role="menuitem" data-grand title="Let a held key up a little (pressed while the key is still going down, it waits until the hammer has checked)"><b>Ease up</b><small>let a held key up a little</small></button>
+            <button id="k-pedal" role="menuitemcheckbox" data-grand title="Damper pedal down or up (P)"><b>Pedal</b><small>the damper pedal</small></button>
+          </div>
+        </div>
+      </div>
+      <div class="cat" id="cat-speed" data-value>
+        <button class="cat-btn" id="speed-btn" title="How fast the action moves, and frame by frame"><span class="v">Slow ×10</span></button>
+        <div class="menu" id="menu-speed" role="menu" aria-label="Speed" hidden>
+          <div class="mhead">Speed</div>
+          <div class="mgrid three" id="speedmenu">
+            <button role="menuitemradio" data-speed="1" data-short="Real speed" data-grand><b>Real speed</b><small>as fast as a real blow</small></button>
+            <button role="menuitemradio" data-speed="0.1" data-short="Slow ×10" class="on" data-grand><b>Slow ×10</b><small>ten times slower</small></button>
+            <button role="menuitemradio" data-speed="0.02" data-short="Slow ×50" data-grand><b>Slow ×50</b><small>fifty times slower</small></button>
+          </div>
+          <div role="group" aria-labelledby="sh-frames" data-grand>
+            <div class="mhead" id="sh-frames">Frame by frame</div>
+            <div class="mgrid">
+              <button id="k-frames" role="menuitem" title="Freeze the action (K); the frame buttons come out on the left of the picture"><b>Pause and step</b><small>freeze it, then step a frame at a time</small></button>
+              <button id="k-letoff-m" role="menuitem" title="Press slowly and stop just before let-off, in the Jack &amp; knuckle view, ready to step through let-off and the drop a frame at a time"><b>Go to let-off</b><small>stop just before let-off, to step through it</small></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+    <!-- frame by frame: out on the picture's left edge while the action is paused, as the move buttons are on its right -->
+    <div id="framepad" role="toolbar" aria-label="Frame by frame" data-grand hidden>
+      <span class="cap">Frames</span>
       <button id="k-pause" title="Freeze the action, then step it a frame at a time (Pause or K; comma and full stop step)">Pause</button>
       <button id="k-back" title="Back one frame (comma); hold to keep stepping back">◀ Frame</button>
       <button id="k-fwd" title="Forward one frame (full stop); hold to keep stepping">Frame ▶</button>
       <button id="k-letoff" title="Press slowly and stop just before let-off, in the Jack &amp; knuckle view, ready to step through let-off and the drop a frame at a time">Go to let-off</button>
-    </div>
+      <button id="frames-done" title="Put the frame buttons away and let the action run again">Done</button>
     </div>
   </div>
   <aside>
