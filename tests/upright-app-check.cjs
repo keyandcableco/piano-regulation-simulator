@@ -36,13 +36,13 @@ if (!out) { console.error('usage: node tests/upright-app-check.cjs <out_dir> [ba
   check((await text('#mode')).includes('Factory regulation'), 'the Sandbox at factory');
   await shot('upright-sandbox');
   // the key: Play, then the events line
-  await page.click('[data-uspeed="1"]');
+  await page.click('#cat-speed .cat-btn'); await page.click('[data-uspeed="1"]');
   await page.click('#keybar button[data-upright]:has-text("Play")');
   await page.waitForTimeout(2500);
   const ev = await page.$eval('.u-lastevent', e => e.textContent);
   check(/Struck|Checked/.test(ev), `Play strikes and checks: "${ev}"`);
   // a part card: the backcheck in the Backcheck view
-  await page.click('#views [data-uview="check"]'); await page.waitForTimeout(1200);
+  await page.click('#cat-view .cat-btn'); await page.click('#views [data-uview="check"]'); await page.waitForTimeout(1200);
   const box = await page.$eval('#cu', c => { const r = c.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
   // find a backcheck pixel by asking the scene where it is
   const at = await page.evaluate(() => {

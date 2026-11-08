@@ -5,6 +5,7 @@ import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
 import { TOOLBAG } from './toolbag.js';
 import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS } from './model.js';
+import { initControls, markView, closeMenu } from './controls.js';
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -37,11 +38,12 @@ const fmtBoth = mm => units === 'in' ? `${fracIn(mm)} (${fmm(mm)})` : `${fmm(mm)
 
 // ---------- skill level ----------
 // Apprentice: readings live everywhere, looser tolerances, hints. Journeyman: readings only after
-// the test that measures them. RPT: exam-tight tolerances and damage faults in the mix.
+// the test that measures them. Exam: exam-tight tolerances and damage faults in the mix.
+// (Key stays 'rpt' so saved settings still load; the name avoids PTG's RPT credential.)
 const LEVELS = {
   apprentice: { name: 'Apprentice', tolK: 1.5, live: true, hints: true },
   journeyman: { name: 'Journeyman', tolK: 1, live: false, hints: false },
-  rpt: { name: 'RPT', tolK: 0.75, live: false, hints: false, damage: true },
+  rpt: { name: 'Exam', tolK: 0.75, live: false, hints: false, damage: true },
 };
 let LEVEL = LEVELS.journeyman;
 try { const v = localStorage.getItem('regsim-level'); if (v && Object.hasOwn(LEVELS, v)) LEVEL = LEVELS[v]; } catch {}
@@ -97,7 +99,15 @@ let viewNow = 'action';
 let travelRestG = null;   // the hammer's rest angle in the traveling view, held while a test lifts it
 const TOGETHER = new Set(['angle', 'damperline', 'damperrow']);
 const focusFor = name => !multi() || name === 'hammerline' || (examActive() ? exam.done : TOGETHER.has(name)) ? null : cur;
-const view = name => { viewNow = name; travelRestG = null; S.setFocus(focusFor(name)); S.setView(name, NOTE_Z[cur]); };
+const view = name => { viewNow = name; travelRestG = null; S.setFocus(focusFor(name)); S.setView(name, NOTE_Z[cur]); showView(); };
+// the View button names the view, and its menu marks it; the views only tests use are named here
+// (short enough to fit the button: tests/controls-check.cjs lists them too)
+const TEST_VIEWS = { travel: 'Traveling', jackfront: 'Jack from the keys', checkfront: 'Backcheck, end on', checktop: 'Backcheck, above',
+  damperline: 'Damper heads', damperrow: 'Three dampers', keytop: 'Key tops' };
+function showView() {
+  for (const b of document.querySelectorAll('[data-view]')) b.classList.toggle('on', b.dataset.view === viewNow);
+  markView(document.querySelector(`[data-view="${viewNow}"] b`)?.textContent ?? TEST_VIEWS[viewNow] ?? viewNow);
+}
 
 // ---------- learn steps (standard grand order) ----------
 // The order follows the published grand sequences (Randy Potter School checklist, Steinway and
@@ -428,7 +438,7 @@ async function runTest(id) {
   if (busy) return;
   const gen = generation;
   clearPlan(); cue = null; recentWarn.clear();   // a test's own press stays down; its warnings always show
-  setPaused(false);                     // a test runs the action itself
+  setPaused(false); $('#framepad').hidden = true;   // a test runs the action itself
   releaseOthers();
   busy++;
   view(t.view);
@@ -737,7 +747,7 @@ function redraw() {
   }
   for (const b of document.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.mode === mode);
   // the action's views and key buttons have nothing to work on while a tool is on the bench
-  $('#views').style.display = $('#keydock').style.display = mode === 'tools' ? 'none' : '';
+  $('#views').style.display = $('#keydock').style.display = $('#framepad').style.display = mode === 'tools' ? 'none' : '';
   // the measured distances drawn on the action: the Sandbox can hide them
   $('#dist-btn').hidden = mode !== 'sandbox';
   S.setCallouts(mode !== 'sandbox' || distancesOn);
@@ -1234,7 +1244,7 @@ const examActive = () => mode === 'exam' && exam.started;
 // three notes in play: the exam model, or the Sandbox's three keys
 const multi = () => examActive() || (mode === 'sandbox' && threeKeys);
 function startExam() {
-  setPaused(false); clearFrames(); closePop();
+  setPaused(false); $('#framepad').hidden = true; clearFrames(); closePop();
   const restRail = deregulated().restRail;
   const shared = deregulated();
   NOTES.forEach(n => {
@@ -1316,13 +1326,14 @@ function renderExam(p) {
   if (!exam.started) {
     put(p, el('h2', {}, 'Exam practice: grand regulation'),
       el('p', {}, 'Practice for the grand section of PTG\'s Technical Exam. PTG\'s source book addendum (2005) says only that you assemble, align and regulate a disassembled grand action model in 50 minutes. Here you get a 3-note model, already assembled and de-regulated, with key height and dip given as targets. Regulate all three notes evenly.'),
+      el('p', { class: 'muted small' }, 'An independent practice tool, not affiliated with or endorsed by the Piano Technicians Guild.'),
       el('ul', { class: 'small' },
-        el('li', {}, LEVEL.live ? 'At Apprentice level readings show as you work; at Journeyman and RPT they stay hidden until you run the test that measures them.' : 'Readings stay hidden until you run the test that measures them, on that note.'),
+        el('li', {}, LEVEL.live ? 'At Apprentice level readings show as you work; at Journeyman and Exam they stay hidden until you run the test that measures them.' : 'Readings stay hidden until you run the test that measures them, on that note.'),
         el('li', {}, 'Click a key, or the note buttons, to work on a note. The hammer rest rail is shared.'),
         el('li', {}, LEVEL.live ? 'Adjust by clicking the part of the action you would turn, or with the controls listed under each test.'
           : 'Adjust by clicking the part of the action you would turn: its controls come up beside it. The panel lists the tests, not the adjustments; knowing which part to turn is part of the exam.'),
         el('li', {}, 'Assembly is skipped, but aligning is in: travel, space and square each hammer, center each jack and backcheck. The real 50 minutes include assembling the model, so you can set a shorter clock to leave yourself that time.'),
-        LEVEL.damage ? el('li', {}, 'At RPT level one note may also have a damaged part to find and repair (on the real exam, repairs are a separate section).') : null,
+        LEVEL.damage ? el('li', {}, 'At Exam level one note may also have a damaged part to find and repair (on the real exam, repairs are a separate section).') : null,
         el('li', {}, 'Scoring: each spec on each note, plus how even the three notes are. 80% is this practice\'s pass mark, not PTG\'s.')),
       el('label', { class: 'row small' }, el('input', { type: 'checkbox', ...(examDampers ? { checked: '' } : {}), onchange: e => { examDampers = e.target.checked; } }),
         ' Include dampers and pedal (lift timing, stop rail, pedal lift, falling together). PTG\'s grand section may not include them.'),
@@ -1595,7 +1606,15 @@ function restoreFrame(h) {
 function setPaused(on) {
   paused = on; if (on) setLoop(false); else cue = null;   // run, the frames go by at the screen's own rate
   $('#k-pause').classList.toggle('on', on); $('#k-pause').textContent = on ? 'Run' : 'Pause';
+  if (on) $('#framepad').hidden = false;   // the frame buttons come out whenever the action is paused, and stay out till Done
 }
+// Done puts the frame buttons away, and the action runs again (nothing on the bar would say it was still paused)
+const framesDone = () => { if (paused && !busy) setPaused(false); if (!paused) $('#framepad').hidden = true; };
+$('#frames-done').onclick = framesDone;
+$('#k-frames').onclick = () => { if (busy) return; setPaused(true); if (idleNow()) explain('Paused: Play or Go to let-off, then Frame ▶ steps through it'); };
+$('#k-letoff-m').onclick = () => $('#k-letoff').click();
+// a clicked frame button lets go of the keyboard, so Space goes back to striking the key (the frame keys work anywhere)
+$('#framepad').addEventListener('click', e => { if (e.detail) e.target.closest('button')?.blur(); });
 const frameFwd = () => {
   if (busy) return;
   if (cue?.run) { explain('Still going to let-off'); return; }
@@ -1668,6 +1687,7 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   if (mode === 'drills') { drillsStop?.(); drillsEl = null; }
   if (mode === 'tools') { S.hideTool(); toolSel = null; S.setLabels(labelsOn); }
   mode = b.dataset.mode; tested = new Set(); verdict = null; S.clearCallouts(); setPaused(false); clearFrames(); closePop();
+  $('#framepad').hidden = true;
   if (mode === 'tools') { S.setLabels(false); if (sim.dTarget > 0) sim.press(0, 60); if (TOOLBAG.length) pickTool(TOOLBAG[0].id); }
   if (mode === 'exam' || mode === 'drills' || mode === 'tools') { exam = { started: false, done: false }; refresh(); return; }
   if (mode === 'learn') { stepIdx = 0; messUp(); focusStep(); }
@@ -1845,7 +1865,9 @@ function frame(now) {
   placePop();
   requestAnimationFrame(frame);
 }
-const keyButtons = [...document.querySelectorAll('#keybar button:not([data-speed])')];
+// the key's buttons in the bar, its menu and the frame buttons (not the menus' own buttons, nor the speeds)
+const keyButtons = [...document.querySelectorAll('button[id^="k-"]')];
+initControls();
 applyTheme();
 adj = { ...FACTORY }; applyAdj(); view('angle');
 // the exam clock keeps time even while the tab is in the background
@@ -1873,12 +1895,14 @@ async function setAction(kind) {
     if (mode === 'exam' && exam.started && !exam.done) { toast('Finish or leave the exam first', 'warn'); return; }
     if (mode !== 'learn' && mode !== 'sandbox') $('.tab[data-mode=sandbox]').click();
     setLoop(false); clearPlan(); cue = null; setPaused(false); releaseOthers(); sim.press(0, 60); closePop(); S.highlight(null); tip.hidden = true;
+    $('#framepad').hidden = true;
   }
+  closeMenu();
   action = kind; showCredits = false;
   $('#app').classList.toggle('upright', kind === 'upright');
   for (const b of document.querySelectorAll('#action-switch button')) b.classList.toggle('on', b.dataset.action === kind);
   $('header h1').textContent = kind === 'upright' ? 'Upright action regulation' : 'Grand action regulation';
-  if (kind === 'upright') U.show(); else U?.hide();
+  if (kind === 'upright') U.show(); else { U?.hide(); showView(); }
   try { localStorage.setItem('regsim-action', kind); } catch {}
   history.replaceState(null, '', kind === 'upright' ? '#upright' : location.pathname + location.search);
   refresh();

@@ -137,7 +137,7 @@ export const ADJ = [
 export const SPEC = {
   // Action centers: friction in grams on a gram gauge at the stated distance (CENTERS), and no side play. Graded on the
   // published ranges as they stand, not scaled with the skill level: they are part specs, not regulation tolerances. Not
-  // in the exam (its repairs are a separate section), apart from a tight hammer center dealt as RPT damage.
+  // in the exam (its repairs are a separate section), apart from a tight hammer center dealt as Exam-level damage.
   hammerCenter: { name: 'Hammer flange center: free, no side play', center: 'hammer', unit: 'g', noExam: true },
   wippenCenter: { name: 'Wippen flange center: free, no side play', center: 'wippen', unit: 'g', noExam: true },
   jackCenter: { name: 'Jack center: free, no side play', center: 'jack', unit: 'g', noExam: true },
