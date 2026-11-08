@@ -85,15 +85,15 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   $('#keystatus').append(keyState, lastEvent, mark(el('span', { class: 'sep' })), keyPos);
   const kb = (label, title, onclick, attrs = {}) => mark(el('button', { title, onclick, ...attrs }, label));
   const softBtn = item('menuitemcheckbox', 'Soft pedal', 'the hammer rail moves in', { title: 'Soft pedal down or up', onclick: () => setSoft(!softOn) });
-  const susBtn = item('menuitemcheckbox', 'Sustain pedal', 'all the dampers off', { title: 'Sustain pedal down or up (P)', onclick: () => setSustain(!sustainOn) });
+  const susBtn = item('menuitemcheckbox', 'Sustain pedal', 'all the dampers off', { title: 'Sustain pedal down or up (P)', 'data-key': 'P', onclick: () => setSustain(!sustainOn) });
   const speedBtns = [[1, 'Real speed', 'as fast as a real blow'], [0.1, 'Slow ×10', 'ten times slower'], [0.02, 'Slow ×50', 'fifty times slower']].map(([s, label, caption]) =>
     item('menuitemradio', label, caption, { 'data-uspeed': s, 'data-short': label, class: s === speed ? 'on' : '', onclick: () => setSpeed(s) }));
   // Play and Let key up stay on the bar, after the grand's own; the others go in the Key & pedals menu
   const keyBtns = [
     kb([el('span', { class: 'glyph' }, '▶ '), 'Play'], 'Strike the key and let it come back up', () => play('play'), { class: 'kplay' }),
-    kb('Let key up', 'Let the key all the way up (Esc)', () => play('up')),
-    item('menuitem', 'Strike & hold', 'strike, and keep it down', { title: 'Strike and keep holding the key down (or hold Space, or press and hold on the key)', onclick: () => play('hold') }),
-    item('menuitem', 'Press slowly', 'to the bottom, and hold it', { title: 'Press the key slowly to the bottom and hold it there', onclick: () => play('slow') }),
+    kb('Let key up', 'Let the key all the way up (Esc)', () => play('up'), { 'data-key': 'Esc' }),
+    item('menuitem', 'Strike & hold', 'strike, and keep it down', { title: 'Strike and keep holding the key down (H; or hold Space, or press and hold on the key)', 'data-key': 'H', onclick: () => play('hold') }),
+    item('menuitem', 'Press slowly', 'to the bottom, and hold it', { title: 'Press the key slowly to the bottom and hold it there (S)', 'data-key': 'S', onclick: () => play('slow') }),
     softBtn, susBtn];
   $('#k-release').after(...keyBtns.slice(0, 2));
   $('#keymenu').append(...keyBtns.slice(2));
@@ -550,9 +550,12 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   window.addEventListener('keydown', e => {
     if (!active || busy || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.code === 'Escape') { play('up'); closeCard(); }
+    // H and S as the grand's: shown on their buttons
+    const k = !e.repeat && !/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && { h: 'hold', s: 'slow' }[e.key.toLowerCase()];
+    if (k) play(k);
     if (e.target !== document.body) return;
     if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) play('hold'); }
-    if (e.code === 'KeyP' && !e.repeat) setSustain(!sustainOn);
+    if ((e.key === 'p' || e.key === 'P') && !e.repeat) setSustain(!sustainOn);
   });
   window.addEventListener('keyup', e => { if (active && e.code === 'Space' && e.target === document.body) letUp(); });
 

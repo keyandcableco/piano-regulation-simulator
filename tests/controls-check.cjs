@@ -1,6 +1,6 @@
 // The picture's bars as menus (controls.js), driven in headless Chrome at desktop and phone widths: every view and key
-// action through its menu, a menu closing on a pick, an outside tap and Escape, the keyboard, the bars fitting with no
-// sideways scroll, the buttons staying put as their words change, each mode, the upright's menus, and no page errors.
+// action through its menu (or out on the bar, where it has room), a menu closing on a pick, an outside tap and Escape, the
+// keyboard and the keys shown on the buttons, the bars fitting with no sideways scroll, the buttons staying put as their words change, each mode, the upright's menus, and no page errors.
 // node tests/controls-check.cjs <out_dir> [base_url]
 // Needs a server on the checkout and Chrome (playwright-core from minichord-lab's node_modules, SwiftShader WebGL).
 const { chromium } = require('/home/gregory/minichord-lab/tests/node_modules/playwright-core');
@@ -35,6 +35,9 @@ const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'keyfront', 'whole', 'wippen'
     const menuOpen = id => page.$eval(`#${id}`, m => !m.hidden);
     const viewNow = () => page.$eval('#view-now', e => e.textContent);
     const pick = async (cat, item) => { await tap(`#${cat} .cat-btn`); await tap(item); };
+    // a key button: out on the bar where it has room, else in the Key & pedal menu
+    const keysOut = () => page.$eval('#cat-key', e => e.hidden);
+    const keyPick = async item => { if (await keysOut()) await tap(item); else await pick('cat-key', item); };
     const t = (label) => `${size}: ${label}`;
     await page.goto(`${base}/index.html?t=${Date.now()}`);
     await page.waitForSelector('#mode table', { state: 'attached', timeout: 60000 });
@@ -67,6 +70,11 @@ const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'keyfront', 'whole', 'wippen'
     };
     await fit('grand');
     await shot('grand');
+    // the key buttons out on a wide picture's bar, in the menu on a phone's; their keys shown only with a keyboard
+    const isOut = await keysOut(), outN = await page.$$eval('#keybar > .kout', l => l.filter(b => b.offsetParent).length);
+    check(phone ? !isOut && outN === 0 : isOut && outN === 5, t(`key buttons ${isOut ? `out on the bar (${outN})` : 'in the Key & pedal menu'}`));
+    const chip = await page.$eval('#k-release', b => getComputedStyle(b, '::after').content);
+    check(phone ? chip === 'none' || chip === 'normal' : chip === '"Esc"', t(`Let key up ${phone ? 'shows no key' : 'shows its key'} (${chip})`));
 
     // where the bar buttons sit, to see they don't move as words change
     const spots = () => page.evaluate(() => [...document.querySelectorAll('.bar > button, .cat-btn')].filter(b => b.offsetParent).map(b => { const r = b.getBoundingClientRect(); return `${r.left.toFixed(1)},${r.top.toFixed(1)},${r.width.toFixed(1)}`; }).join(' '));
@@ -104,26 +112,28 @@ const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'keyfront', 'whole', 'wippen'
     await tap('#k-play'); await page.waitForTimeout(150);
     check(/going down|held|coming up/.test(await keyDown()), t(`Play plays the key (${await keyDown()})`));
     await page.waitForTimeout(1200);
-    await pick('cat-key', '#k-strike'); await page.waitForTimeout(800);
+    await keyPick('#k-strike'); await page.waitForTimeout(800);
     check(/held/.test(await keyDown()) && !(await menuOpen('menu-key')), t(`Strike & hold holds it (${await keyDown()})`));
-    // Escape with a menu open closes the menu and leaves the key down
-    await tap('#cat-key .cat-btn'); await page.keyboard.press('Escape'); await page.waitForTimeout(300);
-    check(!(await menuOpen('menu-key')) && /held/.test(await keyDown()), t('Escape closes the menu and leaves the held key down'));
-    await pick('cat-key', '#k-ease'); await page.waitForTimeout(600);
+    // Escape with a menu open closes the menu and leaves the key down (Key & pedal's, or Speed's while it's hidden)
+    const escCat = await keysOut() ? 'speed' : 'key';
+    await tap(`#cat-${escCat} .cat-btn`); await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+    check(!(await menuOpen(`menu-${escCat}`)) && /held/.test(await keyDown()), t(`Escape closes the ${escCat} menu and leaves the held key down`));
+    await keyPick('#k-ease'); await page.waitForTimeout(600);
     check(/held|coming up/.test(await keyDown()), t(`Ease up lets it up a little (${await keyDown()})`));
     await tap('#k-release'); await page.waitForTimeout(1200);
     check(/rest/.test(await keyDown()), t(`Let key up lets it up (${await keyDown()})`));
-    await pick('cat-key', '#k-slow'); await page.waitForTimeout(400);
+    await keyPick('#k-slow'); await page.waitForTimeout(400);
     check(/going down|held/.test(await keyDown()), t(`Press slowly presses (${await keyDown()})`));
     await tap('#k-release'); await page.waitForTimeout(1500);
-    await pick('cat-key', '#k-loop'); await page.waitForTimeout(300);
-    check(await page.$eval('#k-loop', e => e.classList.contains('on')) && await page.$eval('#cat-key', e => e.classList.contains('latched')), t('Loop turns on, with the dot on Key & pedal'));
+    await keyPick('#k-loop'); await page.waitForTimeout(300);
+    check(await page.$eval('#k-loop', e => e.classList.contains('on')) && (await keysOut() ? await page.$eval('#k-loop', e => e.getAttribute('aria-pressed') === 'true') : await page.$eval('#cat-key', e => e.classList.contains('latched'))),
+      t(`Loop turns on, ${await keysOut() ? 'pressed on the bar' : 'with the dot on Key & pedal'}`));
     await tap('#k-release'); await page.waitForTimeout(300);
     check(!(await page.$eval('#k-loop', e => e.classList.contains('on'))), t('Let key up stops the loop'));
-    await pick('cat-key', '#k-pedal');
-    check(await page.$eval('#k-pedal', e => e.classList.contains('on') && e.getAttribute('aria-checked') === 'true'), t('Pedal goes down (aria-checked)'));
-    await tap('#cat-key .cat-btn'); await page.waitForTimeout(300); await shot('menu-key'); await page.keyboard.press('Escape');
-    await pick('cat-key', '#k-pedal');
+    await keyPick('#k-pedal');
+    check(await page.$eval('#k-pedal', e => e.classList.contains('on') && e.getAttribute(e.classList.contains('kout') ? 'aria-pressed' : 'aria-checked') === 'true'), t('Pedal goes down (aria-checked or -pressed)'));
+    if (await keysOut()) await shot('keybar-out'); else { await tap('#cat-key .cat-btn'); await page.waitForTimeout(300); await shot('menu-key'); await page.keyboard.press('Escape'); }
+    await keyPick('#k-pedal');
     for (const s of ['0.02', '0.1']) {
       await pick('cat-speed', `[data-speed="${s}"]`);
       check(await page.$eval(`[data-speed="${s}"]`, e => e.classList.contains('on')), t(`Speed ${s} picked`));
@@ -189,6 +199,43 @@ const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'keyfront', 'whole', 'wippen'
       await page.keyboard.press('p');
       check(padOut && pedal && (await page.$eval('#k-pause', e => e.textContent)) === 'Pause', t('K pauses with the frame buttons out, K runs, P works the pedal'));
       await tap('#frames-done');
+      // the letters shown on the key buttons: H holds, E eases it up, Esc lets it up, S presses slowly, L loops and stops
+      await page.keyboard.press('h'); await page.waitForTimeout(1500); const dH = await kp(), sH = await keyDown();
+      await page.keyboard.press('e'); await page.waitForTimeout(2500); const dE = await kp(), sE = await keyDown();
+      check(/held/.test(sH) && dE !== dH && !/rest/.test(sE), t(`H strikes and holds (${sH}, ${dH}), E eases it up (${sE}, ${dE})`));
+      await page.keyboard.press('Escape'); await page.waitForTimeout(2500);
+      await page.keyboard.press('s'); await page.waitForTimeout(400); const sS = await keyDown();
+      await page.keyboard.press('Escape'); await page.waitForTimeout(2500);
+      await page.keyboard.press('l'); const lOn = await page.$eval('#k-loop', e => e.classList.contains('on'));
+      await page.keyboard.press('l'); const lOff = await page.$eval('#k-loop', e => !e.classList.contains('on'));
+      check(/going down|held/.test(sS) && lOn && lOff, t(`S presses slowly (${sS}), L loops and stops`));
+      await page.keyboard.press('Escape'); await page.waitForTimeout(2500);
+      // G goes to let-off; full stop and comma step on and back
+      await page.keyboard.press('g');
+      await page.waitForFunction(() => /let-off in/.test(document.getElementById('keypos').textContent), null, { timeout: 60000 });
+      const g0 = await kp(); await page.keyboard.press('.'); await page.waitForTimeout(200); const g1 = await kp();
+      await page.keyboard.press(','); await page.waitForTimeout(200); const g2 = await kp();
+      check(g0 !== g1 && g2 === g0, t(`G goes to let-off, full stop then comma step (${g0} | ${g1} | ${g2})`));
+      await shot('keys-framepad');
+      await tap('#frames-done'); await page.keyboard.press('Escape'); await page.waitForTimeout(1500);
+
+      // narrower windows: the bar pulls in, then the buttons go back in the menu; widened with Key & pedal open, the
+      // menu closes as its buttons come out; a resize while in Tools is caught up on the way back
+      await page.setViewportSize({ width: 1100, height: h }); await page.waitForTimeout(500);
+      check(await keysOut() && await page.$eval('#keybar', e => e.classList.contains('tight')), t('1100 wide: key buttons out, the bar pulled in'));
+      await fit('1100 wide');
+      await page.setViewportSize({ width: 1000, height: h }); await page.waitForTimeout(500);
+      check(!(await keysOut()), t('1000 wide: key buttons in the menu'));
+      await fit('1000 wide');
+      await tap('#cat-key .cat-btn'); await page.waitForTimeout(200);
+      await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(500);
+      check(await keysOut() && !(await menuOpen('menu-key')), t('widened with Key & pedal open: buttons out, the menu closed'));
+      await tap('.tab[data-mode="tools"]'); await page.waitForTimeout(500);
+      await page.setViewportSize({ width: 1000, height: h }); await page.waitForTimeout(300);
+      await tap('.tab[data-mode="sandbox"]'); await page.waitForTimeout(500);
+      check(!(await keysOut()), t('narrowed in Tools: back in the Sandbox the buttons are in the menu'));
+      await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(500);
+      check(await keysOut(), t('back to full width: buttons out again'));
     }
 
     // each mode: the View button follows the views a mode or a test picks
@@ -235,14 +282,26 @@ const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'keyfront', 'whole', 'wippen'
     const inset2 = await insetState();
     check([inset0, inset1].sort().join('|') === 'false,false|true,true' && inset2 === inset0, t(`upright: Key inset from the Show menu (${inset0} | ${inset1} | ${inset2})`));
     await tap('#keybar button[data-upright].kplay'); await page.waitForTimeout(300);
-    await pick('cat-key', '#keymenu button[data-upright]:has-text("Sustain pedal")');
-    check(await page.$eval('#cat-key', e => e.classList.contains('latched')), t('upright: Sustain pedal on, dot on Key & pedals'));
-    await pick('cat-key', '#keymenu button[data-upright]:has-text("Sustain pedal")');
-    await pick('cat-key', '#keymenu button[data-upright]:has-text("Strike & hold")'); await page.waitForTimeout(400);
+    const uOut = await page.$$eval('#keybar > .kout[data-upright]', l => l.filter(b => b.offsetParent).length);
+    check(phone ? uOut === 0 : uOut === 4 && await keysOut(), t(`upright: key buttons ${uOut ? `out on the bar (${uOut})` : 'in the menu'}`));
+    const uSus = '#keydock button[data-upright]:has-text("Sustain pedal")';
+    await keyPick(uSus);
+    check(await keysOut() ? await page.$eval(uSus, e => e.getAttribute('aria-pressed') === 'true') : await page.$eval('#cat-key', e => e.classList.contains('latched')), t('upright: Sustain pedal on, shown on its button or the dot'));
+    await keyPick(uSus);
+    await keyPick('#keydock button[data-upright]:has-text("Strike & hold")'); await page.waitForTimeout(400);
     await tap('#keybar button[data-upright]:has-text("Let key up")');
+    if (!phone) {   // its keys: H strikes and holds, S presses slowly
+      const uState = () => page.$eval('.u-keystate', e => e.textContent);
+      await page.waitForTimeout(1500);
+      await page.keyboard.press('h'); await page.waitForTimeout(1200); const uH = await uState();
+      await page.keyboard.press('Escape'); await page.waitForTimeout(1500);
+      await page.keyboard.press('s'); await page.waitForTimeout(400); const uS = await uState();
+      await page.keyboard.press('Escape'); await page.waitForTimeout(1500);
+      check(/held|going down/.test(uH) && /going down|held/.test(uS), t(`upright: H strikes and holds (${uH}), S presses slowly (${uS})`));
+    }
     await pick('cat-speed', '[data-uspeed="1"]');
     check((await page.$eval('#speed-btn .v', e => e.textContent)) === 'Real speed', t('upright: Speed button says Real speed'));
-    await tap('#cat-key .cat-btn'); await page.waitForTimeout(300); await shot('upright-menu-key'); await page.keyboard.press('Escape');
+    if (!(await keysOut())) { await tap('#cat-key .cat-btn'); await page.waitForTimeout(300); await shot('upright-menu-key'); await page.keyboard.press('Escape'); }
     await tap('#action-switch [data-action="grand"]'); await page.waitForTimeout(800);
     check((await viewNow()) === grandView, t(`back on the grand: View says "${await viewNow()}" again`));
     check((await page.$eval('#speed-btn .v', e => e.textContent)) === 'Slow ×10', t('back on the grand: its own speed, Slow ×10'));

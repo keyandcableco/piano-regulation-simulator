@@ -1615,6 +1615,7 @@ $('#k-frames').onclick = () => { if (busy) return; setPaused(true); if (idleNow(
 $('#k-letoff-m').onclick = () => $('#k-letoff').click();
 // a clicked frame button lets go of the keyboard, so Space goes back to striking the key (the frame keys work anywhere)
 $('#framepad').addEventListener('click', e => { if (e.detail) e.target.closest('button')?.blur(); });
+$('#keybar').addEventListener('click', e => { if (e.detail) e.target.closest('#keybar > button')?.blur(); });   // (and the key buttons)
 const frameFwd = () => {
   if (busy) return;
   if (cue?.run) { explain('Still going to let-off'); return; }
@@ -1702,16 +1703,20 @@ $('#credits').onclick = e => { e.preventDefault(); showCredits = true; refresh()
 window.addEventListener('keydown', e => {
   if (mode === 'tools' || action === 'upright') return;   // no key on the bench while a tool is out; the upright has its own keys
   if (e.code === 'Escape') { setLoop(false); letUp(); closePop(); }
-  if (e.code === 'KeyP' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !busy && e.target === document.body) setPedal(!pedalDown);
+  if ((e.key === 'p' || e.key === 'P') && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !busy && e.target === document.body) setPedal(!pedalDown);
   if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); clearPlan(); cue = null; releaseOthers(); sim.press(sim.dip, 250); pausedNote(); }
   // frame keys work wherever focus is (often a button just clicked), but not while typing or choosing in a field
   if (!/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && !e.ctrlKey && !e.metaKey && !e.altKey) {
     // by the character typed, so the keys named in the titles work on any keyboard layout
     if ((e.key === 'k' || e.key === 'K' || e.code === 'Pause') && !e.repeat && !busy) setPaused(!paused);
-    if (e.key === '.') frameFwd();
-    if (e.key === ',') frameBack();
+    if (e.key === '.' || e.key === '>') frameFwd();   // (with Shift too, where the same key has the arrows)
+    if (e.key === ',' || e.key === '<') frameBack();
+    // the rest of the keys shown on the buttons: each clicks its button, which says why when it can't
+    const b = !e.repeat && KEY_BUTTONS[e.key.toLowerCase()];
+    if (b) $(b).click();
   }
 });
+const KEY_BUTTONS = { h: '#k-strike', s: '#k-slow', e: '#k-ease', l: '#k-loop', g: '#k-letoff' };
 window.addEventListener('keyup', e => { if (mode !== 'tools' && action === 'grand' && e.code === 'Space' && !busy && e.target === document.body) letGo(); });
 
 // hover names, press the key by clicking it

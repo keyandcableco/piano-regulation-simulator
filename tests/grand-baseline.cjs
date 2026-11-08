@@ -28,7 +28,7 @@ if (!out) { console.error('usage: node tests/grand-baseline.cjs <out_dir> [base_
   const text = sel => page.$eval(sel, e => e.innerText.replace(/\s+/g, ' ').trim());
   record.sandbox = await text('#mode');
   // a button in one of the picture's menus (controls.js): open its category first, where the page has them
-  const pick = async (cat, sel) => { if (await page.$(`#${cat}`)) await page.click(`#${cat} .cat-btn`); await page.click(sel); };
+  const pick = async (cat, sel) => { if (await page.$(`#${cat}:not([hidden])`)) await page.click(`#${cat} .cat-btn`); await page.click(sel); };   // (Key & pedal is hidden while its buttons are out on the bar)
   for (const v of ['action', 'angle', 'escapement', 'backcheck', 'dampers']) { await pick('cat-view', `#views [data-view="${v}"]`); await shot(`view-${v}`); }
   // Strike & hold at real speed, then the events line once it has checked
   await pick('cat-view', '#views [data-view="action"]');

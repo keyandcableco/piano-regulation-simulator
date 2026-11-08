@@ -1,5 +1,6 @@
 // The picture's two bars (index.html): a few category buttons (View, Show, Key & pedal, Speed), each opening a menu of
-// its views or key actions, so a phone never scrolls a row of buttons sideways. The grand's buttons are in index.html;
+// its views or key actions, so a phone never scrolls a row of buttons sideways (a wide picture has Key & pedal's
+// buttons out on the bar instead). The grand's buttons are in index.html;
 // the upright's (upright-app.js) go into the same menus, marked data-upright. A menu closes on a pick, a tap outside it,
 // or Escape, and works from the keyboard: the arrows move through it, Enter picks, Tab leaves.
 const $ = s => document.querySelector(s);
@@ -46,9 +47,36 @@ export function markView(name) {
   if (v.textContent !== name) { v.textContent = name; v.parentElement.title = `View: ${name}. Pick another view`; }
 }
 
+// Where the bottom bar has room, the Key & pedal menu's buttons come out onto it beside Play and Let key up, one tap
+// each (Ease up again and again without opening a menu), and the Key & pedal button goes; where it hasn't (a phone),
+// they stay in the menu. When it runs short the keys shown on the bar's buttons come off first, then the buttons pull
+// in (the Speed button names just the speed). Tried in that order, each laid out and measured: one row, nothing past
+// the bar's end.
+const keybar = $('#keybar'), keyCat = $('#cat-key'), keyMenu = $('#keymenu');
+function keysOut(on) {
+  if (on) for (const b of [...keyMenu.children]) { b.dataset.mrole = b.getAttribute('role'); b.removeAttribute('role'); b.removeAttribute('aria-checked'); b.classList.add('kout'); keyCat.before(b); }
+  else for (const b of keybar.querySelectorAll(':scope > .kout')) { b.setAttribute('role', b.dataset.mrole); b.removeAttribute('aria-pressed'); b.classList.remove('kout'); keyMenu.append(b); }
+  keyCat.hidden = on;
+}
+function fitKeys() {
+  if (!keybar.offsetParent) return;   // (Tools hides the bar: tried again when it shows)
+  if (open === keyCat) closeMenu();   // (its buttons may be about to leave it)
+  const fits = () => {
+    const kids = [...keybar.children].filter(k => k.offsetParent), r = keybar.getBoundingClientRect();
+    return kids.every(k => { const q = k.getBoundingClientRect(); return q.top < kids[0].getBoundingClientRect().bottom - 2 && q.right <= r.right + 0.5; });
+  };
+  for (const [out, keys, tight] of [[true, true, false], [true, false, false], [true, false, true], [false, true, false], [false, false, false]]) {
+    keysOut(out); keybar.classList.toggle('nokeys', !keys); keybar.classList.toggle('tight', tight);
+    if (fits()) break;
+  }
+  sync();
+}
+
 // what the menus show on their buttons: the speed chosen, a dot while a key option stays on (Loop, a pedal), and
-// aria-checked on the items that are on or off
+// aria-checked on the items that are on or off (aria-pressed on the switches out on the bar)
 function sync() {
+  for (const b of keybar.querySelectorAll(':scope > .kout[data-mrole="menuitemcheckbox"]')) b.setAttribute('aria-pressed', String(b.classList.contains('on')));
+  for (const b of document.querySelectorAll('[data-key]:not([aria-keyshortcuts])')) b.setAttribute('aria-keyshortcuts', b.dataset.key === 'Esc' ? 'Escape' : b.dataset.key);
   for (const cat of document.querySelectorAll('.cat')) {
     const list = [...cat.querySelectorAll('.menu button')].filter(shown);
     for (const b of list) if (b.getAttribute('role') !== 'menuitem') b.setAttribute('aria-checked', String(b.classList.contains('on')));
@@ -107,5 +135,11 @@ export function initControls() {
   const watch = new MutationObserver(sync);
   watch.observe($('#app'), { attributes: true, attributeFilter: ['class'] });
   for (const bar of [$('#views'), $('#keydock')]) watch.observe(bar, { attributes: true, attributeFilter: ['class'], subtree: true });
-  sync();
+  sync(); fitKeys();
+  // the key buttons out or in: as the picture changes size or comes back from Tools (after the frame, so a change to
+  // the bar isn't measured inside its own resize), as the action swaps, and once the fonts are in
+  new ResizeObserver(() => requestAnimationFrame(fitKeys)).observe($('#keydock'));
+  new MutationObserver(fitKeys).observe($('#app'), { attributes: true, attributeFilter: ['class'] });
+  document.fonts?.ready.then(fitKeys);
+  matchMedia('(hover: hover) and (pointer: fine)').addEventListener('change', fitKeys);   // (the keys shown come and go with a mouse)
 }
