@@ -14,6 +14,10 @@ const SHOTS = [
   ['head', 'view=head'], ['butt', 'view=butt&labels=1'], ['butt-angle', 'view=buttangle'], ['jack-front', 'view=jackfront'],
   ['check', 'view=check&labels=1'], ['check-angle', 'view=checkangle'], ['wippen', 'view=wippen&labels=1'],
   ['wippen-angle', 'view=wippenangle'], ['damper', 'view=damper&labels=1'], ['damper-angle', 'view=damperangle'],
+  // Gate 2's poses (C2): at let-off on a slow press, held down after a blow (checked), the soft pedal down
+  ['pose-letoff', 'view=action&pose=letoff'], ['pose-held', 'view=action&pose=held&readings=1'], ['pose-soft', 'view=action&pose=soft'],
+  ['letoff-butt', 'view=butt&pose=letoff&labels=1'], ['held-butt', 'view=butt&pose=held&labels=1'], ['held-check', 'view=checkangle&pose=held'],
+  ['held-damper', 'view=damper&pose=held'], ['soft-angle', 'view=angle&pose=soft'], ['held-jack-front', 'view=jackfront&pose=held'],
 ].filter(([n]) => !only.length || only.includes(n));
 
 (async () => {

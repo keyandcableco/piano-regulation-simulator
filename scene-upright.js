@@ -8,7 +8,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { H, KEY, CENTER, TRACE, SHANK, shankAt, CATCHER_SHANK, CAPSTAN, EYE, STRAP_T, BUTT_FORK, WIPPEN_FORK, DAMPER_FORK, SCREWS,
-  BRIDLE_Z, MAIN_RAIL, HAMMER_RAIL, LETOFF_RAIL, STRING, stringX, WIDTH } from './upright-model.js';
+  BRIDLE_Z, MAIN_RAIL, HAMMER_RAIL, LETOFF_RAIL, STRING, stringX, WIDTH, RAIL_N, SPOON_BASE, spoonAngle, BC_BEND, bcAngle,
+  BRIDLE_BASE, bridleAngle, strapEnds, STRAP_LEN, turn, wipPt, KEY_RAILS } from './upright-model.js';
 
 // the bass side is -z (on the player's left, as seen from the keys)
 export const BASS = -1;
@@ -115,34 +116,41 @@ export function createUprightScene(canvas, overlay) {
     m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.sub(A).normalize());
     return m;
   }
-  // a bent wire through side-view points, at depth z
-  function wire(pts, r, color, part, parent, z = 0, opts = {}) {
-    const curve = new THREE.CatmullRomCurve3(pts.map(([x, y]) => new THREE.Vector3(x, y, z)), false, 'centripetal');
-    const m = new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(8, pts.length * 8), r, 8), mat(color, { metal: true, ...opts }));
-    parent.add(m); register(m, part, opts);
-    return m;
-  }
-  // a cloth tape through side-view points: thick across the side view, wide across the keyboard
-  function tape(pts, thick, width, z, color, part, parent) {
+  // Wires, tapes and coils that bend as the parts move are rebuilt each pose: each has a geometry builder, and
+  // reshape() swaps a mesh's geometry for a new one.
+  const wireGeo = (pts, r, z) => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(([x, y]) => new THREE.Vector3(x, y, z)), false,
+    'centripetal'), Math.max(8, pts.length * 8), r, 8);
+  function tapeGeo(pts, thick, width, z) {
     const n = pts.map((p, i) => {
-      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy);
+      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
       return [-dy / l, dx / l];
     });
     const side = s => pts.map((p, i) => [p[0] + s * n[i][0] * thick / 2, p[1] + s * n[i][1] * thick / 2]);
-    return extPts([...side(1), ...side(-1).reverse()], width, z, color, part, parent);
+    const geo = new THREE.ExtrudeGeometry(shapeFrom([...side(1), ...side(-1).reverse()]), { depth: width, bevelEnabled: false });
+    geo.translate(0, 0, z - width / 2);
+    return geo;
   }
-  // a coil spring along a side-view axis from a to b, coil radius R, wire radius r
-  function coil(a, b, R, r, turns, part, parent, z = 0) {
+  function coilGeo(a, b, R, r, turns, z) {
     const ax = new THREE.Vector3(b[0] - a[0], b[1] - a[1], 0), len = ax.length(); ax.normalize();
     const u = new THREE.Vector3(-ax.y, ax.x, 0), w = new THREE.Vector3(0, 0, 1), pts = [];
     for (let i = 0; i <= turns * 24; i++) {
       const t = i / (turns * 24), th = t * turns * 2 * Math.PI;
       pts.push(new THREE.Vector3(a[0], a[1], z).addScaledVector(ax, t * len).addScaledVector(u, R * Math.cos(th)).addScaledVector(w, R * Math.sin(th)));
     }
-    const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), turns * 24, r, 6), mat(COLORS.steel, { metal: true }));
-    parent.add(m); register(m, part, {});
+    return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), turns * 24, r, 6);
+  }
+  function mesh(geo, color, part, parent, opts = {}) {
+    const m = new THREE.Mesh(geo, mat(color, opts));
+    parent.add(m); register(m, part, opts);
     return m;
   }
+  function reshape(m, geo) { m.geometry.dispose(); m.geometry = geo; }
+  // a bent wire through side-view points, at depth z
+  const wire = (pts, r, color, part, parent, z = 0, opts = {}) => mesh(wireGeo(pts, r, z), color, part, parent, { metal: true, ...opts });
+  // a cloth tape through side-view points: thick across the side view, wide across the keyboard
+  const tape = (pts, thick, width, z, color, part, parent) => mesh(tapeGeo(pts, thick, width, z), color, part, parent);
+  // a coil spring along a side-view axis from a to b, coil radius R, wire radius r
+  const coil = (a, b, R, r, turns, part, parent, z = 0) => mesh(coilGeo(a, b, R, r, turns, z), COLORS.steel, part, parent, { metal: true });
   // a turned part about +y, from [radius, height] points listed bottom to top
   function lathe(profile, color, part, parent, opts = {}) {
     const m = new THREE.Mesh(new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), 24), mat(color, opts));
@@ -173,9 +181,9 @@ export function createUprightScene(canvas, overlay) {
   const fixed = new THREE.Group(); act.add(fixed);
   const SI = { opacity: 0.3 };   // stand-ins without a reference yet: see-through
   ext(rect(...A(-30, -14), ...A(520, 0)), 100, 0, COLORS.keybed, 'keybed', fixed, SI);
-  const [, railTop] = A(0, KEY.bottomY);
-  ext(rect(...A(4, 0), A(20, 0)[0], railTop - KEY.dip - 1), 80, 0, COLORS.rail, 'frontrail', fixed, SI);
-  ext(rect(...A(KEY.balX - 12, 0), A(KEY.balX + 12, 0)[0], railTop - 1), 80, 0, COLORS.rail, 'balrail', fixed, SI);
+  const [, railTop] = A(0, KEY.bottomY), FX = KEY_RAILS.pinX;
+  ext(rect(...A(FX - 8, 0), A(FX + 8, 0)[0], A(0, KEY_RAILS.frontTop)[1]), 80, 0, COLORS.rail, 'frontrail', fixed, SI);
+  ext(rect(...A(KEY.balX - 12, 0), A(KEY.balX + 12, 0)[0], A(0, KEY_RAILS.balTop)[1]), 80, 0, COLORS.rail, 'balrail', fixed, SI);
   ext(rect(...A(KEY.backX - 30, 0), A(KEY.backX, 0)[0], railTop - 2), 80, 0, COLORS.rail, 'backrail', fixed, SI);
   ext(rect(A(KEY.backX - 30, 0)[0], railTop - 2, A(KEY.backX, 0)[0], railTop), 80, 0, COLORS.felt, 'backrail', fixed, SI);
   // rails: each face where the filmed model's is; their sections are stand-ins (upright-model.js). Brackets not drawn.
@@ -200,15 +208,18 @@ export function createUprightScene(canvas, overlay) {
     const [kx0, ky0] = K(A(0, KEY.bottomY)), kx1 = K(A(KEY.backX, 0))[0];
     ext(rect(kx0, ky0, kx1, ky0 + KEY.thick), WIDTH.key, 0, COLORS.keywood, 'key', key, SI);
     ext(rect(kx0, ky0 + KEY.thick, kx0 + 150, ky0 + KEY.thick + 2.5), WIDTH.key + 0.4, 0, COLORS.keytop, 'key', key, SI);
-    cyl(6, 1, 'y', [kp[0], railTop - 0.5, 0], COLORS.felt, 'balrail', root, SI);
+    // the punchings: 1 mm discs stacked to the knob's thickness on their rails (update() sets the stacks)
+    const punch = (x, top, part) => { const m = cyl(6, 1, 'y', [x, 0, 0], COLORS.felt, part, root, SI); m.geometry.translate(0, 0.5, 0); m.position.y = top; return m; };
+    n.balPunch = punch(kp[0], A(0, KEY_RAILS.balTop)[1], 'balrail');
+    n.frontPunch = punch(A(FX, 0)[0], A(0, KEY_RAILS.frontTop)[1], 'frontrail');
     cyl(1.5, 30, 'y', [kp[0], railTop + 10, 0], COLORS.steel, 'balrail', root, { ...SI, metal: true, noPick: true });
-    cyl(6, 1, 'y', [A(12, 0)[0], railTop - KEY.dip - 0.5, 0], COLORS.felt, 'frontrail', root, SI);
     // the capstan: a wooden dowel turned on a wire screwed into the key [e]
     const cx = K([CAPSTAN.x, 0])[0], cy = y => K([0, y])[1];
     rodBetween([cx, cy(CAPSTAN.keyTop)], [cx, cy(CAPSTAN.dowelBottom + 3)], CAPSTAN.wireR, COLORS.steel, 'capstan', key);
-    cyl(CAPSTAN.r, CAPSTAN.top - CAPSTAN.dowelBottom, 'y', [cx, cy((CAPSTAN.top + CAPSTAN.dowelBottom) / 2), 0], COLORS.wood, 'capstan', key);
-    // the hole for the capstan tool, through the dowel
-    cyl(0.9, 2 * CAPSTAN.r + 0.4, 'z', [cx, cy(CAPSTAN.dowelBottom + 7), 0], COLORS.dark, 'capstan', key);
+    // the dowel turns up or down its wire (the capstan knob); the hole for the capstan tool through it
+    const dowel = n.capDowel = new THREE.Group(); key.add(dowel);
+    cyl(CAPSTAN.r, CAPSTAN.top - CAPSTAN.dowelBottom, 'y', [cx, cy((CAPSTAN.top + CAPSTAN.dowelBottom) / 2), 0], COLORS.wood, 'capstan', dowel);
+    cyl(0.9, 2 * CAPSTAN.r + 0.4, 'z', [cx, cy(CAPSTAN.dowelBottom + 7), 0], COLORS.dark, 'capstan', dowel);
 
     // wippen: the bar on its center pin, forked round the flange's tongue; the heel and its cushion on the capstan;
     // the jack's flange; the spoon, backcheck and bridle wires; the jack spring
@@ -224,14 +235,20 @@ export function createUprightScene(canvas, overlay) {
     const jCheek = WIDTH.jackFlange, jz = (WIDTH.jack + jCheek) / 2 + 0.2;
     extPts(rel(TRACE.jackFlange, W), jCheek, -jz, COLORS.wood, 'jackflange', wippen);
     extPts(rel(TRACE.jackFlange, W), jCheek, jz, COLORS.wood, 'jackflange', wippen, { opacity: 0.3 });
-    wire(rel(TRACE.spoon, W), 1, COLORS.brass, 'spoon', wippen);
-    wire(rel(TRACE.backcheckWire, W), 1, COLORS.steel, 'bcwire', wippen);
-    wire(rel(TRACE.bridleWire, W), 0.75, COLORS.brass, 'bridle', wippen, BASS * BRIDLE_Z);
+    // the wires bend about their feet (spoon, bridle wire) or the bend just above it (backcheck) when regulated
+    const bentAt = at => { const g = new THREE.Group(); g.position.set(...rel([at], W)[0], 0); wippen.add(g); return g; };
+    n.spoon = bentAt(SPOON_BASE);
+    wire(rel(TRACE.spoon, SPOON_BASE), 1, COLORS.brass, 'spoon', n.spoon);
+    wire(rel(TRACE.backcheckWire.slice(0, 2), W), 1, COLORS.steel, 'bcwire', wippen);
+    n.bc = bentAt(BC_BEND);
+    wire(rel(TRACE.backcheckWire.slice(1), BC_BEND), 1, COLORS.steel, 'bcwire', n.bc);
+    extPts(rel(TRACE.backcheck, BC_BEND), WIDTH.backcheck, 0, COLORS.wood, 'backcheck', n.bc);
+    extPts(rel(TRACE.backcheckFelt, BC_BEND), WIDTH.backcheck, 0, COLORS.felt, 'backcheck', n.bc);
+    n.bridle = bentAt(BRIDLE_BASE);
+    wire(rel(TRACE.bridleWire, BRIDLE_BASE), 0.75, COLORS.brass, 'bridle', n.bridle, BASS * BRIDLE_Z);
     // its top bent over into the hook the strap's end hangs on
-    const hk = rel([TRACE.bridleWire.at(-1)], W)[0];
-    wire([hk, [hk[0] + 1.2, hk[1] + 1.6], [hk[0] + 2.6, hk[1] + 0.6], [hk[0] + 2.6, hk[1] - 1.2]], 0.75, COLORS.brass, 'bridle', wippen, BASS * BRIDLE_Z);
-    extPts(rel(TRACE.backcheck, W), WIDTH.backcheck, 0, COLORS.wood, 'backcheck', wippen);
-    extPts(rel(TRACE.backcheckFelt, W), WIDTH.backcheck, 0, COLORS.felt, 'backcheck', wippen);
+    const hk = rel([TRACE.bridleWire.at(-1)], BRIDLE_BASE)[0];
+    wire([hk, [hk[0] + 1.2, hk[1] + 1.6], [hk[0] + 2.6, hk[1] + 0.6], [hk[0] + 2.6, hk[1] - 1.2]], 0.75, COLORS.brass, 'bridle', n.bridle, BASS * BRIDLE_Z);
     n.jackSpring = coil(rel([TRACE.jackSpring[0]], W)[0], rel([TRACE.jackSpring[1]], W)[0], 2, 0.35, 6, 'jackspring', wippen);
     center('wcenter', wippen, [0, 0], WIDTH.wippen + 0.6);
     center('jcenter', wippen, rel([CENTER.jack], W)[0], WIDTH.jack + 2 * jCheek + 1);
@@ -288,12 +305,12 @@ export function createUprightScene(canvas, overlay) {
       screw('bscrew', g, SCREWS.buttFlange);
       // the spring's coil on the near cheek, its leg up to the butt's back
       cyl(1.6, 2.2, 'z', [...TRACE.buttSpring[0], cz], COLORS.steel, 'buttspring', g, { metal: true });
-      n.buttSpring = wire(TRACE.buttSpring, 0.5, COLORS.steel, 'buttspring', g, cz);
+      n.buttSpring = wire(TRACE.buttSpring, 0.5, COLORS.steel, 'buttspring', g, cz); n.buttSpringZ = cz;
     }
 
     // the bridle strap, catcher to bridle wire, draped over the let-off screw's eye (C2 lays it out each frame)
     n.strap = tape(TRACE.strap, STRAP_T, WIDTH.strap, 0, COLORS.tape, 'strap', root);
-    cyl(1.6, 0.6, 'z', [...TRACE.strap.at(-1), BASS * BRIDLE_Z + 0.9], COLORS.buckskin, 'strap', root);   // its leather end on the hook
+    n.strapEnd = cyl(1.6, 0.6, 'z', [...TRACE.strap.at(-1), BASS * BRIDLE_Z + 0.9], COLORS.buckskin, 'strap', root);   // its leather end on the hook
 
     // let-off: the regulating screw down through the rail, the button on its end, the eye on top
     {
@@ -345,6 +362,38 @@ export function createUprightScene(canvas, overlay) {
   }
   const notes = [0, 1, 2].map(makeNote);
   const N0 = notes[0];
+
+  // ---------- pose: turn the parts to a pose of the model (upright-model.js pose()), with the knobs a ----------
+  const lerp = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
+  // a spring's leg from its coil (fixed) to its end on a part turned by `move`; the bend shared along the way
+  const leg = (pts, move) => pts.map((p, i) => lerp(p, move(p), i / (pts.length - 1)));
+  function update(a, p, slot = 0) {
+    const n = notes[slot];
+    n.key.position.y = A(0, p.bal)[1]; n.key.rotation.z = p.th;
+    n.balPunch.scale.y = Math.max(0.01, a.balPunch); n.frontPunch.scale.y = Math.max(0.01, a.frontPunch);
+    n.capDowel.position.y = a.capstan;
+    n.wippen.rotation.z = -p.phi;
+    n.jack.rotation.z = p.psi;
+    n.hammer.rotation.z = -p.g;
+    n.damper.rotation.z = p.dl;
+    n.spoon.rotation.z = spoonAngle(a); n.bc.rotation.z = bcAngle(a); n.bridle.rotation.z = bridleAngle(a);
+    n.letoff.position.y = -a.letoff;
+    // the hammer rail is every note's: the last note posed sets it (the preview poses all three with the same pedal)
+    const rs = a.railShim + (p.soft ? a.softFelt : 0); hammerRail.position.set(RAIL_N[0] * rs, RAIL_N[1] * rs, 0);
+    // the springs follow the parts they press; the strap hangs between the catcher and the bridle wire's hook
+    const W = CENTER.wippen, js = TRACE.jackSpring;
+    reshape(n.jackSpring, coilGeo(rel([js[0]], W)[0], rel([turn(js[1], CENTER.jack, p.psi)], W)[0], 2, 0.35, 6, 0));
+    reshape(n.buttSpring, wireGeo(leg(TRACE.buttSpring, q => turn(q, CENTER.butt, -p.g)), 0.5, n.buttSpringZ));
+    reshape(n.damperSpring, wireGeo(leg(TRACE.damperSpring, q => turn(q, CENTER.damper, p.dl)), 0.45, WIDTH.damperFlange / 2 + 0.8));
+    const [f, k] = strapEnds(a, p.phi, p.g), s = TRACE.strap;
+    let along = 0;
+    const strap = p.slack <= 0.05 ? [f, lerp(f, k, 0.5), k] : s.map((q, i) => {
+      if (i) along += Math.hypot(q[0] - s[i - 1][0], q[1] - s[i - 1][1]);
+      return lerp(turn(q, CENTER.butt, -p.g), wipPt(p.phi, turn(q, BRIDLE_BASE, bridleAngle(a))), along / STRAP_LEN);
+    });
+    reshape(n.strap, tapeGeo(strap, STRAP_T, WIDTH.strap, 0));
+    n.strapEnd.position.set(k[0], k[1], BASS * BRIDLE_Z + 0.9);
+  }
 
   // ---------- part labels (on the middle note) ----------
   const LABELS = [
@@ -472,5 +521,5 @@ export function createUprightScene(canvas, overlay) {
     for (const l of LABELS) l.e.remove();
     renderer.dispose();
   }
-  return { render, setView, setNeighbors, setLabels, setBackground, pick, screenOf, dispose, controls, camera, scene, notes, VIEWS, partMeshes };
+  return { render, update, setView, setNeighbors, setLabels, setBackground, pick, screenOf, dispose, controls, camera, scene, notes, VIEWS, partMeshes };
 }

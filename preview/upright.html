@@ -4,25 +4,38 @@
 <meta name="robots" content="noindex">
 <title>Upright action preview</title>
 <link rel="icon" href="data:,">
-<!-- Work bench for the upright drawing (research/upright/protocol.md, C1). Not linked from the app: the upright joins it
-     at the switch (C6). URL: ?view=<name> &labels=1 &at=x,y,z &from=x,y,z (world mm) &bg=rrggbb (hex, no #). Click a part for its name. -->
+<!-- Work bench for the upright action (research/upright/protocol.md, C1-C2). Not linked from the app: the upright joins it
+     at the switch (C6). URL: ?view=<name> &labels=1 &d=<key depth, mm> &pose=rest|letoff|held|soft &readings=1
+     &at=x,y,z &from=x,y,z (world mm) &bg=rrggbb (hex, no #). Click a part for its name. The regulation is the model's
+     factory one; the key moves slowly (each pose is static: no dynamics yet). -->
 <style>
 :root { --ink: #222; --muted: #666; --panel: #fff; --line: #c9c9c9; }
 html, body { margin: 0; height: 100%; background: #eceef0; font: 13px system-ui, sans-serif; color: var(--ink); }
 #stage { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
 canvas { width: 100%; height: 100%; display: block; }
 #overlay { position: absolute; inset: 0; pointer-events: none; }
-#bar { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
-#bar button { font: inherit; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); cursor: pointer; }
-#bar button.on { background: #2f6e46; color: #fff; border-color: #2f6e46; }
-#picked { position: absolute; left: 8px; bottom: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; }
+#bar, #keybar { position: absolute; left: 8px; right: 8px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+#bar { top: 8px; } #keybar { bottom: 8px; }
+button { font: inherit; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); cursor: pointer; }
+button.on { background: #2f6e46; color: #fff; border-color: #2f6e46; }
+#depth { width: 220px; }
+#keytext { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font-variant-numeric: tabular-nums; min-width: 17em; }
+#picked { position: absolute; left: 8px; bottom: 48px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; }
 #picked:empty { display: none; }
+#readings { position: absolute; right: 8px; top: 48px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px;
+  font-size: 12px; max-width: 340px; }
+#readings table { border-collapse: collapse; } #readings td { padding: 1px 6px 1px 0; vertical-align: top; }
+#readings td.v { font-variant-numeric: tabular-nums; text-align: right; } #readings .out { color: #b0391c; font-weight: 600; }
+#readings .note { color: var(--muted); max-width: 320px; margin-top: 4px; }
 .plabel { position: absolute; left: 0; top: 0; white-space: nowrap; font: 600 11px/1 system-ui; color: var(--ink);
   background: color-mix(in srgb, var(--panel) 85%, transparent); border: 1px solid var(--line); padding: 2px 5px; border-radius: 4px; margin: -8px 0 0 4px; pointer-events: none; }
-body.shot #bar, body.shot #picked { display: none; }
+body.shot #bar, body.shot #picked, body.shot #keybar { display: none; }
+body.shot.readings #readings { top: 8px; }
 </style>
 <script type="importmap">{ "imports": { "three": "../vendor/three/three.module.min.js", "three/addons/": "../vendor/three/addons/" } }</script>
-</head><body><div id="stage"><canvas id="c"></canvas><div id="overlay"></div><div id="bar"></div><div id="picked"></div></div>
+</head><body><div id="stage"><canvas id="c"></canvas><div id="overlay"></div><div id="bar"></div><div id="picked"></div>
+<div id="keybar"><span>Key</span><input id="depth" type="range" min="0" max="10" step="0.02" value="0"><span id="keytext"></span></div>
+<div id="readings" hidden></div></div>
 <div id="why" hidden style="position:absolute;inset:0;align-items:center;justify-content:center;padding:24px;text-align:center"></div>
 <script>
 // a page opened from disk can't load its modules, and a browser without WebGL can't draw: say so rather than stay blank
@@ -32,6 +45,7 @@ if (location.protocol === 'file:') why('This page has to come from a local serve
 </script>
 <script type="module">
 import { createUprightScene } from '../scene-upright.js';
+import { FACTORY, SPEC, pose, measure, stringGap } from '../upright-model.js';
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById('c');
 let S;
@@ -44,6 +58,56 @@ S.setLabels(labels);
 S.setView(q.get('view') || 'action', true);
 if (q.get('at')) S.controls.target.set(...q.get('at').split(',').map(Number));
 if (q.get('from')) S.camera.position.set(...q.get('from').split(',').map(Number));
+
+// ---------- the key and the poses ----------
+const a = { ...FACTORY }, m = measure(a);
+const depth = document.getElementById('depth'), keytext = document.getElementById('keytext');
+depth.max = m.dip.toFixed(2);
+let soft = false, held = false;
+const STATE = { rail: 'hammer on its rail', jack: 'jack lifting the hammer', off: 'let off', backcheck: 'hammer caught by the backcheck' };
+function show(d) {
+  const p = pose(a, d, { soft, held });
+  // the neighbors stay at rest, with the same soft pedal (it moves every hammer)
+  const rest = pose(a, 0, { soft });
+  S.update(a, rest, 1); S.update(a, rest, 2); S.update(a, p, 0);
+  depth.value = d;
+  keytext.textContent = `${d.toFixed(2)} of ${m.dip.toFixed(2)} mm down: ${held ? 'held after a blow, ' : ''}${STATE[p.on]}`
+    + `${p.blocked ? ' (blocked at the strings)' : ''}; crown ${stringGap(p.g).toFixed(1)} mm from the strings${soft ? ', soft pedal down' : ''}`;
+  window.P = p;
+}
+depth.oninput = () => { held = false; heldBtn.classList.remove('on'); show(+depth.value); };
+const keybar = document.getElementById('keybar');
+const btn = (text, on) => { const b = document.createElement('button'); b.textContent = text; b.onclick = on; keybar.appendChild(b); return b; };
+btn('Rest', () => { held = false; heldBtn.classList.remove('on'); show(0); });
+btn('Let-off', () => { held = false; heldBtn.classList.remove('on'); show(Math.max(0, m.letoffDepth - 0.02)); });
+const heldBtn = btn('Held after a blow', () => { held = !held; heldBtn.classList.toggle('on', held); show(held ? m.dip : +depth.value); });
+const softBtn = btn('Soft pedal', () => { soft = !soft; softBtn.classList.toggle('on', soft); show(+depth.value); });
+const rdBtn = btn('Readings', () => { const r = document.getElementById('readings'); r.hidden = !r.hidden; rdBtn.classList.toggle('on', !r.hidden); });
+
+// ---------- readings at the factory regulation, against their specs ----------
+{
+  const f = (v, n = 2) => v === null || v === undefined ? '-' : v.toFixed(n);
+  const band = s => s.lo !== undefined ? [s.lo, s.hi] : [s.target - s.tol, s.target + s.tol];
+  const row = (name, v, s, unit = 'mm', n = 2) => {
+    const [lo, hi] = s ? band(s) : [null, null], out = s && v !== null && (v < lo - 1e-9 || v > hi + 1e-9);
+    return `<tr><td>${name}</td><td class="v${out ? ' out' : ''}">${f(v, n)} ${unit}</td><td>${s ? `${f(lo, n)}-${f(hi, n)}` : 'reading'}</td></tr>`;
+  };
+  document.getElementById('readings').innerHTML = `<b>Factory regulation</b><table>
+    ${row('Dip', m.dip, SPEC.dip)}${row('Blow', m.blow, SPEC.blow)}${row('Lost motion (at the jack)', m.lostMotion, SPEC.lostMotion)}
+    ${row('Lost motion (key travel)', m.lostMotionKey, null)}${row('Let-off', m.letoff, SPEC.letoff)}
+    ${row('Aftertouch', m.aftertouch, SPEC.aftertouch)}${row('Escapement, key held', m.escapement, SPEC.escapement)}
+    ${row('Checking', m.check, SPEC.check)}${row('Damper starts (share of the blow)', m.damperShare, SPEC.damperShare, '', 2)}
+    ${row('Damper lift at the felts', m.damperLift, null)}${row('Soft pedal (share of the blow)', m.softShare, SPEC.softShare, '', 2)}
+    ${row('Strap slack at rest', m.strapSlack, null)}${row('Strap slack, soft pedal down', m.softStrapSlack, null)}</table>
+    <div class="note">Red: outside the source's band. At textbook dip and blow this geometry gives short aftertouch and escapement: by
+    Spurlock's rule the blow is long for the dip. A finding, not fitted.</div>`;
+  if (q.get('readings') === '1') { document.getElementById('readings').hidden = false; rdBtn.classList.add('on'); document.body.classList.add('readings'); }
+}
+const ps = q.get('pose');
+if (ps === 'soft') { soft = true; softBtn.classList.add('on'); }
+if (ps === 'held') { held = true; heldBtn.classList.add('on'); }
+show(ps === 'held' ? m.dip : ps === 'letoff' ? Math.max(0, m.letoffDepth - 0.02) : +(q.get('d') || 0));
+
 const bar = document.getElementById('bar');
 for (const name of Object.keys(S.VIEWS)) {
   const b = document.createElement('button'); b.textContent = name; b.onclick = () => S.setView(name); bar.appendChild(b);

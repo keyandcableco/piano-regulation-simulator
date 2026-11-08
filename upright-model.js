@@ -87,11 +87,15 @@ export const TRACE = {
     return [[x0, -60], [x1, -60], [x1, -85.1], ...arc.reverse(), [x0, -85.1]];
   })(),
   wippenFlangePlate: [[6, -66], [10, -66], [10, -50], [6, -50]],
-  // damper spoon: a wire up from the wippen's back end to the lever's felt [e]; a path
-  spoon: [[8.5, -80.4], [8.5, -75], [9.4, -70], [11.2, -66.3], [14, -63.2]],
-  // jack: an L on its centre pin, the toe toward the let-off button, the arm up to the butt cushion [e]
+  // damper spoon: a wire up from the wippen's back end to the lever's felt [e]; a path. Its tip is drawn 1.6 mm higher
+  // than traced, and the lever's end 2 mm lower (both within the trace's +-2 mm), so the tip stays on the felt as the
+  // wippen tips it down through the stroke (about 2 mm).
+  spoon: [[8.5, -80.4], [8.5, -75], [9.4, -70], [11.0, -65.8], [13.6, -61.6]],
+  // jack: an L on its centre pin, the toe toward the let-off button, the arm up to the butt cushion [e]. Its top is
+  // drawn 0.5 mm above the trace (within the trace's ±1 mm), for 0.3 mm of lost motion at rest: S15's slowest blow
+  // bounds it at 0.46 mm (the crown starts after 1.2 mm of key).
   jack: [[-52, -61], [-50.5, -59.2], [-38, -58.8], [-35.5, -55.5], [-31, -50], [-27.5, -40], [-25.5, -30], [-25, -20],
-    [-25, -10], [-25, 3.2], [-18.5, 3.6], [-18.8, -10], [-18.8, -20], [-19, -30], [-20, -40], [-23.5, -52], [-27.5, -60],
+    [-25, -10], [-25, 3.7], [-18.5, 4.1], [-18.8, -10], [-18.8, -20], [-19, -30], [-20, -40], [-23.5, -52], [-27.5, -60],
     [-29, -66], [-30, -72], [-33.6, -74.2], [-37.2, -72.5], [-38, -66.8], [-50.5, -66.8], [-52, -65]],
   // jack spring: a coil between the toe's underside and the wippen [e]; its axis, bottom to top
   jackSpring: [[-46, -80.4], [-46, -66.8]],
@@ -115,9 +119,9 @@ export const TRACE = {
   jackStop: [[-41.7, -14.5], [-36.5, -14.5], [-36.5, -24.8], [-41.7, -24.8]],
   jackStopFelt: [[-36.5, -14.5], [-28.5, -14.5], [-28.5, -24.8], [-36.5, -24.8]],
   // damper: the lever on its flange, the felt the spoon pushes, the wire up to the block and head [e]
-  damperLever: [[20.5, 49], [31, 49], [30.6, 30], [29.8, 10], [28, -8], [25.2, -25], [24.3, -40], [24, -64], [19, -64],
+  damperLever: [[20.5, 49], [31, 49], [30.6, 30], [29.8, 10], [28, -8], [25.2, -25], [24.3, -40], [24, -66], [19, -66],
     [19, -36.5], [19.3, -20], [19.8, -5], [20.2, 10], [20.5, 30]],
-  leverFelt: [[15, -36.5], [19, -36.5], [19, -63.8], [15, -63.3]],
+  leverFelt: [[15, -36.5], [19, -36.5], [19, -65.8], [15, -65.3]],
   // damper flange: the arm out to the lever's centre pin [e], and its foot down the main rail's back face [T]
   damperFlange: [[6, 0.5], [23.4, 0.5], [27.2, -1.2], [28, -4.5], [26.3, -7.5], [23.4, -8.2], [18, -5.5], [10, -5.5], [10, -30],
     [6, -30]],
@@ -189,3 +193,397 @@ export const WIDTH = {
   head: 10, butt: 10.5, catcher: 9, flange: 9, wippen: 10, jack: 6, jackFlange: 2, damperLever: 9, damperFlange: 8,
   damperHead: 12, backcheck: 10, strap: 6, key: 21, pitch: 23.5,
 };
+
+// =====================================================================================================================
+// Kinematics (C2): where every part is for a key depth and a regulation, quasi-statically. No dynamics yet (C3).
+// Angles, radians, each about its part's centre pin, 0 at the traced rest pose:
+//   th   key, + = front down (it rocks on the balance rail punching)
+//   phi  wippen, + = rising (turning toward the strings at its front: clockwise in this view)
+//   psi  jack on the wippen, + = tripped (its top toward the player)
+//   g    hammer, + = toward the strings (clockwise)
+//   dl   damper lever, + = the head lifted off the strings (its lower end pushed toward the strings)
+// =====================================================================================================================
+const rot = ([x, y], a) => [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
+const add = (a, b) => [a[0] + b[0], a[1] + b[1]];
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
+// a point drawn at rest on a part, with the part turned by a (counter-clockwise) about its centre c
+export const turn = (p, c, a) => add(c, rot(sub(p, c), a));
+// x with f(x) = target, f monotonic on [lo, hi] (either way); clamped to the ends
+function solve(f, target, lo, hi, n = 60) {
+  let flo = f(lo) - target;
+  if (flo * (f(hi) - target) > 0) return Math.abs(flo) < Math.abs(f(hi) - target) ? lo : hi;
+  for (let i = 0; i < n; i++) {
+    const m = (lo + hi) / 2, fm = f(m) - target;
+    if (fm * flo > 0) { lo = m; flo = fm; } else hi = m;
+  }
+  return (lo + hi) / 2;
+}
+
+// keep a function's answers for the arguments it has seen (the slow press asks the same regulation-only questions at
+// every key depth)
+function memo(fn) {
+  const m = new Map();
+  return (...args) => {
+    const k = args.join(',');
+    if (!m.has(k)) { if (m.size > 4000) m.clear(); m.set(k, fn(...args)); }
+    return m.get(k);
+  };
+}
+
+// ---------- polygons (outlines turned with their parts) ----------
+const inside = ([x, y], P) => {
+  let c = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const [xi, yi] = P[i], [xj, yj] = P[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c;
+  }
+  return c;
+};
+const segDist = (p, a, b) => {
+  const ux = b[0] - a[0], uy = b[1] - a[1], t = Math.max(0, Math.min(1, ((p[0] - a[0]) * ux + (p[1] - a[1]) * uy) / (ux * ux + uy * uy)));
+  return Math.hypot(p[0] - a[0] - t * ux, p[1] - a[1] - t * uy);
+};
+const crosses = (a, b, c, d) => {
+  const o = (p, q, r) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]));
+  return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;
+};
+// the gap between two outlines, mm; 0 when they touch or overlap
+export function polyGap(P, Q) {
+  if (P.some(p => inside(p, Q)) || Q.some(q => inside(q, P))) return 0;
+  for (let i = 0; i < P.length; i++) for (let j = 0; j < Q.length; j++)
+    if (crosses(P[i], P[(i + 1) % P.length], Q[j], Q[(j + 1) % Q.length])) return 0;
+  let d = Infinity;
+  for (const p of P) for (let j = 0; j < Q.length; j++) d = Math.min(d, segDist(p, Q[j], Q[(j + 1) % Q.length]));
+  for (const q of Q) for (let i = 0; i < P.length; i++) d = Math.min(d, segDist(q, P[i], P[(i + 1) % P.length]));
+  return d;
+}
+
+// ---------- the knobs: real operations, each with its direction named ----------
+// Stand-in ranges and steps [T]: the capstan's thread pitch, the let-off screw's, and the felts' thicknesses are not
+// measured yet (Greg's bench). The knob values are what the part physically moves, in mm.
+export const ADJ = [
+  { id: 'balPunch', name: 'Balance rail punchings (under the key)', unit: 'mm', min: 0, max: 4, step: 0.1 },
+  { id: 'frontPunch', name: 'Front rail punchings (under the key front)', unit: 'mm', min: 0, max: 4, step: 0.05 },
+  { id: 'railShim', name: 'Hammer rail rest felts: shim (toward the strings) or cut', unit: 'mm', min: -3, max: 6, step: 0.1 },
+  { id: 'capstan', name: 'Capstan: turn the dowel up (+) or down its wire', unit: 'mm', min: -4, max: 4, step: 0.02 },
+  { id: 'letoff', name: 'Let-off regulating screw: button down toward the jack (+) or up', unit: 'mm', min: -4, max: 4, step: 0.05 },
+  { id: 'backcheck', name: 'Backcheck wire: bend the head toward the catcher (+) or away', unit: 'mm', min: -15, max: 6, step: 0.1 },
+  { id: 'spoon', name: 'Spoon: bend toward the damper lever (+) or away', unit: 'mm', min: -4, max: 4, step: 0.05 },
+  { id: 'bridle', name: 'Bridle wire: bend its top toward the player (+, tighter strap) or toward the catcher', unit: 'mm', min: -8, max: 8, step: 0.25 },
+  { id: 'softFelt', name: 'Soft pedal travel at the hammer rail (its blocking felt)', unit: 'mm', min: 0, max: 30, step: 0.25 },
+];
+
+// ---------- the specs the factory regulates to (graded and levelled in C4) ----------
+// A target comes from a source, never from what the model produces (protocol 3.2 rule 1). Bands hold each source's
+// range; where sources differ the first is the sim's default.
+export const SPEC = {
+  dip: { target: 0.400 * IN, tol: 0.4, src: 'Steinway .400 in [S1]; 3/8 in+ consoles and larger [S2]' },
+  blow: { target: 1.75 * IN, tol: 1.6, src: '1-3/4 in [S2]; 1-3/4 to 1-7/8 in studio uprights [S3]; Steinway about 1-7/8 [S1]' },
+  lostMotion: { target: 0.08, tol: 0.05, src: 'under 0.004 in (0.1 mm) on a new action [S3]; the least that lets the jack return [S2]' },
+  letoff: { target: 0.125 * IN, tol: 0.8, src: '1/8 in [S2]; Steinway 1/16 in [S1]' },
+  check: { target: 0.5625 * IN, tol: 0.0625 * IN, src: '5/8 in [S2, S11]; Steinway 1/2 in [S1]: graded 9/16 +- 1/16' },
+  damperShare: { target: 0.5, tol: 0.1, src: 'the damper starts with the hammer about halfway [S1, S2]' },
+  aftertouch: { lo: 1.0, hi: 1.5, src: '0.040-0.060 in [S3]; Steinway about a new penny [S1]' },
+  escapement: { lo: 0.0625 * IN, hi: 0.125 * IN, src: 'jack 1/16-1/8 in clear of the butt leather, key held after a medium blow [S2]' },
+  softShare: { target: 0.5, tol: 0.1, src: 'the soft pedal moves the hammers halfway to the strings [S1, S2]' },
+};
+
+// ---------- the key (stand-in geometry, KEY) ----------
+// Its frame: origin on the underside at the balance pin, drawn level; it rests on its back rail cloth at the back end.
+// The rails and punchings under it are stand-ins [T]; the scene draws them from these.
+export const KEY_RAILS = {
+  back: { x: KEY.backX - 15, y: KEY.bottomY },                   // back rail cloth top under the key's back end
+  balTop: KEY.bottomY - 1.5,                                     // balance rail top: 1.5 mm of punchings gives the level key
+  pinX: 12,                                                      // front rail pin, sim x
+  frontTop: KEY.bottomY - KEY.dip - 1,                           // front rail top: 1 mm of punchings gives the 0.400 in dip
+};
+const CAP_LOCAL = [H[0] + CAPSTAN.x - KEY.balX, KEY.thick];       // the capstan wire's foot, key frame
+export function keyRest(a) {
+  const bal = KEY_RAILS.balTop + a.balPunch;
+  const th0 = Math.atan2(KEY_RAILS.back.y - bal, KEY_RAILS.back.x - KEY.balX);   // back end down on its rail: front up if bal is high
+  return { bal, th0 };
+}
+// a key-frame point in the sim frame, key at angle th
+export const keyPt = (bal, th, p) => add([KEY.balX, bal], rot(p, th));
+const frontTop = (bal, th) => keyPt(bal, th, [-KEY.balX, KEY.thick])[1];
+// key angle for a front depth d (mm the key front's top has gone down from rest)
+export function keyAngle(a, d) {
+  const { bal, th0 } = keyRest(a), y0 = frontTop(bal, th0);
+  return { bal, th: solve(t => y0 - frontTop(bal, t), d, th0 - 0.05, th0 + 0.2) };
+}
+// dip: the key front's travel until it lands on the front rail punching
+export function dipOf(a) {
+  const { bal, th0 } = keyRest(a), punch = KEY_RAILS.frontTop + a.frontPunch;
+  const th = solve(t => keyPt(bal, t, [KEY_RAILS.pinX - KEY.balX, 0])[1], punch, th0, th0 + 0.2);
+  return frontTop(bal, th0) - frontTop(bal, th);
+}
+export const keyHeightOf = a => { const { bal, th0 } = keyRest(a); return frontTop(bal, th0); };
+
+// ---------- the wippen on the capstan ----------
+// the capstan dowel's flat top (action frame): its centre, and the two ends of its rim in the side view
+export function capstanTop(a, k, dx = 0) {
+  return sub(keyPt(k.bal, k.th, [CAP_LOCAL[0] + dx, CAP_LOCAL[1] + CAPSTAN.top - CAPSTAN.keyTop + a.capstan]), H);
+}
+// The cushion's flat underside, wippen-local: the dowel's top lifts it at the top's centre. As the key and wippen tilt
+// apart a rigid cushion would ride on the dowel's string-side rim: that turns the wippen 11.2 degrees over the filmed
+// 9.6 mm press, against the 9.4-10 the filmed checked frame shows (research/upright/parts/README.md); at the centre,
+// 10.1. The felt gives, so the centre it is.
+const CUSHION_V = Math.min(...TRACE.heelCushion.map(p => p[1])) - CENTER.wippen[1];
+export function wippenOn(c) {
+  return solve(phi => rot(sub(c, CENTER.wippen), phi)[1], CUSHION_V, -0.4, 0.6);
+}
+const W = CENTER.wippen, J0 = CENTER.jack;
+export const wipPt = (phi, p) => turn(p, W, -phi);
+// a point drawn on the jack, the wippen at phi and the jack at psi
+export const jackPt = (phi, psi, p) => wipPt(phi, turn(p, J0, psi));
+
+// ---------- the jack, the let-off button and the jack stop ----------
+// The jack outline is listed from the toe's tip: its points 1-2 are the toe's top, under the button. Its two highest
+// points are its top face, rising to the string-side corner.
+const TOE_TOP = [TRACE.jack[1], TRACE.jack[2]];
+const TOP_FACE = [...TRACE.jack].sort((p, q) => q[1] - p[1]).slice(0, 2).sort((p, q) => p[0] - q[0]);
+export const CORNER = TOP_FACE[1];
+const BUTTON_Y = Math.min(...TRACE.letoffFelt.map(p => p[1]));   // the button felt's face at factory 0 [e]
+const BUTTON_X = [Math.min(...TRACE.letoffFelt.map(p => p[0])), Math.max(...TRACE.letoffFelt.map(p => p[0]))];
+// the cushion's underside, butt frame: flat (its traced rounded ends left out) [e]
+const CUSH_FACE = { y: Math.min(...TRACE.buttCushion.map(p => p[1])), x: [Math.min(...TRACE.buttCushion.map(p => p[0])), Math.max(...TRACE.buttCushion.map(p => p[0]))] };
+// the toe's highest point under the button's face (as the toe tilts it moves along the toe's top)
+const TOE_SAMPLES = Array.from({ length: 17 }, (_, i) => [TOE_TOP[0][0] + (TOE_TOP[1][0] - TOE_TOP[0][0]) * i / 16, TOE_TOP[0][1] + (TOE_TOP[1][1] - TOE_TOP[0][1]) * i / 16]);
+function toeHigh(phi, psi) {
+  let y = -Infinity;
+  for (const p of TOE_SAMPLES) { const q = jackPt(phi, psi, p); if (q[0] >= BUTTON_X[0] && q[0] <= BUTTON_X[1]) y = Math.max(y, q[1]); }
+  return y;
+}
+// the jack's tripping angle: the button holds the toe down once the wippen lifts it there
+export function jackPsi(a, phi) {
+  const by = BUTTON_Y - a.letoff;
+  if (toeHigh(phi, 0) <= by) return 0;
+  return solve(psi => toeHigh(phi, psi), by, 0, 0.8, 40);
+}
+// does the jack's arm touch the jack stop felt (fixed to the frame) at this angle; and the first angle at which it does
+const stopTouching = (phi, psi) => polyGap(TRACE.jack.map(p => jackPt(phi, psi, p)), TRACE.jackStopFelt) === 0;
+function stopPsi(phi, psi) {
+  let lo = 0, hi = psi;
+  for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (stopTouching(phi, m)) hi = m; else lo = m; }
+  return lo;
+}
+// The jack's top corner in the butt's frame (the butt turned by -g): its gap under the cushion (mm), and whether it has
+// slid off the cushion's player-side end (let-off: the jack escapes toward the player).
+const cornerInButt = (phi, psi, g) => turn(jackPt(phi, psi, CORNER), CENTER.butt, g);
+export const jackGap = (phi, psi, g) => CUSH_FACE.y - cornerInButt(phi, psi, g)[1];
+export const escaped = (phi, psi, g) => cornerInButt(phi, psi, g)[0] < CUSH_FACE.x[0];
+
+// ---------- the hammer ----------
+// the shank's player-side edge rests on the hammer rail felt; the rail sits shim mm toward the strings, square to its face
+export const RAIL_N = [Math.cos(SHANK.lean), Math.sin(SHANK.lean)];   // toward the strings, square to the felt face
+const RAIL_FACE = HAMMER_RAIL.felt.slice(0, 2);
+export const gRail = (a, soft = false) => gRailAt(a.railShim + (soft ? a.softFelt : 0));
+const gRailAt = memo(s => {
+  const face = RAIL_FACE.map(p => add(p, [RAIL_N[0] * s, RAIL_N[1] * s]));
+  // the shank's axis, turned by -g: its distance from the face's points, less the radius
+  const clear = g => {
+    const p0 = turn(shankAt(0), CENTER.butt, -g), p1 = turn(shankAt(100), CENTER.butt, -g);
+    const ux = p1[0] - p0[0], uy = p1[1] - p0[1], l = Math.hypot(ux, uy);
+    return Math.min(...face.map(f => (ux * (f[1] - p0[1]) - uy * (f[0] - p0[0])) / l)) - SHANK.r;   // + on the player side (left of the axis, which runs up toward the player)
+  };
+  return solve(g => -clear(g), 0, -0.3, 0.6);
+});
+// the crown's gap to the strings at hammer angle g (the felt's nearest point; negative: past them)
+export function stringGap(g) {
+  return Math.min(...TRACE.headFelt.map(p => { const q = turn(p, CENTER.butt, -g); return stringX(q[1]) - q[0]; }));
+}
+export const gString = memo(() => solve(stringGap, 0, 0, 0.8));
+// the hammer lifted by the jack: the angle at which the cushion sits on the jack's corner
+export const gOnJack = (phi, psi) => solve(g => jackGap(phi, psi, g), 0, -0.3, 0.8);
+// Until the button trips it, the jack's top keeps its place under the butt: through the lost motion it rises without
+// drifting toward the strings, and lifting it rides with the cushion, the jack turning on its pin to follow the butt.
+// Left free, the top would drift about 4 mm toward the strings per mm it rises (it stands 89 mm above the wippen's pin)
+// and slide under the cushion: the traced layout would then swing the hammer only about 11 degrees for the capstan's
+// rise, against 17 riding (S15: 18 to the strings, crown-per-capstan 5.9-6.7), and with the soft pedal down the top
+// would pass the cushion altogether. What holds it is not settled: its spring pressing it against the butt, perhaps
+// on the second red felt beside it (research/upright/parts/butt.md) [G: a close photo of the jack top under the butt].
+const JACK_ARM = Math.hypot(...sub(CORNER, J0));
+// the jack's angle that keeps its corner at x in the butt's frame (hammer at g), the wippen at phi
+const psiAtX = (phi, g, x) => solve(psi => cornerInButt(phi, psi, g)[0], x, -0.4, 0.8, 40);
+// where the corner meets the cushion: the wippen angle then, and the spot (butt frame); x is its place under the butt.
+// It depends only on the regulation, not the key's depth: kept for the next poses of a press.
+const contactOn = memo((gr, x) => ({ phiC: solve(phi => jackGap(phi, psiAtX(phi, gr, x), gr), 0, -0.1, 0.4, 40), q: [x, CUSH_FACE.y] }));
+// the wippen's angle with the key at rest, and the corner's place under the butt then (regulation only)
+const restPlace = memo((balPunch, capstan, gr) => {
+  const a = { balPunch, capstan }, phi0 = wippenOn(capstanTop(a, keyAngle(a, 0)));
+  return cornerInButt(phi0, 0, gr)[0];
+});
+// the hammer and jack angles with the corner held at its spot on the cushion, the wippen at phi
+function chain(phi, c) {
+  const jw = wipPt(phi, J0);
+  const g = solve(g => Math.hypot(...sub(turn(c.q, CENTER.butt, -g), jw)), JACK_ARM, -0.3, 0.8);
+  const qw = turn(c.q, CENTER.butt, -g), r = rot(sub(CORNER, J0), -phi);
+  return { g, psi: Math.atan2(qw[1] - jw[1], qw[0] - jw[0]) - Math.atan2(r[1], r[0]) };
+}
+
+// ---------- the backcheck and the catcher ----------
+// Bending the wire turns the head (and the wire above its bend) about the bend; the knob is mm at the felt face.
+export const BC_BEND = TRACE.backcheckWire[1];                     // the bend: just above where the wire leaves the wippen [T]
+const BC_FACE_MID = (() => {                                       // the middle of the felt's face toward the catcher
+  const f = [...TRACE.backcheckFelt].sort((p, q) => q[0] - p[0]).slice(0, 2);
+  return [(f[0][0] + f[1][0]) / 2, (f[0][1] + f[1][1]) / 2];
+})();
+const BC_ARM = Math.hypot(...sub(BC_FACE_MID, BC_BEND));
+export const bcAngle = a => -a.backcheck / BC_ARM;                 // + toward the strings: clockwise about the bend
+const bcPoly = (a, phi) => TRACE.backcheckFelt.map(p => wipPt(phi, turn(p, BC_BEND, bcAngle(a))));
+const catcherPoly = g => TRACE.catcherHead.map(p => turn(p, CENTER.butt, -g));
+// the hammer coming back from the strings with the wippen at phi: the angle where the catcher first meets the
+// backcheck felt (no give in the felt: the filmed felt squashes about 6 mm, research/upright/parts/README.md)
+export function gCheck(a, phi) {
+  const gs = gString(), hit = g => polyGap(catcherPoly(g), bcPoly(a, phi)) === 0;
+  if (hit(gs)) return { g: gs, scrapes: true };                    // in the catcher's way even at the strings
+  let lo = gs, step = 0.01;
+  for (let g = gs - step; g > -0.2; g -= step) {
+    if (hit(g)) { let hi = lo, l2 = g; for (let i = 0; i < 30; i++) { const m = (hi + l2) / 2; if (hit(m)) l2 = m; else hi = m; } return { g: hi, scrapes: false }; }
+    lo = g;
+  }
+  return { g: null, scrapes: false };                              // misses
+}
+
+// ---------- the damper ----------
+// the spoon's tip (a wire, r 1) pushes the lever's felt; bending it moves the tip along the wippen, toward the lever
+// (bent about its foot on the wippen: the knob is mm the tip moves toward the lever)
+const SPOON_TIP = TRACE.spoon.at(-1), SPOON_R = 1;
+export const SPOON_BASE = TRACE.spoon[0];
+export const spoonAngle = a => -a.spoon / (SPOON_TIP[1] - SPOON_BASE[1]);
+const LEVER_FACE_X = Math.min(...TRACE.leverFelt.map(p => p[0]));
+export const spoonTip = (a, phi) => wipPt(phi, turn(SPOON_TIP, SPOON_BASE, spoonAngle(a)));
+export function damperAngle(a, phi) {
+  const t = spoonTip(a, phi), D = CENTER.damper;
+  const reach = dl => turn(t, D, -dl)[0] + SPOON_R - LEVER_FACE_X;   // the tip in the lever's frame: > 0 pushes into the felt
+  if (reach(0) <= 0) return 0;
+  return solve(reach, 0, 0, 0.6);
+}
+
+// ---------- the bridle strap ----------
+const STRAP = TRACE.strap;
+export const STRAP_LEN = STRAP.slice(1).reduce((s, q, i) => s + Math.hypot(q[0] - STRAP[i][0], q[1] - STRAP[i][1]), 0);
+const BRIDLE_HOOK = TRACE.bridleWire.at(-1);
+export const BRIDLE_BASE = TRACE.bridleWire[0];
+const BRIDLE_ARM = Math.hypot(...sub(BRIDLE_HOOK, BRIDLE_BASE));
+// bending the wire's top toward the player turns it counter-clockwise about its base
+export const bridleAngle = a => a.bridle / BRIDLE_ARM;
+export const strapEnds = (a, phi, g) => [turn(STRAP[0], CENTER.butt, -g), wipPt(phi, turn(BRIDLE_HOOK, BRIDLE_BASE, bridleAngle(a)))];
+// slack: how much longer the strap is than the distance between its ends (negative: it would have to stretch)
+export function strapSlack(a, phi, g) { const [f, k] = strapEnds(a, phi, g); return STRAP_LEN - Math.hypot(...sub(f, k)); }
+
+// ---------- one pose ----------
+// The key held at depth d on a slow press (or held down after a blow, held: true: the jack has escaped and the hammer
+// sits where the backcheck caught it). soft: the soft pedal down.
+export function pose(a, d, { soft = false, held = false } = {}) {
+  const k = keyAngle(a, d), phi = wippenOn(capstanTop(a, k)), gr = gRail(a, soft);
+  const c = contactOn(gr, restPlace(a.balPunch, a.capstan, gr));  // the corner's place under the butt, key at rest
+  let psi, g = gr, on = 'rail', check = null;
+  // through the lost motion the jack rises in place; past it the jack carries the butt round
+  if (phi > c.phiC) { ({ g, psi } = chain(phi, c)); on = 'jack'; if (g < gr) { g = gr; on = 'rail'; } }
+  else psi = psiAtX(phi, gr, c.q[0]);
+  // the let-off button turns the jack further toward the player than the butt holds it: its top slides along the
+  // cushion toward the player and comes off its end (let-off)
+  const pb = jackPsi(a, phi);
+  if (pb > psi) {
+    psi = pb;
+    g = Math.max(gr, gOnJack(phi, psi)); on = g > gr ? 'jack' : 'rail';
+    if (escaped(phi, psi, g)) on = 'off';
+  }
+  // the jack stop: the button turning the jack into it jams the key there
+  const jammed = stopTouching(phi, psi);
+  if (jammed) {
+    psi = stopPsi(phi, psi);
+    if (on === 'jack') g = Math.max(gr, gOnJack(phi, psi));
+  }
+  // a jack that hasn't let off when the hammer reaches the strings holds it there: the key blocks
+  const gs = gString(), blocked = on === 'jack' && g > gs;
+  if (blocked) g = gs;
+  if (held || on === 'off') {
+    // the hammer, back from the strings, sits where the backcheck caught it, or on its rail
+    check = gCheck(a, phi);
+    g = gr; on = 'rail';
+    if (check.g !== null && check.g > g) { g = check.g; on = 'backcheck'; }
+    // a jack still under the cushion holds the hammer up (no escapement: it blubbers)
+    if (!escaped(phi, psi, g) && jackGap(phi, psi, g) < 0) { g = Math.min(gs, gOnJack(phi, psi)); on = 'jack'; }
+  }
+  return { d, th: k.th, bal: k.bal, phi, psi, g, dl: damperAngle(a, phi), on, jammed, blocked, check, soft, gRail: gr,
+    slack: strapSlack(a, phi, g) };
+}
+
+// ---------- readings ----------
+// A slow press from rest to the bottom: where the hammer starts, where the damper starts, where the jack lets off.
+export function slowPress(a, step = 0.02) {
+  const dip = dipOf(a), rest = pose(a, 0);
+  let moveAt = null, damperAt = null, letoffAt = null, letoffGap = null, lastOnJack = null;
+  for (let d = 0; d <= dip + 1e-9; d += step) {
+    const p = pose(a, d);
+    if (moveAt === null && p.on === 'jack') moveAt = d;
+    // the hammer's share of its travel when the damper starts; after let-off the hammer has fallen back, so a damper
+    // that only starts then counts as late (1)
+    if (damperAt === null && p.dl > 1e-4) damperAt = { d, share: letoffAt === null ? (stringGap(rest.g) - stringGap(p.g)) / stringGap(rest.g) : 1 };
+    if (p.on === 'jack') lastOnJack = p;
+    else if (lastOnJack && letoffAt === null) { letoffAt = d; letoffGap = stringGap(lastOnJack.g); }
+  }
+  return { dip, moveAt, damperAt, letoffAt, letoffGap };
+}
+// the gap (mm) between the jack and the butt cushion: at rest it is the lost motion; held down, the escapement
+const jackCushionGap = p => polyGap(TRACE.jack.map(q => jackPt(p.phi, p.psi, q)), TRACE.buttCushion.map(q => turn(q, CENTER.butt, -p.g)));
+export function measure(a) {
+  const sp = slowPress(a), rest = pose(a, 0), bottom = pose(a, sp.dip, { held: true }), soft = pose(a, 0, { soft: true });
+  const blow = stringGap(rest.g);
+  return {
+    keyHeight: keyHeightOf(a), dip: sp.dip, blow,
+    lostMotion: jackGap(rest.phi, 0, rest.gRail),          // jack top to butt cushion at rest, mm (S3's jack gap)
+    lostMotionKey: sp.moveAt,                              // key travel before the hammer moves, mm
+    letoff: sp.letoffGap, letoffDepth: sp.letoffAt,
+    aftertouch: sp.letoffAt === null ? null : sp.dip - sp.letoffAt,
+    check: bottom.on === 'backcheck' ? stringGap(bottom.g) : null, checkScrapes: !!bottom.check?.scrapes,
+    escapement: jackCushionGap(bottom),                    // key held after the blow, the hammer on the backcheck
+    damperShare: sp.damperAt?.share ?? null, damperDepth: sp.damperAt?.d ?? null,
+    damperLift: bottom.dl * Math.hypot(...sub(TRACE.damperFelts[0][2], CENTER.damper)),   // the felt off the strings, mm
+    softBlow: stringGap(soft.g), softShare: 1 - stringGap(soft.g) / blow,
+    strapSlack: rest.slack, softStrapSlack: soft.slack,
+    jammed: bottom.jammed,
+  };
+}
+
+// the capstan setting that gives this lost motion (a technician resets it after moving the rail or the key level)
+export function capstanFor(a, lostMotion = SPEC.lostMotion.target) {
+  return solve(v => { const p = pose({ ...a, capstan: v }, 0); return jackGap(p.phi, 0, p.gRail); }, lostMotion, 4, -4);
+}
+
+// ---------- the factory: each knob solved in the standard order to its spec ----------
+// (protocol 3.1: blow and lost motion before key level and dip; let-off; checking; spoons; soft pedal)
+// regulate() also says which specs it couldn't reach (a knob ran out of range): the searches stop at a range's end
+// without complaint, so this is where that shows.
+export function regulate(a0 = {}) {
+  const a = factory(a0), m = measure(a), missed = [];
+  for (const k of ['dip', 'blow', 'lostMotion', 'letoff', 'check', 'damperShare', 'softShare']) {
+    const s = SPEC[k];
+    if (m[k] === null || Math.abs(m[k] - s.target) > s.tol) missed.push(k);
+  }
+  return { a, m, missed };
+}
+export function factory(a0 = {}) {
+  const a = { balPunch: 1.5, frontPunch: 1, railShim: 0, capstan: 0, letoff: 0, backcheck: 0, spoon: 0, bridle: 0, softFelt: 10, ...a0 };
+  for (let pass = 0; pass < 2; pass++) {
+    a.railShim = solve(v => stringGap(gRail({ ...a, railShim: v })), SPEC.blow.target, -3, 6);
+    a.capstan = capstanFor(a);
+    a.frontPunch = solve(v => dipOf({ ...a, frontPunch: v }), SPEC.dip.target, 4, 0);
+    // a button too high never trips the jack: count that as letting off at the strings, so the search keeps one direction
+    a.letoff = solve(v => slowPress({ ...a, letoff: v }, 0.05).letoffGap ?? -1, SPEC.letoff.target, -4, 4, 30);
+    a.backcheck = solve(v => { const p = pose({ ...a, backcheck: v }, dipOf(a), { held: true }); return p.on === 'backcheck' ? stringGap(p.g) : 99; },
+      SPEC.check.target, -15, 6, 40);
+    a.spoon = solve(v => slowPress({ ...a, spoon: v }, 0.05).damperAt?.share ?? 1, SPEC.damperShare.target, -4, 4, 30);
+    a.softFelt = solve(v => 1 - stringGap(gRail({ ...a, softFelt: v }, true)) / SPEC.blow.target, SPEC.softShare.target, 0, 30);
+  }
+  for (const k of Object.keys(a)) a[k] = +a[k].toFixed(4);
+  return a;
+}
+
+// The factory regulation, as factory() solves it (tests/upright-kinematics.test.mjs checks they agree). At textbook dip
+// and blow this geometry leaves aftertouch at 0.44 mm (Igrec: 1.0-1.5) and the jack 1.1 mm from the butt cushion with
+// the key held (Spurlock: 1/16-1/8 in): by Spurlock's rule the blow is long for the dip. Left as a finding for Greg,
+// not fitted (protocol 3.2 rule 1).
+export const FACTORY = {"balPunch":1.5,"frontPunch":1.5522,"railShim":-0.4964,"capstan":0.274,"letoff":0.0411,"backcheck":-5.7965,"spoon":-1.5527,"bridle":0,"softFelt":10.3664};
