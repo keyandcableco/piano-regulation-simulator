@@ -747,6 +747,9 @@ export function createScene(canvas, overlay) {
     const L = sim.L;
     n.wippen.rotation.z = L.phi;
     n.jack.rotation.z = jackOverride ?? sim.psi;
+    // side play the center tests rock (model.js Sim.reset): the jack on its pin, the hammer on its pin (the wippen: below)
+    n.jack.rotation.x = Math.asin(BASS * (sim.jackRock || 0) / G.jackTop[1]);   // rocking on its pin: the top moves, not the end in the cheeks
+    n.align.rotation.y = Math.asin(-BASS * (sim.hammerRock || 0) / G.crownC[0]);
     // repetition lever: horn sits under the knuckle or at its stop/drop limit
     const kb = knuckleBottom(hammerOverride ?? sim.g)[1];
     n.rep.rotation.z = -repRho(L, Math.min(L.hornTop, kb));
@@ -759,7 +762,8 @@ export function createScene(canvas, overlay) {
     // traveling paper behind one side of the wippen flange swings the wippen on the rail like a gate: the jack top, 82 mm
     // forward of the flange, moves toward the paper's side by the knob's amount, the heel about 72% of it
     const wt = a.wippenTravel || 0, wYaw = Math.asin(Math.max(-0.1, Math.min(0.1, BASS * wt / WIPPEN_JACK_ARM)));
-    n.wippen.rotation.y = n.wfl.rotation.y = wYaw;
+    n.wfl.rotation.y = wYaw;
+    n.wippen.rotation.y = wYaw + Math.asin(BASS * (sim.wippenRock || 0) / WIPPEN_JACK_ARM);   // rocking on its flange's pin
     n.wPaper.visible = Math.abs(wt) > 0.005;
     n.wPaper.scale.x = Math.round(Math.abs(wt) / WIPPEN_PAPER) * 0.3 || 0.3;
     n.wPaper.position.z = BASS * Math.sign(wt) * 4.3;
@@ -797,7 +801,8 @@ export function createScene(canvas, overlay) {
     n.heelG.scale.y = (2.1 + WEAR.capstan * w) / 2.1;
     // damper: the underlever's felt sits damperGap above the key end; the head rises with it
     const keyTop = k.By + Math.sin(k.th0) * G.dmpContactLocal + G.keyThick * Math.cos(k.th0);
-    const feltY = keyTop + (a.damperGap ?? 3.5) + sim.yd / G.dmpRatio;
+    // (the underlever drop test lifts the underlever alone, its wire unhooked: the head stays on the strings)
+    const feltY = keyTop + (a.damperGap ?? 3.5) + (sim.ulShown ?? sim.yd / G.dmpRatio);
     const th = solveUl(feltY);
     n.ul.rotation.z = th;
     // a head bent off its seat rests on one end, the other up by damperLevel; one bent sideways sits off its unison

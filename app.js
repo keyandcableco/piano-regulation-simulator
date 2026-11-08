@@ -4,7 +4,7 @@ import { createScene, NOTE_Z, BASS } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
 import { TOOLBAG } from './toolbag.js';
-import { BUSHINGS, KEY } from './model.js';
+import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS } from './model.js';
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -102,9 +102,11 @@ const view = name => { viewNow = name; travelRestG = null; S.setFocus(focusFor(n
 // line, let-off, drop, dip, aftertouch, backchecks, then the repetition springs, then dampers.
 // Cards marked info are steps the sim does not model, shown so the sequence reads complete.
 const STEPS = [
-  { info: true, id: 'prep', title: 'Before you regulate: prepare the action',
-    what: 'Regulating over loose screws, tight centers or sticky keys is wasted work. Tighten the action and keyframe screws, check that the centers swing freely but not loosely, ease any tight key bushings, and shape or file worn hammers and fit them to the strings: both change blow and let-off, so they come first.',
-    how: 'Key bushings are on the card after next; the rest of this isn\'t in the sim. On a real piano it comes first.' },
+  { spec: 'hammerCenter', also: ['wippenCenter', 'jackCenter', 'repCenter'], id: 'prep', title: 'Before you regulate: prepare the action',
+    knobs: [], centers: ['hammer', 'wippen', 'jack', 'rep'], test: 'swingHammer', tests: ['swingHammer', 'wobbleHammer', 'wippenTilt', 'tenderPlay', 'jackFall', 'repGauge'],
+    what: 'Regulating over loose screws, tight centers or sticky keys is wasted work. Tighten the action and keyframe screws, and check that every center swings freely but not loosely: the hammer flange, the wippen flange, the jack and the repetition lever (the damper underlevers come with the dampers). Ease any tight key bushings, and shape or file worn hammers and fit them to the strings: both change blow and let-off, so they come first.',
+    how: 'Swing the hammer and count, then hold its flange and flex the shank sideways. Tilt the wippen and let it fall back; wiggle the jack\'s tender side to side; with the springs unhooked, let the jack fall under its own weight and gauge the repetition lever at the drop screw. A tight center whose cloth is still firm is eased; a loose one is repinned with the next half size up; one that wobbles with its friction right has worn cloth and is rebushed. Key bushings are on the card after next; tightening screws and shaping hammers aren\'t on this card.',
+    note: 'Friction is read in grams on a gram gauge at a stated distance from the pin. Rule out regulation first: let-off, dip, blow, key bushings and damper timing can all feel like a sluggish center (Rob Goodale). When one center is sluggish, check that part\'s others too (Igrec). The published ranges differ: Renner\'s table runs tighter than Igrec\'s for the wippen and the repetition lever, so the sim grades those, and the jack, on Igrec\'s, and the hammer on Renner\'s. The healthy hammer here is the measured Boston\'s, at the tight end: about 5 half-swings.' },
   { info: true, id: 'bedding', title: 'Bed the keyframe',
     what: 'The keyframe has to sit flat on the keybed at the front rail, balance rail and back rail. If it rocks, it knocks, and the key dip and height wander.',
     how: 'Knock test with the action in: press on the rails and listen. Sand the front rail where it doesn\'t touch; set the balance rail glide bolts so they just touch, never lifting the rail.' },
@@ -180,9 +182,9 @@ const STEPS = [
     what: 'The pedal should lift every damper just above where the keys take them, about level with the stop rail.',
     how: 'Set the pedal\'s stop (or the rod length) so the lift tray takes the dampers just past the key lift. Too little and some notes stay damped; too much and the dampers slam into the stop rail and thump.',
     note: 'On a real piano also leave a little free play in the pedal and rod before the tray moves. Not modelled yet.' },
-  { spec: 'damperFall', also: ['damperSeat'], title: 'Damper wires: fall freely, seat flat', knobs: ['damperDrag', 'damperCenter', 'damperLevel'], test: 'pedalTest', tests: ['pedalTest', 'damperSight'],
+  { spec: 'damperFall', also: ['damperSeat', 'underCenter'], title: 'Damper wires: fall freely, seat flat', knobs: ['damperDrag', 'damperCenter', 'damperLevel'], centers: ['under'], test: 'pedalTest', tests: ['pedalTest', 'damperSight', 'ulDrop'],
     what: 'Let the pedal go: every damper should drop and land at once. One that hangs or lands late leaves the note ringing. Each head should sit centered on its unison, both ends of its felt on the strings with equal force.',
-    how: 'A late damper usually has a wire that isn\'t running straight through its guide rail bushing: bend the wire so it passes without binding, or ease a tight bushing. Bend the top of the wire (bends 3 and 4, in Igrec\'s numbering) to center the head, and bend it as seen from the side to seat both ends.',
+    how: 'A late damper usually has a wire that isn\'t running straight through its guide rail bushing: bend the wire so it passes without binding, or ease a tight bushing. If the wire runs free, loosen its set screw and let the underlever drop on its own: it should fall from its own weight, or its center is tight. Bend the top of the wire (bends 3 and 4, in Igrec\'s numbering) to center the head, and bend it as seen from the side to seat both ends.',
     note: 'A head off center or up at one end lets a string ring on after the key comes up. Igrec checks a row by laying a small ruler on the tops of the heads: they should run parallel with it.' },
   { info: true, id: 'pedals', title: 'Sostenuto and una corda',
     what: 'Last come the sostenuto (its rod catching only the tabs of the dampers held up) and the una corda shift (the hammers moving over to strike two strings of three).',
@@ -228,8 +230,8 @@ const TESTS = {
   wiggle: { label: 'Wiggle the hammer, play it, and listen', specs: ['hammerSound'], view: 'hammer',
     run: async () => {
       await releaseKey(); sim.press(sim.dip, 250); await waitSim(0.3); sim.press(0, 60); await waitSim(0.3);
-      const d = DAMAGE[sim.a.damage];
-      toast(d ? `You notice ${d.signs}.` : 'Solid on its center, no play, and quiet.', d ? 'warn' : '');
+      const d = DAMAGE[sim.a.damage], play = m.hammerPlay > 0;
+      toast(d ? `You notice ${d.signs}.` : play ? 'You notice play at the center pin, and a click on the blow.' : 'Solid on its center, no play, and quiet.', d || play ? 'warn' : '');
     } },
   pedalTest: { label: 'Pedal down, then let it go', specs: ['pedalLift', 'damperFall'], view: 'dampers', scale: 0.1, damper: true,
     run: async () => {
@@ -306,6 +308,103 @@ const TESTS = {
       }
       sim.keyShown = null; stack(false);
     } },
+  // ---------- action centers (research/wippen/spec.md §8.1): friction and side play, each read where a tech reads it ----------
+  // the flange off its rail, held so the shank stands level, let go: count the half-swings (the Drills tab has it to watch)
+  swingHammer: { label: 'Swing test: count the hammer\'s half-swings', specs: ['hammerCenter'], view: 'hammer',
+    run: async () => {
+      await releaseKey(); await waitReal(0.4);
+      const n = m.swings, c = CENTERS.hammer, g = m.hammerCenter, [lo, hi] = c.band;
+      say(`Flange off the rail, the shank held level and let go: ${n} half-swing${n === 1 ? '' : 's'}, about ${g.toFixed(1)} g on a gauge at ${c.at} mm${g > hi ? ': it stops too soon' : g < lo ? ': it swings on too long' : ''}`, g > hi || g < lo ? 'warn' : '');
+      await waitReal(1.2);
+    } },
+  // Renner: hold the flange down, flex the shank sideways and watch the pin. The flange held, a loose flange screw can't show
+  wobbleHammer: { label: 'Hold the flange, flex the shank sideways', specs: ['hammerCenter'], view: 'travel',
+    run: async () => {
+      await releaseKey(); await waitReal(0.8);   // let the view settle
+      const p = m.hammerPlay;
+      sim.hammerRock = 0;
+      for (const s of [-p / 2, p / 2, -p / 2, p / 2, 0]) await sway('hammerRock', sim.hammerRock, s, 10);
+      sim.hammerRock = null;
+      say(p ? `The pin moves in its bushing: the head shifts about ${fmt(p)} side to side. Side play in the center`
+        : adj.damage === 'looseFlange' ? 'Held down, the pin is solid in its bushing: the shift in the action is the flange screw, not the center'
+        : 'The pin stays put in its bushing: no side play', p ? 'warn' : '');
+      await waitReal(0.6);
+    } },
+  // Igrec's step 45: tilt the stack so the wippens hang, push one toward the shanks and let it go. It falls back by its
+  // own weight; a slow one gets its flange gauged. The key isn't under it (drawn where it rests).
+  wippenTilt: { label: 'Tilt the stack: lift the wippen, let it fall back', specs: ['wippenCenter'], view: 'rails', scale: 0.1,
+    run: async () => {
+      await releaseKey();
+      sim.keyShown = 0;
+      const up = sim.dip * 0.6;
+      sim.press(up, 40); await waitSim(up / 40 + 0.05); await waitReal(0.3);
+      if (m.wippenTilt === 'hangs') { say('Let go, the wippen stays up: its flange center is seized', 'warn'); await waitReal(1.2); }
+      else {
+        // it falls in a time that goes as one over the square root of its weight's pull less the friction
+        const v = KEY.upSpeed * Math.sqrt(m.wippenShare), longer = 1 / Math.sqrt(m.wippenShare);
+        sim.press(0, v); sim.lifting = true;   // (lifting: the key's own bushings have no part in it)
+        await waitSim(up / v + 0.05);
+        say(m.wippenTilt === 'slow' ? `Let go, the wippen comes back slowly, taking about ${longer.toFixed(1)} times as long as a free one: a tight flange center`
+          : 'Let go, the wippen drops straight back', m.wippenTilt === 'slow' ? 'warn' : '');
+        await waitReal(0.6);
+      }
+      sim.keyShown = null;
+      await releaseKey();
+    } },
+  // Igrec: move the jack tender side to side; any looseness means repin the jack, the wippen flange, or both. Seen from the
+  // front: the jack rocking on its own pin, or the whole wippen moving on its flange
+  tenderPlay: { label: 'Wiggle the jack tender side to side', specs: ['jackCenter', 'wippenCenter'], view: 'jackfront',
+    run: async () => {
+      await releaseKey(); await waitReal(1.2);   // the slice view
+      const field = m.jackPlay ? 'jackRock' : 'wippenRock', p = m.jackPlay || m.wippenPlay;
+      sim[field] = 0;
+      for (const s of [-p / 2, p / 2, -p / 2, p / 2, 0]) await sway(field, sim[field], s, 10);
+      sim[field] = null;
+      say(m.jackPlay ? 'The jack rocks on its center pin, the wippen still: side play in the jack center'
+        : m.wippenPlay ? 'The whole wippen moves on its flange, the jack with it: side play in the wippen flange center'
+        : 'Solid: no side play in the jack or the wippen flange', p ? 'warn' : '');
+      await waitReal(0.6);
+    } },
+  // Don Mannino (2007, quoted by Jessica Masse, PTG 2023): the jack spring unhooked, the wippen held tender up, the jack should fall
+  // slowly under its own weight. Drawn in place: the jack swings out from under the knuckle, the hammer on its lever.
+  jackFall: { label: 'Spring unhooked: let the jack fall', specs: ['jackCenter'], view: 'escapement',
+    run: async () => {
+      await releaseKey();
+      const p0 = sim.L.psiRest, f = m.jackFall;
+      hammerOverride = Math.min(sim.g, solveG(repSupportZ(sim.a, sim.L))); jackOverride = p0; await waitReal(0.6);
+      if (f !== 'stays') {
+        // falling slowly, it eases out; a loose one drops and flops back and forth on its pin
+        const n = f === 'flops' ? 8 : 40, path = f === 'flops' ? [0.14, 0.09, 0.13, 0.11, 0.12] : [0.12];
+        let at = 0;
+        for (const to of path) { for (let i = 1; i <= n; i++) { jackOverride = p0 + at + (to - at) * (1 - (1 - i / n) ** 2); await waitReal(0.025); } at = to; }
+      }
+      say(f === 'stays' ? 'The jack stays where it is: it won\'t fall under its own weight. A tight center'
+        : f === 'flops' ? 'The jack drops at once and flops on its pin: a loose center' : 'The jack falls slowly under its own weight', f === 'slow' ? '' : 'warn');
+      await waitReal(1);
+      jackOverride = hammerOverride = null;
+    } },
+  // the repetition spring unhooked, a gram gauge at the drop screw's felt, pushed square to the lever (Igrec, Don Mannino)
+  repGauge: { label: 'Spring unhooked: gauge the lever at the drop screw', specs: ['repCenter'], view: 'escapement',
+    run: async () => {
+      await releaseKey(); await waitReal(0.8);
+      const r = gradeL('repCenter', m);
+      say(`The gauge at the drop screw's felt, ${CENTERS.rep.at} mm from the pin, reads ${m.repCenter.toFixed(1)} g as the lever starts to move${r.note ? `: ${r.note}` : ''}`, r.ok ? '' : 'warn');
+      await waitReal(1);
+    } },
+  // Renner: a damper underlever should fall from its own weight. Its wire's set screw loosened (Cecil Snyder, PTG 2022), the
+  // head stays on the strings, so only the underlever's center is tried
+  ulDrop: { label: 'Wire unhooked: lift the underlever and let it drop', specs: ['underCenter'], view: 'dampers', damper: true,
+    run: async () => {
+      await releaseKey(); await waitReal(0.4);
+      await sway('ulShown', 0, 6, 12); await waitReal(0.4);
+      if (m.ulDrop === 'hangs') say('Let go, the underlever stays up: its center is seized', 'warn');
+      else {
+        await sway('ulShown', 6, 0, Math.round(10 / Math.sqrt(m.ulShare)));
+        say(m.ulDrop === 'slow' ? 'Let go, the underlever comes down slowly: a tight center' : 'Let go, the underlever falls from its own weight', m.ulDrop === 'slow' ? 'warn' : '');
+      }
+      await waitReal(0.8);
+      sim.ulShown = null;
+    } },
 };
 // move one of the key tests' drawn values (sim.keyRock, keyTwist, keyShown) from a to b over a few screen frames
 const sway = async (field, a, b, steps = 8) => { for (let i = 1; i <= steps; i++) { sim[field] = a + (b - a) * i / steps; await waitReal(0.03); } };
@@ -380,6 +479,7 @@ const SHORT = {
   hammerTravel: 'Travel', hammerSpacing: 'Spacing', hammerSquare: 'Square', hammerSound: 'Solid on its center', jackPos: 'Jack position', wippenSpacing: 'Jack centered',
   wink: 'Wink', letoff: 'Let-off', drop: 'Drop', spring: 'Spring', check: 'Checking', backcheckAlign: 'Centered, square',
   damperTiming: 'Lift timing', damperStop: 'Stop rail', pedalLift: 'Pedal lift', damperFall: 'Fall', damperSeat: 'Seat',
+  hammerCenter: 'Hammer center', wippenCenter: 'Wippen center', jackCenter: 'Jack center', repCenter: 'Rep lever center', underCenter: 'Underlever center',
 };
 // an unmeasured reading names its test, which may sit in another part of the action (aftertouch: the slow press)
 const testFor = s => TESTS[Object.keys(TESTS).find(k => !TESTS[k].threeOnly && TESTS[k].specs.includes(s))]?.label;
@@ -460,6 +560,7 @@ function specTarget(id) {
   if (id === 'lostMotion') return 'none';
   if (id === 'damperSeat') return 'centered, flat';
   if (id === 'keyBushings') return 'slight play, drops freely';
+  if (s.center) { const c = CENTERS[s.center]; return `${c.band.map(g => +g.toFixed(1)).join(' to ')} g at ${c.at} mm${c.springOff ? ', spring off' : ''}`; }
   return fmt(s.target);
 }
 const side = v => Math.abs(v) < 0.05 ? 'centered' : `${fmt(Math.abs(v))} toward the ${v > 0 ? 'bass' : 'treble'}`;
@@ -478,6 +579,9 @@ function reading(id, mm = m) {
   else if (id === 'lostMotion') txt = r.v < 0.01 ? 'none' : `${fmt(r.v)} of free play at the key`;
   else if (id === 'damperSeat') txt = `${side(r.v)}, ${Math.abs(mm.damperLevel) < 0.02 ? 'seated flat' : `${mm.damperLevel > 0 ? 'back' : 'front'} end ${fmt(Math.abs(mm.damperLevel))} up`}`;
   else if (id === 'keyBushings') txt = r.v < 0.05 ? r.note : `${fmt(r.v)} side play at the front` + (r.note ? ` · ${r.note}` : ', drops freely');
+  // grams on the gauge at its distance (the hammer's swing count with it), and any side play
+  else if (SPEC[id].center) txt = `${r.v.toFixed(1)} g at ${CENTERS[SPEC[id].center].at} mm` + (id === 'hammerCenter' ? `, ${mm.swings} half-swings` : '')
+    + (r.note ? ` · ${r.note}` : '');
   else if (r.v == null) txt = r.note || '—';
   else if (id === 'keyHeight') txt = Math.abs(r.v) < 0.05 ? 'level' : `${fmt(Math.abs(r.v))} ${r.v > 0 ? 'high' : 'low'}`;
   else if (id === 'jackPos') txt = Math.abs(r.v) < 0.05 ? 'aligned' : `${fmt(Math.abs(r.v))} ${r.v > 0 ? 'too far back' : 'too far forward'}`;
@@ -525,8 +629,27 @@ const SCENARIOS = [
     answer: 'A loose hammer flange screw: the hammer shifts sideways on its flange. Tighten it, then check the spacing.' },
   { complaint: 'A tick when I play this note, and it sounds a little duller than the others.', faults: { damage: 'looseHead' }, alone: true,
     answer: 'The hammer head is loose on its shank (a failed glue joint). Reglue it square.' },
-  { complaint: 'This note feels a little sluggish, and its hammer is slow to come back up after a note.', faults: { damage: 'tightCenter' }, alone: true,
-    answer: 'A tight hammer flange center: the hammer swings stiffly and falls back slowly, so the repetition spring can\'t lift it. Ease the center; turning up the spring only covers it up.' },
+  // action centers (research/wippen/spec.md §8.2): the symptoms here are what the sim shows; its tests find the center
+  { complaint: 'Since the summer, soft repeated notes on this key feel a little sluggish next to its neighbors.', faults: { center: 'hammerTight' }, alone: true,
+    answer: 'A tight hammer flange center: swing-tested, the hammer makes only 3 half-swings, about 7 g on a gauge at 23 mm (Renner: 2 to 5). In play it barely shows, which is why techs swing-test. The cloth is swollen, not worn: ease the bushing. Turning up the spring only covers it up.' },
+  { complaint: 'There\'s a click in this note, and the hammer seems to move about.', faults: { center: 'hammerLoose' }, alone: true,
+    answer: 'A loose hammer flange center: the pin is loose in its cloth. It swings on for 14 half-swings (1.5 g at 23 mm), and with the flange held down the pin moves in its bushing. The flange screw is tight, so it\'s the center: repin it with the next half size up.' },
+  { complaint: 'This note clicks, and when I look inside its hammer looks a little loose sideways.', faults: { center: 'hammerWorn' }, alone: true,
+    answer: 'A worn hammer flange bushing: its friction is fine (about 7 half-swings, 3 g), but with the flange held down the pin moves in its bushing, one side of the cloth worn. Repinning won\'t stop a wobble: rebush it (Renner).' },
+  { complaint: 'Since the summer this key comes back up a little lazily, and quick repeated notes feel heavy.', faults: { center: 'wippenTight' }, alone: true,
+    answer: 'A tight wippen flange center: tilted, the wippen falls back slowly, and it drags the key on its way up. The key drops freely with the stack off, so it isn\'t the key bushings. Ease the flange center (repinning works too).' },
+  { complaint: 'There\'s a faint tick from inside the piano when I play this key.', faults: { center: 'wippenLoose' }, alone: true,
+    answer: 'A loose wippen flange center: wiggled at the tender, the whole wippen moves on its flange, jack and all. Repin the wippen flange a half size up (Igrec).' },
+  { complaint: 'Sometimes this note won\'t play again unless I let the key nearly all the way up.', faults: { center: 'jackTight' }, alone: true,
+    answer: 'A tight jack center: the jack spring can barely push it back under the knuckle, so it gets back late on the way up, and tripped at rest it doesn\'t come back at all (the wink test says so). It isn\'t the repetition lever: with the spring unhooked the jack won\'t fall under its own weight. Ease it, or repin it (Steve Howard tries a center lubricant first, then repins).' },
+  { complaint: 'Played softly, this note gives a little tick.', faults: { center: 'jackLoose' }, alone: true,
+    answer: 'A loose jack center: wiggled at the tender, the jack rocks on its pin in the wippen, and with the spring unhooked it drops and flops. Repin the jack (Igrec).' },
+  { complaint: 'Quick repeated notes feel a little slow on this key, as if the hammer were slow to come back up after a loud note.', faults: { center: 'repTight' }, alone: true,
+    answer: 'A tight repetition lever center: with its spring unhooked the lever gauges 10 g at the drop screw (Igrec: 2 to 6 at 58 mm), and it brakes the spring\'s lift: the hammer rises from check about a fifth slower. The spring itself is fine: ease the center, don\'t strengthen the spring.' },
+  { complaint: 'Soft repeated notes on this key aren\'t as even as on its neighbors.', faults: { center: 'repLoose' }, alone: true,
+    answer: 'A repetition lever center too loose: about 1 g at the drop screw with the spring unhooked (Igrec: 2 to 6 at 58 mm). It is meant to be the tightest center in the wippen, a brake that steadies the lever (Igrec); below the low end the lever doesn\'t hold the knuckle steady for the jack to reset (Don Mannino). The gauge finds it; in play it shows only a little. Repin it a half size up.' },
+  { complaint: 'After this humid summer, this note keeps ringing a little after I let the key go.', faults: { center: 'underTight' }, alone: true,
+    answer: 'A tight damper underlever center: the damper falls late. The wire runs straight in its guide bushing; with its set screw loosened the underlever comes down slowly on its own. Ease the center (James Kelly repins a half size up and reams).' },
   { complaint: 'Sometimes this note doesn\'t play again unless I let the key all the way up.', faults: { damage: 'brokenJackSpring' }, alone: true,
     answer: 'A broken jack spring: nothing pushes the jack back under the knuckle until the key is fully up. Replace the spring.' },
   { complaint: 'It was regulated when we bought it eight years ago. Now there\'s a click at the top of the key, soft notes are hard to control, and it feels like it bottoms out.', faults: { wear: 0.8 }, alone: true,
@@ -570,8 +693,9 @@ function deregulated() {
 }
 function messUp() {
   adj = deregulated();
-  // in Learn, one key in three also has a key bushing to ease or rebush
+  // in Learn, one key in three also has a key bushing to ease or rebush, and one in four a center to ease, repin or rebush
   if (mode === 'learn' && Math.random() < 1 / 3) { const k = Object.keys(BUSHINGS); adj.bushing = k[Math.floor(Math.random() * k.length)]; }
+  if (mode === 'learn' && Math.random() < 1 / 4) { const k = Object.keys(CENTER_FAULTS); adj.center = k[Math.floor(Math.random() * k.length)]; }
   applyAdj();
 }
 function applyAdj() { generation++; clearFrames(); sim.setAdj(adj); sim.reset(); m = measure(adj); store(); S.clearCallouts(); refresh(); }
@@ -662,6 +786,7 @@ function renderLearn(p) {
     measureTable(stepSpecs(st)),
     el('div', { class: 'knobs' }, st.knobs.map(knobRow)),
     st.bushings ? bushingRepairs() : null,
+    st.centers ? centerRepairs(st.centers) : null,
     benchTips(st.id ?? st.spec),
     nav(stepDone(st)),
     earlier.length ? el('details', {}, el('summary', {}, 'Earlier steps'), measureTable(earlier)) : null,
@@ -700,7 +825,8 @@ function focusStep() {
   const st = STEPS[stepIdx];
   if (!st) return;
   if (st.info) { S.highlight([]); view('angle'); return; }
-  S.highlight(st.knobs.map(k => ADJ.find(a => a.id === k).part), cur);
+  const pins = Object.keys(CENTER_PART).filter(p => st.centers?.includes(CENTER_PART[p]));
+  S.highlight([...st.knobs.map(k => ADJ.find(a => a.id === k).part), ...pins], cur);
   view(TESTS[st.test].view);
 }
 // repairs: a broken or loose part can only be fixed, not regulated around
@@ -742,7 +868,35 @@ function bushingRepairs() {
     } }, f.label))));
 }
 const damageLabel = k => ({ splitShank: 'Split shank', looseFlange: 'Loose flange screw', looseHead: 'Loose hammer head',
-  tightCenter: 'Tight flange center', brokenJackSpring: 'Broken jack spring' })[k];
+  brokenJackSpring: 'Broken jack spring' })[k];
+// action centers are eased, repinned or rebushed (research/wippen/spec.md §8.3), never regulated: ease a tight one whose
+// cloth is firm, repin a loose one in sound cloth with the next half size up, rebush one that wobbles with its friction
+// right. The others work on a tight or loose center too, at more cost; the wrong one says why it didn't help.
+const CENTER_FIXES = {
+  ease: { label: 'Ease', fixes: { tight: 'Eased: the bushing burnished and lightly reamed, and it swings freely again.' },
+    wrong: { loose: 'Easing a loose center only makes it looser: it needs a bigger pin.', worn: 'Easing a worn bushing only makes it looser: it needs new cloth.' } },
+  repin: { label: 'Repin', fixes: { loose: 'Repinned with the next half size up, snug in the birdseye, the bushing sized to the spec.',
+    tight: 'Repinned with a new polished pin and the bushing sized: it works, though easing would have done it with the cloth this firm.' },
+    wrong: { worn: 'Repinned: the friction is right again, but it still wobbles. One side of the cloth is worn: rebush it.' } },
+  rebush: { label: 'Rebush', fixes: { worn: 'Rebushed: new cloth pulled through, sized with a new pin, trimmed and burnished. No side play.',
+    tight: 'Rebushed, and it works, but the cloth was sound, only swollen: easing it would have taken a minute.',
+    loose: 'Rebushed, and it works, but the cloth was sound: a pin a half size up would have done it.' } },
+};
+function centerRepairs(ids, { fold = false } = {}) {
+  const f = CENTER_FAULTS[adj.center];
+  const rows = ids.filter(id => id !== 'under' || !examActive() || exam.dampers).map(id => el('div', { class: 'row small' },
+    el('span', { class: 'grow' }, CENTERS[id].name),
+    Object.values(CENTER_FIXES).map(fx => el('button', { class: 'test', disabled: busy ? '' : false, onclick: () => {
+      const kind = f?.center === id ? f.kind : null, msg = kind && fx.fixes[kind];
+      if (!msg) {
+        if (mode === 'diagnose' || examActive()) testsUsed++;
+        toast(kind ? fx.wrong[kind] : `${fx.label}: nothing wrong with the ${CENTERS[id].name.toLowerCase()}, so nothing changed.`); refresh(); return;
+      }
+      adj.center = null; unsolve(); toast(msg); bushingChanged();
+    } }, fx.label))));
+  const body = [el('p', { class: 'muted small' }, 'Action centers: eased, repinned or rebushed, not regulated.'), rows];
+  return fold ? el('details', {}, el('summary', {}, 'Center repairs'), ...body) : el('div', {}, ...body);
+}
 // Find the fault, Sandbox and Exam work part by part: each part of the action with its tests, readings and adjustments together
 // (hammerLine shows only with three notes, the exam's or the Sandbox's, where there are three hammers to sight)
 const AREAS = [
@@ -754,6 +908,8 @@ const AREAS = [
   { id: 'backcheck', name: 'Backcheck', tests: ['strikeHold', 'sightBackcheck'], knobs: ['backcheck', 'backcheckSpace', 'backcheckSquare'] },
   { id: 'dampers', name: 'Dampers and pedal', tests: ['damperSlow', 'pedalTest', 'damperSight'],
     knobs: ['damperGap', 'damperStop', 'pedalLift', 'damperDrag', 'damperCenter', 'damperLevel'] },
+  { id: 'centers', name: 'Action centers', tests: ['swingHammer', 'wobbleHammer', 'wippenTilt', 'tenderPlay', 'jackFall', 'repGauge', 'ulDrop'],
+    knobs: [], repairs: () => centerRepairs(Object.keys(CENTERS)) },
 ];
 // open sections survive the panel being redrawn
 const openFolds = new Set(['how']);
@@ -794,17 +950,19 @@ const PART_TESTS = {
   frontrail: KEY_TESTS, frontpunch: KEY_TESTS, balance: KEY_TESTS, balrail: KEY_TESTS, backrail: ['keyDrop'], keybed: ['keyDrop'], neighbor: ['straightedge'],
   capstan: ['topPlay'], heel: ['topPlay'],
   hammer: ['blowGauge', 'hammerLine', 'slowPress', ...HAMMER_TESTS], shank: HAMMER_TESTS, flange: HAMMER_TESTS, flangescrew: HAMMER_TESTS,
-  hcenter: ['wiggle'], flangerail: ['travelLift'], string: ['slowPress', 'alignSight', 'hammerLine'], tail: ['strikeHold', 'sightBackcheck'],
+  hcenter: ['swingHammer', 'wobbleHammer', 'wiggle'], flangerail: ['travelLift'], string: ['slowPress', 'alignSight', 'hammerLine'], tail: ['strikeHold', 'sightBackcheck'],
   restrail: ['restRail', 'topPlay'],
-  jack: ['sightJack', 'wink', 'sightJackFront'], tender: ['wink', 'slowPress'], jcenter: ['wink'], knuckle: ['sightJack'], knucklecore: ['sightJack'],
+  jack: ['sightJack', 'wink', 'sightJackFront'], tender: ['wink', 'slowPress', 'tenderPlay'], jcenter: ['jackFall', 'tenderPlay', 'wink'], knuckle: ['sightJack'], knucklecore: ['sightJack'],
   jackscrew: ['sightJack'], jackstop: ['wink'], windowfelt: ['wink'],
-  rep: ['wink', 'easeUp'], repscrew: ['wink'], repbutton: ['wink'], support: ['wink'], rcenter: ['easeUp'], repspring: ['easeUp'],
-  letoff: ['slowPress'], regrail: ['slowPress'], drop: ['slowPress'], dropfelt: ['slowPress'],
-  wippen: ['sightJackFront'], wflange: ['sightJackFront'], wcenter: ['sightJackFront'], wippenrail: ['sightJackFront'],
+  rep: ['wink', 'easeUp'], repscrew: ['wink'], repbutton: ['wink'], support: ['wink'], rcenter: ['repGauge', 'easeUp'], repspring: ['easeUp'],
+  letoff: ['slowPress'], regrail: ['slowPress'], drop: ['slowPress'], dropfelt: ['slowPress', 'repGauge'],
+  wippen: ['sightJackFront', 'wippenTilt'], wflange: ['sightJackFront'], wcenter: ['wippenTilt', 'tenderPlay'], wippenrail: ['sightJackFront'],
   backcheck: ['strikeHold', 'sightBackcheck'],
   damper: ['damperSight', 'damperSlow', 'pedalTest'], damperfelt: ['damperSight'], damperwire: ['damperSight', 'pedalTest'], guiderail: ['pedalTest'],
-  underlever: ['damperSlow'], ulflange: ['damperSlow'], ucenter: ['damperSlow'], damperstop: ['damperSlow'], lifttray: ['pedalTest'],
+  underlever: ['damperSlow', 'ulDrop'], ulflange: ['damperSlow'], ucenter: ['ulDrop', 'damperSlow'], damperstop: ['damperSlow'], lifttray: ['pedalTest'],
 };
+// the center pins: their cards carry that center's repairs
+const CENTER_PART = { hcenter: 'hammer', wcenter: 'wippen', jcenter: 'jack', rcenter: 'rep', ucenter: 'under' };
 // parts that carry another part's adjustment: the flange screw spaces the flange, the rails carry their punchings, the
 // repetition lever's height is set by its screw, the underlever's top flange times the damper, the wippen spaces on its flange
 const KNOB_PART = { flangescrew: 'flange', frontrail: 'frontpunch', balrail: 'balance', dropfelt: 'drop', rep: 'repscrew',
@@ -837,7 +995,8 @@ function renderPop() {
       return el('div', { class: 'pop-knob' }, el('div', { class: 'small' }, el('b', {}, ADJ.find(x => x.id === id).name), v ? el('span', { class: 'muted' }, ` · ${v}`) : null),
         knobButtons(id));
     }),
-    tests.length || knobs.length ? null : el('div', { class: 'muted small' }, 'Nothing to test or adjust on this part.')].filter(Boolean));
+    CENTER_PART[pop.part] ? centerRepairs([CENTER_PART[pop.part]]) : null,
+    tests.length || knobs.length || CENTER_PART[pop.part] ? null : el('div', { class: 'muted small' }, 'Nothing to test or adjust on this part.')].filter(Boolean));
   popEl.hidden = false;
   placePop();
 }
@@ -1042,6 +1201,10 @@ function renderSandbox(p) {
       el('select', { disabled: busy ? '' : false, onchange: e => { adj.bushing = e.target.value || null; bushingChanged(); } },
         el('option', { value: '' }, 'healthy'),
         Object.entries(BUSHINGS).map(([k, b]) => el('option', { value: k, ...(adj.bushing === k ? { selected: '' } : {}) }, b.name)))),
+    el('label', { class: 'row small' }, 'Action centers: ',
+      el('select', { disabled: busy ? '' : false, onchange: e => { adj.center = e.target.value || null; bushingChanged(); } },
+        el('option', { value: '' }, 'healthy'),
+        Object.entries(CENTER_FAULTS).map(([k, f]) => el('option', { value: k, ...(adj.center === k ? { selected: '' } : {}) }, f.name)))),
     repairs());
 }
 
@@ -1070,11 +1233,13 @@ function startExam() {
     n.adj = a; n.sim.setAdj(a); n.sim.reset(); n.m = measure(a); n.tested = new Set();
   });
   if (LEVEL.damage) {
-    const slot = EXAM_ORDER[Math.floor(Math.random() * 3)], keys = ['splitShank', 'looseFlange', 'looseHead', 'tightCenter'];
-    const n = NOTES[slot]; n.adj.damage = keys[Math.floor(Math.random() * keys.length)];
+    // a tight hammer center is a center fault (adj.center), the others damage
+    const slot = EXAM_ORDER[Math.floor(Math.random() * 3)], keys = ['splitShank', 'looseFlange', 'looseHead', 'hammerTight'];
+    const n = NOTES[slot], k = keys[Math.floor(Math.random() * keys.length)];
+    if (CENTER_FAULTS[k]) n.adj.center = k; else n.adj.damage = k;
     n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj);
   }
-  exam = { started: true, done: false, dampers: examDampers, level: LEVEL, damaged: NOTES.map(n => n.adj.damage || null),
+  exam = { started: true, done: false, dampers: examDampers, level: LEVEL, damaged: NOTES.map(n => n.adj.damage || n.adj.center || null),
     minutes: examMinutes, endAt: Date.now() + examMinutes * 60000, t0: Date.now() };
   $('#level').disabled = true;
   testsUsed = 0; generation++;
@@ -1116,9 +1281,12 @@ function tickExam() {
   if (txt !== lastClock) { c.textContent = txt; c.hidden = false; c.classList.toggle('low', left < 5 * 60000); lastClock = txt; }
 }
 function examScore() {
-  const anyDamage = exam.damaged.some(Boolean);
-  const rows = examSpecs().filter(id => id !== 'hammerSound' || anyDamage).map(id => ({ id, cells: EXAM_ORDER.map(i =>
-    id === 'hammerSound' && !exam.damaged[i] ? { txt: '—', ok: true, skip: true } : { ...reading(id, NOTES[i].m), ok: gradeL(id, NOTES[i].m).ok }) }));
+  // the wiggle-and-listen check, and the check of a center dealt as damage, are scored only on the note that had it
+  const anyDamage = exam.damaged.some(d => DAMAGE[d]), dealtCenters = new Set(exam.damaged.map(d => CENTER_FAULTS[d]?.center).filter(Boolean));
+  const ids = [...examSpecs(), ...Object.keys(SPEC).filter(id => dealtCenters.has(SPEC[id].center))];
+  const notScored = (id, i) => (id === 'hammerSound' && !DAMAGE[exam.damaged[i]]) || (SPEC[id].center && CENTER_FAULTS[exam.damaged[i]]?.center !== SPEC[id].center);
+  const rows = ids.filter(id => id !== 'hammerSound' || anyDamage).map(id => ({ id, cells: EXAM_ORDER.map(i =>
+    notScored(id, i) ? { txt: '—', ok: true, skip: true } : { ...reading(id, NOTES[i].m), ok: gradeL(id, NOTES[i].m).ok }) }));
   const even = EVEN.concat(exam.dampers ? ['damperTiming'] : []).map(id => {
     const vals = EXAM_ORDER.map(i => gradeL(id, NOTES[i].m).v);
     const ok = vals.every(v => v != null) && Math.max(...vals) - Math.min(...vals) <= SPEC[id].tol * exam.level.tolK;
@@ -1130,7 +1298,7 @@ function examScore() {
   }
   const items = rows.flatMap(r => r.cells.filter(c => !c.skip).map(c => c.ok)).concat(even.map(e => e.ok));
   let pct = Math.round(100 * items.filter(Boolean).length / items.length);
-  const missed = NOTES.some(n => n.adj.damage);
+  const missed = NOTES.some(n => n.adj.damage || n.adj.center);
   if (missed) pct = Math.min(pct, 79);   // a damaged part left in the action fails the exam
   return { rows, even, pct, missed };
 }
@@ -1163,7 +1331,7 @@ function renderExam(p) {
       el('button', { class: slot === cur ? 'on' : '', disabled: busy ? '' : false, onclick: () => { selectNote(slot); view('angle'); } }, `Note ${i + 1}`))),
     el('h3', {}, `Note ${n}`),
     AREAS.filter(a => exam.dampers || a.id !== 'dampers').map(areaPanel),
-    repairs());
+    repairs(), centerRepairs(Object.keys(CENTERS), { fold: true }));
   put($('#actionbar'), el('span', { class: 'muted small grow' }, `Note ${n} · tests run: ${testsUsed}`),
     el('button', { class: 'primary', onclick: () => { if (confirm('Hand in your exam model now?')) handIn(); } }, 'Hand it in'));
 }
@@ -1252,7 +1420,7 @@ function handleEvents() {
 }
 const FRONT_VIEWS = new Set(['jackfront', 'checkfront', 'checktop', 'hammerline', 'damperline']);
 function updateCallouts() {
-  if (sim.stackOff) { S.clearCallouts(); return; }   // the key drop test: nothing on the keys to measure
+  if (sim.stackOff || sim.keyShown != null) { S.clearCallouts(); return; }   // the key and stack apart (key drop, wippen tilt): nothing to measure
   const nz = NOTE_Z[cur], z = 9 + nz, L = sim.L, g = hammerOverride ?? sim.g;
   const atRest = sim.d < 0.01;
   const show = id => revealed(id);
@@ -1386,7 +1554,7 @@ let paused = false, stepFrames = 0, frameNo = 0, frameHold = null;
 const FRAME_S = 1 / 60, H_STEP = 0.0002;   // 0.2 ms steps keep the escapement timing stable
 const frameHistory = [], HISTORY_MAX = 900;   // about 15 s of frames
 const clearFrames = () => { frameHistory.length = 0; cue = null; };
-const SNAP_SKIP = new Set(['a', 'L', 'events', 'dip', 'keyRock', 'keyTwist', 'keyShown', 'stackOff']), SNAP_LAZY = ['strikes', 'popped', 'buzzing'];   // fields a Sim sets only later
+const SNAP_SKIP = new Set(['a', 'L', 'events', 'dip', 'keyRock', 'keyTwist', 'keyShown', 'stackOff', 'jackRock', 'wippenRock', 'hammerRock', 'ulShown']), SNAP_LAZY = ['strikes', 'popped', 'buzzing'];   // fields a Sim sets only later
 const snapSim = s => Object.fromEntries(Object.entries(s).filter(([k]) => !SNAP_SKIP.has(k)).map(([k, v]) => [k, v && typeof v === 'object' ? structuredClone(v) : v]));
 // nothing moving: keys up, hammers and dampers still (a damper can rest up on the pedal's tray), the pedal not moving
 // (a hammer at rest can keep a speed of 1e-16 or so from the last step's rounding)
@@ -1641,12 +1809,14 @@ function frame(now) {
   NOTES.forEach((n, i) => { if (i === 0 || multi()) S.update(i, n.sim, eff(n.adj), i === cur ? hammerOverride : null, i === cur ? jackOverride : null, i === cur); });
   tickExam();
   if (mode !== 'tools') updateCallouts();
-  const down = sim.d > 0.05 || sim.dTarget > 0.05;
+  // a test that draws the key apart from the action (the stack lifted off it: the key drop, the wippen tilt) says where it is drawn
+  const kd = sim.keyShown ?? sim.d, apart = sim.keyShown != null;
+  const down = kd > 0.05 || (!apart && sim.dTarget > 0.05);
   const toLetoff = !cue ? '' : cue.run ? 'going to let-off · ' : frameNo < cue.letoff ? `let-off in ${frames(cue.letoff - frameNo)} · `
     : frameNo === cue.letoff ? 'let-off · ' : `${frames(frameNo - cue.letoff)} after let-off · `;
-  $('#keypos').textContent = `${paused ? 'paused · ' : ''}${toLetoff}key ${fmt(sim.d)} down`;
-  S.setInsetText(`Key front · ${fmt(sim.d)} down${sim.d >= sim.dip - 0.01 ? ' (dip)' : ''}`);
-  $('#keystate').textContent = !down ? 'Key at rest' : sim.dTarget > sim.d + 0.01 ? 'Key going down' : sim.dTarget > 0.05 ? 'Key held down' : sim.stuck && !sim.lifting ? 'Key stuck down' : 'Key coming up';
+  $('#keypos').textContent = `${paused ? 'paused · ' : ''}${toLetoff}key ${fmt(kd)} down`;
+  S.setInsetText(`Key front · ${fmt(kd)} down${kd >= sim.dip - 0.01 ? ' (dip)' : ''}`);
+  $('#keystate').textContent = !down ? 'Key at rest' : apart ? 'Key down' : sim.dTarget > sim.d + 0.01 ? 'Key going down' : sim.dTarget > 0.05 ? 'Key held down' : sim.stuck && !sim.lifting ? 'Key stuck down' : 'Key coming up';
   $('#keystate').classList.toggle('down', down);
   $('#k-release').classList.toggle('attn', sim.dTarget > 0.05 && plan !== 'up' && plan !== 'all' && !busy);
   // a test runs the action itself: the key and frame buttons wait for it
