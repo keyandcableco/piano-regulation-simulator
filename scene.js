@@ -127,7 +127,7 @@ const KNUCKLE_LEATHER = 1.5;         // buckskin round the knuckle's felt roll (
 // the flange's cheeks round the pin. hammer-local, mm.
 const BUTT_W = 10.6, BUTT_TOP = 4, BUTT_END = 22, BUTT_CONE = 6;   // width, top and bottom off the shank line, length
 const BUTT_TONGUE_W = 6.6, BUTT_TONGUE_R = 2.4;   // the tongue's width, and its rounded end (clear of the drop screw)
-const FL_CHEEK_R = 4.4;              // the flange cheeks' rounded ends about the pin; the butt's block starts just past them
+const FL_CHEEK_R = BUTT_TOP;        // the flange cheeks' rounded ends about the pin, flush with the butt; its block starts just past them
 
 // Hammer head and backcheck, side profile, mm: Hirschkorn's Boston GP-178 parts traced full size, the crown on
 // G.crownC / G.crownR and the tail's back face on his measured arc (research/hammer-shape/spec.md §5).
@@ -296,9 +296,9 @@ export function createScene(canvas, overlay) {
     // its two short cheeks round the center pin, rounded about it and flush with the shank's butt (WNG's Renner-type
     // drawing, 06-5110-03): from the side the flange runs straight on into the shank
     const cheek = new THREE.Shape();
-    cheek.moveTo(321, G.H[1] - FL_CHEEK_R); cheek.lineTo(G.H[0], G.H[1] - FL_CHEEK_R);
+    cheek.moveTo(322, G.H[1] - FL_CHEEK_R); cheek.lineTo(G.H[0], G.H[1] - FL_CHEEK_R);
     cheek.absarc(G.H[0], G.H[1], FL_CHEEK_R, -Math.PI / 2, Math.PI / 2, false);
-    cheek.lineTo(321, G.H[1] + FL_CHEEK_R); cheek.closePath();
+    cheek.lineTo(322, G.H[1] + FL_CHEEK_R); cheek.closePath();
     ext(cheek, 2, -(BUTT_TONGUE_W / 2 + 1), COLORS.wood, 'flange', fl);
     ext(cheek, 2, BUTT_TONGUE_W / 2 + 1, COLORS.wood, 'flange', fl);
     // its screw, on the flat behind the body; a loose one stands up off the flange and leans
@@ -404,7 +404,7 @@ export function createScene(canvas, overlay) {
     const align = n.align = new THREE.Group(); root.add(align);
     align.position.set(G.H[0], G.H[1], 0);
     const hammer = n.hammer = new THREE.Group(); align.add(hammer);
-    cyl(SHANK_R, 134 - BUTT_END, 'x', [(134 + BUTT_END) / 2, 0, 0], COLORS.wood, 'shank', hammer);   // ends hidden inside the molding
+    cyl(SHANK_R, 132 - BUTT_END, 'x', [(132 + BUTT_END) / 2, 0, 0], COLORS.wood, 'shank', hammer);   // ends hidden inside the molding
     center('hcenter', hammer, [0, 0], BUTT_W + 0.4);
     // a split along the shank: only there when the shank is damaged
     n.crack = ext(rect(30, 2.2, 95, 3.6), 1.2, 3.4, COLORS.dark, 'shank', hammer, { noPick: true });
@@ -419,7 +419,7 @@ export function createScene(canvas, overlay) {
       const tongue = new THREE.Shape();
       tongue.moveTo(FL_CHEEK_R + 1, -BUTT_TONGUE_R); tongue.lineTo(FL_CHEEK_R + 1, BUTT_TONGUE_R); tongue.lineTo(0, BUTT_TONGUE_R);
       tongue.absarc(0, 0, BUTT_TONGUE_R, Math.PI / 2, 3 * Math.PI / 2, false); tongue.closePath();
-      ext(tongue, BUTT_TONGUE_W, 0, COLORS.wood, 'shank', hammer);
+      ext(tongue, BUTT_TONGUE_W - 0.6, 0, COLORS.wood, 'shank', hammer);
       // its back end cups round the cheeks' rounded ends, so the flange runs straight on into the shank at any angle
       const rc = FL_CHEEK_R + 0.25, a0 = Math.asin(BUTT_TOP / rc), block = new THREE.Shape();
       block.moveTo(rc * Math.cos(a0), BUTT_TOP);
@@ -427,7 +427,7 @@ export function createScene(canvas, overlay) {
         .forEach(([x, y]) => block.lineTo(x, y));
       block.absarc(0, 0, rc, -a0, a0, false); block.closePath();
       ext(block, BUTT_W, 0, COLORS.wood, 'shank', hammer);
-      const cone = new THREE.Mesh(new THREE.CylinderGeometry(SHANK_R, BUTT_TOP + 0.2, BUTT_CONE, 20).rotateZ(-Math.PI / 2),
+      const cone = new THREE.Mesh(new THREE.CylinderGeometry(SHANK_R, BUTT_TOP, BUTT_CONE, 20).rotateZ(-Math.PI / 2),
         mat(COLORS.wood));
       cone.position.x = BUTT_END + BUTT_CONE / 2; hammer.add(cone); register(cone, 'shank', {});
       // the tongue: from just past the roll's centre, up through the roll and 1.8 mm into the groove
