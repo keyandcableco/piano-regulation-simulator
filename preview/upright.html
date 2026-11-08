@@ -129,10 +129,13 @@ const MAX_STEPS = 120;   // a frame's worth at most (a step costs about 0.2 ms):
 const vel = document.getElementById('vel'), slow = document.getElementById('slow'), events = document.getElementById('events');
 let sim = null, prog = [], progAt = 0, idle = false, sustain = false, t0 = 0, log = [], carry = 0;
 let testEvents = [];   // the Sim's events since a Learn test began (its callouts read them)
+let testSim = false;   // sim is a finished Learn test's: drawn, but play starts a new one
 if (Object.hasOwn(VEL, q.get('vel') ?? '')) vel.value = q.get('vel');
 
 function startPlay() {
-  if (sim) return;
+  // a finished Learn test's Sim is still drawn; play starts afresh from rest
+  if (sim && !testSim) return;
+  if (testSim) { testSim = false; depth.value = 0; }
   sim = new Sim(a, 0, { soft });
   if (held) sim.hold(m.dip, { soft });
   else if (+depth.value > 0) sim.reset(+depth.value, { soft });
@@ -141,7 +144,7 @@ function startPlay() {
   window.SIM = sim;
 }
 function stopPlay() {
-  sim = null; prog = []; log = []; events.textContent = '';
+  sim = null; testSim = false; prog = []; log = []; events.textContent = '';
   sustain = false; susBtn.classList.remove('on');   // a static pose has every damper on its spoon
 }
 // a program: [target depth (mm), key speed (mm/s), seconds until the next], from now; its first step starts at once
@@ -190,7 +193,7 @@ function advance(secs, cap = Infinity) {
 
 const keyBtn = document.getElementById('keyBtn');
 let keyHeld = false;
-function keyDown() { if (keyHeld) return; keyHeld = true; keyBtn.classList.add('on'); run([[Infinity, VEL[vel.value], 0]]); }
+function keyDown() { if (keyHeld || keybar.inert) return; keyHeld = true; keyBtn.classList.add('on'); run([[Infinity, VEL[vel.value], 0]]); }
 function keyUp() { if (!keyHeld) return; keyHeld = false; keyBtn.classList.remove('on'); if (sim) { sim.press(0, UP); idle = false; } }
 keyBtn.addEventListener('pointerdown', e => { if (e.button !== 0) return; keyBtn.setPointerCapture(e.pointerId); keyDown(); });
 for (const ev of ['pointerup', 'pointercancel']) keyBtn.addEventListener(ev, keyUp);
@@ -269,6 +272,7 @@ function setRegulation(b, keepTested = false) {
   stopPlay(); Object.assign(a, b); m = measure(a); depth.max = m.dip.toFixed(2);
   held = false; heldBtn.classList.remove('on');
   if (!keepTested) tested = new Set();
+  testEvents = []; testSim = false;   // the last test's marks belong to the old regulation
   renderReadings(); show(0); renderLearn();
 }
 function nudge(k, dir) {
@@ -325,14 +329,15 @@ const ctx = {
 async function runTest(id) {
   if (busy) return;
   const t = TESTS[id];
-  busy = true; stopPlay(); held = false; heldBtn.classList.remove('on');
+  // the key and play bars wait while a test drives the Sim (they would take it from under the test)
+  busy = true; keybar.inert = playbar.inert = true; stopPlay(); held = false; heldBtn.classList.remove('on');
   sim = new Sim(a); window.SIM = sim; idle = true; testEvents = []; testScale = t.scale ?? 1;
   said.textContent = ''; said.classList.remove('warn');
   renderLearn(); S.setView(t.view);
   try { await t.run(ctx); } catch (err) { console.error(err); }
   override = null; testRun = null;
   for (const sp of t.specs) tested.add(sp);
-  busy = false; renderLearn();
+  busy = false; keybar.inert = playbar.inert = false; testSim = true; renderLearn();
   window.testDone = (window.testDone || 0) + 1;
 }
 function renderCallouts() {

@@ -11,7 +11,7 @@ import { STEPS, deregulated, seeded } from '../content-upright.js';
 const KEYS = 25;
 // quick readings for the knob a step turns (measure() gives them all, slower)
 const rd = {
-  blow: a => stringGap(gRail(a)),
+  blow: a => stringGap(pose(a, 0).g),                          // what the gauge reads: the hammer, not the rail
   lostMotion: a => { const p = pose(a, 0); return jackGap(p.phi, 0, p.gRail); },
   keyHeight: a => keyHeightOf(a) - NEIGHBOR_H,
   dip: a => dipOf(a),
@@ -39,14 +39,18 @@ function tune(a, k, read, target) {
 const okAll = (a, ids) => { const m = measure(a); return ids.every(id => grade(id, m).ok); };
 // what each graded step has the student do (its "how")
 const STUDENT = {
-  blow: a => tune(a, 'railShim', rd.blow, SPEC.blow.target),
+  // the jack holding the hammer off its rail first: capstan down until it rests there (the blow step's note)
+  blow: a => { const d = ADJ.find(x => x.id === 'capstan'); while (rd.lostMotion(a) <= 0) a.capstan = +(a.capstan - d.step).toFixed(6); tune(a, 'railShim', rd.blow, SPEC.blow.target); },
   lostMotion: a => tune(a, 'capstan', rd.lostMotion, SPEC.lostMotion.target),
   keyHeight: a => tune(a, 'balPunch', rd.keyHeight, 0),
   dip: a => tune(a, 'frontPunch', rd.dip, SPEC.dip.target),
   letoff: a => tune(a, 'letoff', rd.letoff, SPEC.letoff.target),
   // "Move the blow toward 42.5 mm, reset the lost motion, or change the dip a hair, and look again": a few steps of
   // each, nearest first, keeping blow and dip in their own bands
+  // checking roughed in first (the jack's clearance depends on it), then the blow and dip
   aftertouch: a => {
+    if (okAll(a, ['aftertouch', 'escapement'])) return;
+    tune(a, 'backcheck', rd.check, SPEC.check.target);
     if (okAll(a, ['aftertouch', 'escapement'])) return;
     const rs = ADJ.find(d => d.id === 'railShim').step, fp = ADJ.find(d => d.id === 'frontPunch').step, tries = [];
     for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) tries.push([i, j]);

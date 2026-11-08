@@ -290,7 +290,7 @@ export const SPEC = {
   // lo is functional: below JACK_CLEAR the jack can't get back under the cushion on a slow release [S2's test]
   lostMotion: { target: 0.08, lo: 0.05, hi: 0.13, src: 'the least that lets the jack return [S2]; under 0.004 in (0.1 mm) on a new action [S3]' },
   letoff: { target: 0.125 * IN, tol: 0.8, src: '1/8 in [S2]; Steinway 1/16 in [S1]' },
-  check: { target: 0.5625 * IN, tol: 0.0625 * IN, src: '5/8 in [S2, S11]; Steinway 1/2 in [S1]: graded 9/16 +- 1/16' },
+  check: { target: 0.5625 * IN, lo: 0.5 * IN, hi: 0.625 * IN, src: '5/8 in [S2, S11]; Steinway 1/2 in [S1]: graded 1/2 to 5/8, both pass at every level' },
   damperTiming: { target: 0.5, tol: 0.1, src: 'the damper starts with the hammer about halfway [S1, S2]' },
   aftertouch: { lo: 1.0, hi: 1.5, src: '0.040-0.060 in [S3]; Steinway about a new penny [S1]' },
   escapement: { lo: 0.0625 * IN, hi: 0.125 * IN, src: 'jack 1/16-1/8 in clear of the butt leather, key held after a medium blow [S2]' },
@@ -619,9 +619,12 @@ export function grade(id, m, k = 1) {
   if (id === 'letoff' && v == null) return { ok: false, v: null, note: 'blocks: the jack never lets off' };
   if ((id === 'aftertouch' || id === 'escapement') && m.letoff == null) return { ok: false, v: null, note: 'no let-off' };
   if (id === 'aftertouch' && m.jammed) return { ok: false, v, note: 'the jack jams against the jack stop at the bottom' };
+  if (id === 'check' && m.letoff == null) return { ok: false, v: null, note: 'the jack never lets off, so the hammer is never checked' };
   if (id === 'check' && v == null) return { ok: false, v: null, note: m.checkScrapes ? 'the catcher scrapes the backcheck on the way up' : 'the backcheck misses the catcher' };
   if (id === 'check' && m.checkScrapes) return { ok: false, v, note: 'the catcher scrapes the backcheck on the way up' };
   if (id === 'damperTiming' && v == null) return { ok: false, v: null, note: 'the key never lifts the damper' };
+  // the jack holds the hammer off its rail: moving the rail can't move it (lower the capstan first)
+  if (id === 'blow' && m.lostMotion <= 0 && (v < band(s)[0] || v > band(s)[1])) return { ok: false, v, note: 'the jack holds the hammer off its rail, so the rail can\'t set it: turn the capstan down first' };
   if (id === 'lostMotion' && v <= 0) return { ok: false, v, note: 'none: the jack holds the hammer off its rail' };
   if (id === 'lostMotion' && !m.jackReturns) return { ok: false, v, note: 'too little: the jack can\'t get back under the butt on a slow release' };
   if (id === 'escapement' && v <= 0.05) return { ok: false, v, note: 'the jack rests against the butt leather: the hammer blubbers' };

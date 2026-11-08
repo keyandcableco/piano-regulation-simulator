@@ -515,6 +515,7 @@ export function createUprightScene(canvas, overlay) {
       c = { line, el }; callouts.set(id, c);
     }
     c.line.geometry.setFromPoints([new THREE.Vector3(...p1), new THREE.Vector3(...p2)]);
+    c.line.geometry.computeBoundingSphere();   // or the line is culled where it first was
     c.el.textContent = text;
     c.mid = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2, (p1[2] + p2[2]) / 2];
   }

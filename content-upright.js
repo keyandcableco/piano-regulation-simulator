@@ -10,7 +10,9 @@ import {
 import { NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 
 const IN = 25.4;
-export const fmt = v => v == null ? '—' : `${v.toFixed(Math.abs(v) < 1 ? 2 : 1)} mm`;
+// two decimals, rounded half up (3.175 is 3.18), so a reading near a band's edge doesn't round onto it
+const dec = v => (Math.round(v * 100 + 1e-6) / 100).toFixed(2);
+export const fmt = v => v == null ? '—' : `${dec(v)} mm`;
 
 // ---------- Learn steps, in the standard upright order (protocol 3.1) ----------
 // Spurlock and Steinway agree that blow and lost motion come before the final key leveling, so every key carries the
@@ -31,7 +33,7 @@ export const STEPS = [
   { spec: 'blow', title: 'Blow distance', knobs: ['railShim'], test: 'blowGauge',
     what: 'Blow distance is the gap between the hammer at rest and the strings. An upright\'s hammers rest on the hammer rail, so the rail sets it. This action\'s specification is 42.5 mm, a scant 1-11/16": at 0.400" of dip, that is where the aftertouch and the jack\'s escapement both come out right (the aftertouch card).',
     how: 'Shim the hammer rail\'s rest felts to bring the rail, and the hammers, closer to the strings for a shorter blow; take shims out or cut the felts for a longer one. Moving the rail changes the lost motion: set that next.',
-    note: 'Books give 1-3/4" for consoles and larger (Spurlock), 1-3/4" to 1-7/8" for most studio uprights (Igrec) and about 1-7/8" for Steinway\'s verticals; spinets run 1-1/2" (Igrec) to 1-5/8" (Spurlock). At 1-3/4" this action leaves too little aftertouch and escapement, so it runs shorter, inside 1-5/8" to 1-11/16". A longer blow gives the hammer more force; worn hammers usually need a shorter one (Igrec).' },
+    note: 'Books give 1-3/4" for consoles and larger (Spurlock), 1-3/4" to 1-7/8" for most studio uprights (Igrec) and about 1-7/8" for Steinway\'s verticals; spinets run 1-1/2" (Igrec) to 1-5/8" (Spurlock). At 1-3/4" this action leaves too little aftertouch and escapement, so it runs shorter, inside 1-5/8" to 1-11/16". A longer blow gives the hammer more force; worn hammers usually need a shorter one (Igrec). A hammer the jack holds off the rail (no lost motion) can\'t be moved by the rail: turn its capstan down until it rests on the rail first, as Steinway does for hammers that don\'t follow a pulled rail.' },
   { spec: 'lostMotion', title: 'Lost motion', knobs: ['capstan'], test: 'railPull', tests: ['railPull', 'topPlay', 'jackReturn'],
     what: 'Lost motion is the small gap between the top of the jack and the butt cushion, the key at rest. The jack needs a little to get back under the butt when the key comes up slowly; more than that wears the butt leather and makes the keys feel loose at the top. The right amount is the least that lets the jack return when the key is let up very slowly after a hard blow, the sustain pedal down (Spurlock): on a new action under 0.1 mm (Igrec).',
     how: 'Turn the capstan up to take lost motion out, down to add it. Pull the hammer rail gently back from the shanks: each hammer should follow it slightly, about 1/64" (Steinway); one that doesn\'t has none, one that follows a long way has too much. Press the key very lightly at the top: the jack should rise a hair before the hammer moves (Igrec). Then the jack return test.',
@@ -50,8 +52,8 @@ export const STEPS = [
     note: 'Let-off doesn\'t change with the capstan, key height, dip, blow or checking (Spurlock), so it can be set any time after the alignment. On a real piano a let-off much closer than 1/8" often blocks on hard blows, as the let-off rail bends and the button felt compresses (Spurlock); the sim\'s rail and button don\'t give.' },
   { spec: 'aftertouch', also: ['escapement'], title: 'Aftertouch and the jack\'s escapement', knobs: ['frontPunch', 'railShim', 'capstan'], test: 'slowPress', tests: ['slowPress', 'holdLook'],
     what: 'Aftertouch is the key travel left after let-off: 1.0 to 1.5 mm in most verticals (Igrec; Steinway: about the thickness of a new penny). Then play a medium blow, hold the key down and look at the jack: its top should stand 1/16" to 1/8" clear of the butt leather (Spurlock). With too little, the jack gets in the way of the checking and the hammers blubber; with too much, the key has to come up farther before the note repeats.',
-    how: 'Set both with dip and blow, leaving let-off where it is (Igrec, Spurlock): more dip or a shorter blow gives more of both, and less lost motion gives more aftertouch. Here they come in together only between about 42.35 and 42.6 mm of blow at 0.400" of dip: a shorter blow raises both, and the aftertouch sits near the bottom of its range while the jack\'s clearance sits near the top. Move the blow toward 42.5 mm and reset the lost motion, or change the dip a hair, and look again.',
-    note: 'Spurlock chooses the blow and dip by this test on a few sample notes before anything else. He wants the jack 1/16" to 1/8" clear, knowing escapement shrinks as the dip settles and lost motion grows. Too little aftertouch makes hammers bobble off the jacks; too much makes checking uneven and can jam the jacks at the bottom (Igrec), in the sim against its jack stop.' },
+    how: 'Set both with dip and blow, leaving let-off where it is (Igrec, Spurlock): more dip or a shorter blow gives more of both, and less lost motion gives more aftertouch. The jack\'s clearance also depends on where the backcheck holds the hammer, so rough in the checking first (Spurlock sets his sample notes\' checking to 5/8" before he looks). With the checking at 9/16" and 0.400" of dip, the two come in together only between about 42.35 and 42.6 mm of blow: a shorter blow raises both, and the aftertouch sits near the bottom of its range while the jack\'s clearance sits near the top. Move the blow toward 42.5 mm and reset the lost motion, or change the dip a hair, and look again.',
+    note: 'Spurlock chooses the blow and dip by this test on a few sample notes, after aligning the action and before setting the lost motion. He wants the jack 1/16" to 1/8" clear, knowing escapement shrinks as the dip settles and lost motion grows. Too little aftertouch makes hammers bobble off the jacks; too much makes checking uneven and can jam the jacks at the bottom (Igrec), in the sim against its jack stop.' },
   { spec: 'check', title: 'Checking', knobs: ['backcheck'], test: 'strikeHold',
     what: 'The backcheck catches the hammer coming back from the strings and holds it close, so the jack can get back under the butt for a repeat blow before the key is all the way up (Spurlock). Play a moderate blow and hold the key: the hammer should be caught about 1/2" (Steinway) to 5/8" (Spurlock) from the strings.',
     how: 'Bend the backcheck wire: the head toward the catcher checks the hammer closer to the strings, away from it farther. First make sure the backcheck meets the catcher squarely and the lost motion is close: every later capstan turn changes the checking (Spurlock).',
@@ -186,12 +188,12 @@ export function bandText(id) {
   if (id === 'damperTiming' || id === 'softPedal') return `${Math.round(100 * (s.target - s.tol))}-${Math.round(100 * (s.target + s.tol))}%`;
   const [lo, hi] = s.lo !== undefined ? [s.lo, s.hi] : [s.target - s.tol, s.target + s.tol];
   // small ones in thousandths, as Igrec gives aftertouch; the rest in 64ths
-  const inch = hi < 2 ? `${(lo / IN).toFixed(3).slice(1)}-${(hi / IN).toFixed(3).slice(1)}"` : `${frac(lo)} to ${frac(hi)}`;
-  return `${lo.toFixed(1)}-${hi.toFixed(1)} mm (${inch})`;
+  const inch = hi < 2 ? `${(lo / IN).toFixed(3).slice(1)}-${(hi / IN).toFixed(3).slice(1)}"` : `${frac(lo, Math.ceil)} to ${frac(hi, Math.floor)}`;
+  return `${dec(lo)}-${dec(hi)} mm (${inch})`;
 }
-// the nearest 64th of an inch, written as a technician would
-function frac(mm) {
-  let n = Math.round(mm / IN * 64), d = 64;
+// a 64th of an inch inside the band (round: Math.ceil for its low end, Math.floor for its high end), as a technician writes it
+function frac(mm, round) {
+  let n = round(mm / IN * 64 + (round === Math.ceil ? -1e-6 : 1e-6)), d = 64;
   const whole = Math.floor(n / 64); n -= whole * 64;
   while (n && n % 2 === 0) { n /= 2; d /= 2; }
   return `${whole ? whole + (n ? '-' : '') : ''}${n ? `${n}/${d}` : whole ? '' : '0'}"`;
@@ -215,7 +217,7 @@ export function callouts({ a, m, p, events = [], shown }) {
   if (shown('softPedal') && atRest && soft) toString(p.g, 'soft', `soft pedal: ${fmt(stringGap(p.g))}`);
   const lo = events.find(e => e.type === 'letoff');
   if (shown('letoff') && lo && !events.some(e => e.type === 'strike')) toString(lo.g, 'letoff', `let off ${fmt(lo.dist)}`);
-  const dm = events.find(e => e.type === 'damperup');
+  const dm = events.find(e => e.type === 'damperup' && e.d > 0.01);   // the key's lift, not the sustain pedal's
   if (shown('damperTiming') && dm && m.blow) toString(dm.g, 'damper', `damper starts: ${Math.round(100 * (1 - stringGap(dm.g) / m.blow))}% of the blow`);
   if (shown('check') && p.on !== 'under' && p.d > 0.9 * m.dip && events.some(e => e.type === 'checked')) toString(p.g, 'check', `checked ${fmt(stringGap(p.g))}`);
   if (shown('escapement') && p.on === 'off' && p.d > 0.9 * m.dip) {
