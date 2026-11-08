@@ -826,12 +826,19 @@ export class Sim {
     // but never throws it back up
     if (onRep && this.w <= 0 && w < 0) w = Math.min(0, w + GA * (REP_CENTER + REP_SLIDE * sF) * dt);
     let g = this.g + w * dt;
-    // a jack that has just reset sits at the knuckle and takes up the gap under it over WEDGE_T
+    // the backcheck: where it starts to take the hammer, and where it has it this step if it holds or is catching it
+    const gC = gFromTail(L.bcCatchY);
+    const gTake = gC + CHECK_GIVE / STRIKE_R;
+    const gHeld = st.checked ? gTake - st.give
+      : st.catching ? this.g + Math.min(0, this.w + st.wCatch / (2 * CHECK_TAU) * dt) * dt : Infinity;
+    // a jack that has just reset sits at the knuckle and takes up the gap under it over WEDGE_T; under a hammer the
+    // backcheck has, it sits where the backcheck has it, so it doesn't lift it off by a rounding or a key still rising
+    const gAt = Math.min(g, gHeld);
     if (st.escaped) this.wedge0 = 0;
-    else if (wasEsc) { this.wedge0 = Math.max(0, jackG - g); this.wedgeT = 0; }
+    else if (wasEsc) { this.wedge0 = Math.max(0, jackG - gAt); this.wedgeT = 0; }
     if (this.wedge0 > 0) {
       const x = Math.min(1, this.wedgeT / WEDGE_T);
-      jackG = wasEsc ? g : jackG - this.wedge0 * (1 - x * x * (3 - 2 * x));   // at the reset exactly at the hammer, not a rounding error above it
+      jackG = wasEsc ? gAt : jackG - this.wedge0 * (1 - x * x * (3 - 2 * x));   // at the reset exactly at the hammer, not a rounding error above it
       if (!st.checked && !st.catching) this.wedgeT += dt;
       if (x >= 1) this.wedge0 = 0;
     }
@@ -859,19 +866,21 @@ export class Sim {
     }
     const gR = gRail(a);
     if (g < gR) { g = gR; w = Math.max(0, w); }
-    // backcheck
-    const gC = gFromTail(L.bcCatchY);
-    const gTake = gC + CHECK_GIVE / STRIKE_R;   // where the backcheck starts to take the hammer
+    // backcheck. A jack that hasn't let off and rises above where the backcheck has the hammer lifts it off and carries
+    // it on (gFree, wFree: the step without the backcheck); it doesn't build up under a held hammer and fire it when the
+    // check lets go.
+    const gFree = g, wFree = w;
     const catchActive = L.depth >= G.bcInPath && a.backcheck >= -G.bcMissLean;
     if (catchActive && g > gC + 0.02) st.aboveCheck = true;   // 0.02 rad is above gTake too
     if (!catchActive) st.aboveCheck = false;
     if (catchActive && w > 0 && g < gC && a.backcheck > G.bcScrapeLean && !this.scraped) { this.scraped = true; this.emit('scrape'); }
     // the hammer falls past where the backcheck takes it, or a key still going down carries that point up past the
     // hammer within the step (so the hammer was above where it stood a step ago)
+    let caughtNow = false;
     if (!st.checked && !st.catching && catchActive && st.aboveCheck && g < gTake && w < 0 &&
         (this.g >= gTake || this.g >= gFromTail(this.L.bcCatchY) + CHECK_GIVE / STRIKE_R)) {
       // the tail meets the backcheck, which takes up the hammer's speed over CHECK_TAU x that speed
-      st.catching = true; st.dChecked = this.d; st.wCatch = -this.w;
+      st.catching = true; st.dChecked = this.d; st.wCatch = -this.w; caughtNow = true;
       g = this.g; w = this.w;
     }
     if (st.catching) {
@@ -881,7 +890,8 @@ export class Sim {
         st.dChecked = Math.max(st.dChecked, this.d);
         w = Math.min(0, this.w + st.wCatch / (2 * CHECK_TAU) * dt);
         g = this.g + w * dt;
-        if (w >= 0) {
+        if (jackG > g + 1e-6) { st.catching = false; st.aboveCheck = false; if (!caughtNow) this.emit('uncheck'); g = gFree; w = wFree; }
+        else if (w >= 0) {
           st.catching = false; st.checked = true; st.give = gTake - g; w = 0;
           this.emit('checked', { dist: G.stringY - crownY(g) });
         }
@@ -892,6 +902,7 @@ export class Sim {
       const net = springF(a, L, Math.min(knuckleBottom(gTake - st.give)[1], L.hornTop)) - 1;   // the spring where the knuckle is held
       if (net > G.checkHold) { st.checked = false; this.emit('jumpcheck'); }
       else if (this.d < st.dChecked - 0.8 || !catchActive) { st.checked = false; st.aboveCheck = false; this.emit('uncheck'); }
+      else if (jackG > gTake - st.give + 1e-6) { st.checked = false; st.aboveCheck = false; this.emit('uncheck'); g = gFree; w = wFree; }
       else { g = gTake - st.give; w = 0; } // the backcheck grips the tail where it stopped it
     }
     // string
