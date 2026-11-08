@@ -5,7 +5,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { FACTORY, SPEC, factory, regulate, measure, pose, slowPress, dipOf, stringGap, gString, jackGap, escaped,
   capstanTop, keyAngle, turn, wipPt, jackPt, polyGap, spoonTip, bcAngle, BC_BEND, CENTER, TRACE, STRAP_LEN, strapSlack,
-  capstanFor, stringX, CORNER } from '../upright-model.js';
+  capstanFor, stringX, CORNER, band } from '../upright-model.js';
+import { FACTORY_AT_1_3_4 } from './upright-s15.mjs';
 
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a?.toFixed?.(3)} vs ${b?.toFixed?.(3)} (tolerance ${tol})`);
 const M0 = measure(FACTORY);
@@ -27,21 +28,27 @@ test('a regulation out of a knob\'s reach says which specs it missed (the search
 
 test('the factory meets each spec it regulates to', () => {
   for (const k of ['dip', 'blow', 'lostMotion', 'letoff', 'check', 'damperShare', 'softShare']) {
-    const s = SPEC[k];
-    near(M0[k], s.target, s.tol, `${k} (${s.src})`);
+    const [lo, hi] = band(SPEC[k]);
+    assert.ok(M0[k] >= lo - 1e-9 && M0[k] <= hi + 1e-9, `${k} ${M0[k]?.toFixed(3)} outside ${lo.toFixed(3)}-${hi.toFixed(3)} (${SPEC[k].src})`);
   }
   assert.equal(M0.jammed, false, 'the jack stop clears the jack at the bottom');
   assert.equal(M0.checkScrapes, false, 'the backcheck is clear of the catcher at the strings');
   assert.ok(M0.strapSlack > 0 && M0.softStrapSlack > 0, 'the strap is slack at rest and with the soft pedal down (S1: the pedal must not lift the wippen)');
 });
 
-// Readings the geometry gives at textbook dip and blow, against their sources. They fall short: a finding for Greg
-// (protocol 3.2 rule 1: don't fit the target to the model). Marked todo, so they report without failing.
-test('aftertouch is within Igrec\'s 1.0-1.5 mm', { todo: 'finding: 0.44 mm at 0.400 in dip and 1-3/4 in blow' }, () => {
-  assert.ok(M0.aftertouch >= SPEC.aftertouch.lo && M0.aftertouch <= SPEC.aftertouch.hi);
+// Readings the factory doesn't regulate to, against their sources. At the textbook 1-3/4 in blow both fell short
+// (0.44 and 1.1 mm); Greg chose the shorter blow that brings them in (SPEC.blow, 2026-11-08).
+test('aftertouch is within Igrec\'s 1.0-1.5 mm', () => {
+  assert.ok(M0.aftertouch >= SPEC.aftertouch.lo && M0.aftertouch <= SPEC.aftertouch.hi, `aftertouch ${M0.aftertouch.toFixed(2)} mm`);
 });
-test('escapement is within Spurlock\'s 1/16-1/8 in', { todo: 'finding: 1.1 mm; by Spurlock\'s rule the blow is long for the dip' }, () => {
-  assert.ok(M0.escapement >= SPEC.escapement.lo && M0.escapement <= SPEC.escapement.hi);
+test('escapement is within Spurlock\'s 1/16-1/8 in', () => {
+  assert.ok(M0.escapement >= SPEC.escapement.lo && M0.escapement <= SPEC.escapement.hi, `escapement ${M0.escapement.toFixed(2)} mm`);
+});
+test('the factory blow sits inside Greg\'s window, and the textbook blow is the one that falls short', () => {
+  const [lo, hi] = band(SPEC.blow);
+  assert.ok(SPEC.blow.target >= lo && SPEC.blow.target <= hi, 'target inside the band');
+  const m = measure(FACTORY_AT_1_3_4);
+  assert.ok(m.aftertouch < SPEC.aftertouch.lo && m.escapement < SPEC.escapement.lo, `at 1-3/4 in: ${m.aftertouch.toFixed(2)}, ${m.escapement.toFixed(2)} mm`);
 });
 
 // signs.md: the row number, the knob and step, the reading, the expected sign of its change, and whether lost motion is
@@ -127,11 +134,12 @@ test('the slow press against S15: hammer swing to the strings, crown per key tra
   // S15: the hammer turns 18 degrees to reach the strings [e: camera plumbness]; the crown travels about 4.5 mm per mm
   // of key front [e]; the jack top escapes about 5 mm (19 px) toward the player with the key held [m px, e mm]. Bands
   // allow the clips' +-10% scale and their estimates, about 15%.
+  // the filmed model's regulation as S15's scale takes it, at a 1-3/4 in blow
   near(gString() * 180 / Math.PI, 18, 2.5, 'hammer swing to the strings, degrees');
-  const sp = slowPress(FACTORY), ratio = (M0.blow - M0.letoff) / (sp.letoffAt - sp.moveAt);
+  const F = FACTORY_AT_1_3_4, M = measure(F), sp = slowPress(F), ratio = (M.blow - M.letoff) / (sp.letoffAt - sp.moveAt);
   near(ratio, 4.5, 0.7, 'crown per key travel');
   // the jack's top corner slides toward the player along the cushion (butt frame) and comes off it
-  const held = pose(FACTORY, M0.dip, { held: true }), rest = pose(FACTORY, 0);
+  const held = pose(F, M.dip, { held: true }), rest = pose(F, 0);
   const inButt = q => turn(jackPt(q.phi, q.psi, CORNER), CENTER.butt, q.g)[0];
   assert.ok(escaped(held.phi, held.psi, held.g), 'the jack has let off with the key held');
   near(inButt(rest) - inButt(held), 5, 2.5, 'its top\'s escape toward the player, mm');

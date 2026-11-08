@@ -55,7 +55,7 @@ if (location.protocol === 'file:') why('This page has to come from a local serve
 </script>
 <script type="module">
 import { createUprightScene } from '../scene-upright.js';
-import { FACTORY, SPEC, pose, measure, stringGap, Sim, DAMPER_PEDAL_LIFT } from '../upright-model.js';
+import { FACTORY, SPEC, band, pose, measure, stringGap, Sim, DAMPER_PEDAL_LIFT } from '../upright-model.js';
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById('c');
 let S;
@@ -101,8 +101,8 @@ const softBtn = btn('Soft pedal', () => {
 const rdBtn = btn('Readings', () => { const r = document.getElementById('readings'); r.hidden = !r.hidden; rdBtn.classList.toggle('on', !r.hidden); });
 
 // ---------- play: the dynamics (upright-model.js Sim), in slow motion ----------
-// How hard: the key front's speed going down, mm/s. On the factory regulation these strike at about 0.6, 2.4 and 7 m/s
-// at the crown (S15's ff blow: 7-8 m/s).
+// How hard: the key front's speed going down, mm/s. On the factory regulation these strike at about 0.6, 2.5 and 7.3
+// m/s at the crown (S15's ff blow: 7-8 m/s).
 const VEL = { pp: 120, mf: 450, ff: 1300 };
 const UP = 236;          // [S15] mm/s: the key front coming up when let go quickly
 const DT = 0.0001;       // s: the Sim's step (the tests' and the fit's)
@@ -193,7 +193,6 @@ const susBtn = btn('Sustain pedal', () => {
 // ---------- readings at the factory regulation, against their specs ----------
 {
   const f = (v, n = 2) => v === null || v === undefined ? '-' : v.toFixed(n);
-  const band = s => s.lo !== undefined ? [s.lo, s.hi] : [s.target - s.tol, s.target + s.tol];
   const row = (name, v, s, unit = 'mm', n = 2) => {
     const [lo, hi] = s ? band(s) : [null, null], out = s && v !== null && (v < lo - 1e-9 || v > hi + 1e-9);
     return `<tr><td>${name}</td><td class="v${out ? ' out' : ''}">${f(v, n)} ${unit}</td><td>${s ? `${f(lo, n)}-${f(hi, n)}` : 'reading'}</td></tr>`;
@@ -205,8 +204,8 @@ const susBtn = btn('Sustain pedal', () => {
     ${row('Checking', m.check, SPEC.check)}${row('Damper starts (share of the blow)', m.damperShare, SPEC.damperShare, '', 2)}
     ${row('Damper lift at the felts', m.damperLift, null)}${row('Soft pedal (share of the blow)', m.softShare, SPEC.softShare, '', 2)}
     ${row('Strap slack at rest', m.strapSlack, null)}${row('Strap slack, soft pedal down', m.softStrapSlack, null)}</table>
-    <div class="note">Red: outside the source's band. At textbook dip and blow this geometry gives short aftertouch and escapement: by
-    Spurlock's rule the blow is long for the dip. A finding, not fitted.</div>`;
+    <div class="note">Red: outside the source's band. Blow: Greg's 1-5/8 to 1-11/16 in (2026-11-08). At the textbook 1-3/4 in this
+    geometry leaves aftertouch and escapement short; the shorter blow brings both in.</div>`;
   if (q.get('readings') === '1') { document.getElementById('readings').hidden = false; rdBtn.classList.add('on'); document.body.classList.add('readings'); }
 }
 const ps = q.get('pose');

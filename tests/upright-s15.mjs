@@ -2,7 +2,7 @@
 // quickly as filmed, strap and butt spring each on or off. Shared by tests/upright-dynamics.test.mjs (Gate 4) and the
 // fitting tool tests/upright-fit.mjs. Data: tests/data/s15-ellis.json.
 import fs from 'node:fs';
-import { FACTORY, Sim, pose, gCheck, gRail, dipOf, slowPress } from '../upright-model.js';
+import { Sim, pose, gCheck, gRail, dipOf, slowPress } from '../upright-model.js';
 
 export const S15 = JSON.parse(fs.readFileSync(new URL('./data/s15-ellis.json', import.meta.url), 'utf8'));
 export const CASES = { bs: { strap: true, spring: true }, b: { strap: true, spring: false }, s: { strap: false, spring: true }, 0: { strap: false, spring: false } };
@@ -23,8 +23,11 @@ const bisect = (f, target, lo, hi, n = 40) => {   // f rising from lo to hi
 // stiffness (tests/upright-fit.mjs): the strap pulls only for the 10-15 ms its ends are furthest apart, so its effect
 // hangs on slack to a fraction of a millimetre, finer than the traced strap's +-1 mm.
 export const FILMED = { bridle: 1 };     // fitted: 6.4 mm of slack at rest (S15 by eye: 6-7), taut 58-61 ms (S15: 54-57 to 65-70)
+// The factory regulation at a 1-3/4 in blow, the blow S15's scale takes the filmed model to have (the sim's own factory
+// blow is shorter, Greg's call: SPEC.blow). The filmed regulation starts from it; the fit was made on it.
+export const FACTORY_AT_1_3_4 = {"balPunch":1.5,"frontPunch":1.5522,"railShim":-0.4964,"capstan":0.274,"letoff":0.0411,"backcheck":-5.7965,"spoon":-1.5527,"bridle":0,"softFelt":10.3664};
 const filmedBase = (() => {
-  const a = { ...FACTORY };
+  const a = { ...FACTORY_AT_1_3_4 };
   a.frontPunch = bisect(v => -dipOf({ ...a, frontPunch: v }), -9.62, 0, 4);
   a.letoff = bisect(v => -(slowPress({ ...a, letoff: v }, 0.02).letoffAt ?? 99), -9.0, -4, 4, 30);
   return a;

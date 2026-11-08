@@ -275,10 +275,15 @@ export const ADJ = [
 
 // ---------- the specs the factory regulates to (graded and levelled in C4) ----------
 // A target comes from a source, never from what the model produces (protocol 3.2 rule 1). Bands hold each source's
-// range; where sources differ the first is the sim's default.
+// range; where sources differ the first is the sim's default. Where Greg has overridden the sources, his figure and its
+// date stand instead (rule 1). A spec is a target with a tolerance, or a band (lo, hi) with or without a target.
 export const SPEC = {
   dip: { target: 0.400 * IN, tol: 0.4, src: 'Steinway .400 in [S1]; 3/8 in+ consoles and larger [S2]' },
-  blow: { target: 1.75 * IN, tol: 1.6, src: '1-3/4 in [S2]; 1-3/4 to 1-7/8 in studio uprights [S3]; Steinway about 1-7/8 [S1]' },
+  // Greg's call, 2026-11-08 ("Shorter blow"): at the textbook 1-3/4 in this geometry leaves aftertouch at 0.44 mm and
+  // escapement at 1.1, both short of their sources; at 0.400 in of dip a blow of 1-5/8 to 1-11/16 in brings both in.
+  // The band is his window. The target, a scant 1-11/16 in, is where both sit furthest inside their bands: they pull
+  // opposite ways, and at 42.5 mm aftertouch reads 1.04 mm and escapement 3.04, each about 8% of its band in from an edge.
+  blow: { target: 42.5, lo: 1.625 * IN, hi: 1.6875 * IN, src: 'Greg 2026-11-08: 1-5/8 to 1-11/16 in, for aftertouch and escapement at 0.400 in dip. The sources: 1-3/4 in [S2]; 1-3/4 to 1-7/8 in studio uprights [S3]; Steinway about 1-7/8 [S1]' },
   lostMotion: { target: 0.08, tol: 0.05, src: 'under 0.004 in (0.1 mm) on a new action [S3]; the least that lets the jack return [S2]' },
   letoff: { target: 0.125 * IN, tol: 0.8, src: '1/8 in [S2]; Steinway 1/16 in [S1]' },
   check: { target: 0.5625 * IN, tol: 0.0625 * IN, src: '5/8 in [S2, S11]; Steinway 1/2 in [S1]: graded 9/16 +- 1/16' },
@@ -287,6 +292,8 @@ export const SPEC = {
   escapement: { lo: 0.0625 * IN, hi: 0.125 * IN, src: 'jack 1/16-1/8 in clear of the butt leather, key held after a medium blow [S2]' },
   softShare: { target: 0.5, tol: 0.1, src: 'the soft pedal moves the hammers halfway to the strings [S1, S2]' },
 };
+// a spec's pass band, [lo, hi]
+export const band = s => s.lo !== undefined ? [s.lo, s.hi] : [s.target - s.tol, s.target + s.tol];
 
 // ---------- the key (stand-in geometry, KEY) ----------
 // Its frame: origin on the underside at the balance pin, drawn level; it rests on its back rail cloth at the back end.
@@ -400,8 +407,10 @@ export const gOnJack = (phi, psi) => solve(g => jackGap(phi, psi, g), 0, -0.3, 0
 // Left free, the top would drift about 4 mm toward the strings per mm it rises (it stands 89 mm above the wippen's pin)
 // and slide under the cushion: the traced layout would then swing the hammer only about 11 degrees for the capstan's
 // rise, against 17 riding (S15: 18 to the strings, crown-per-capstan 5.9-6.7), and with the soft pedal down the top
-// would pass the cushion altogether. What holds it is not settled: its spring pressing it against the butt, perhaps
-// on the second red felt beside it (research/upright/parts/butt.md) [G: a close photo of the jack top under the butt].
+// would pass the cushion altogether. What holds it: its spring presses it against the butt felt, the larger red felt
+// hanging below the butt on its string side, which turns with the butt [S17 Kawai US 7,408,102; S18 Renner's guide,
+// which calls it the hammer butt cushion]. The felt isn't a contact here: the filmed model shows 3-4 mm of daylight
+// between it and the traced jack, so this rule stands in for it (research/upright/parts/butt.md, Open).
 const JACK_ARM = Math.hypot(...sub(CORNER, J0));
 // the jack's angle that keeps its corner at x in the butt's frame (hammer at g), the wippen at phi
 const psiAtX = (phi, g, x) => solve(psi => cornerInButt(phi, psi, g)[0], x, -0.4, 0.8, 40);
@@ -560,8 +569,8 @@ export function capstanFor(a, lostMotion = SPEC.lostMotion.target) {
 export function regulate(a0 = {}) {
   const a = factory(a0), m = measure(a), missed = [];
   for (const k of ['dip', 'blow', 'lostMotion', 'letoff', 'check', 'damperShare', 'softShare']) {
-    const s = SPEC[k];
-    if (m[k] === null || Math.abs(m[k] - s.target) > s.tol) missed.push(k);
+    const [lo, hi] = band(SPEC[k]);
+    if (m[k] === null || m[k] < lo - 1e-9 || m[k] > hi + 1e-9) missed.push(k);
   }
   return { a, m, missed };
 }
@@ -582,11 +591,9 @@ export function factory(a0 = {}) {
   return a;
 }
 
-// The factory regulation, as factory() solves it (tests/upright-kinematics.test.mjs checks they agree). At textbook dip
-// and blow this geometry leaves aftertouch at 0.44 mm (Igrec: 1.0-1.5) and the jack 1.1 mm from the butt cushion with
-// the key held (Spurlock: 1/16-1/8 in): by Spurlock's rule the blow is long for the dip. Left as a finding for Greg,
-// not fitted (protocol 3.2 rule 1).
-export const FACTORY = {"balPunch":1.5,"frontPunch":1.5522,"railShim":-0.4964,"capstan":0.274,"letoff":0.0411,"backcheck":-5.7965,"spoon":-1.5527,"bridle":0,"softFelt":10.3664};
+// The factory regulation, as factory() solves it (tests/upright-kinematics.test.mjs checks they agree), at the shorter
+// blow Greg chose (SPEC.blow): aftertouch 1.04 mm, escapement 3.04. At the textbook 1-3/4 in it was 0.44 and 1.1.
+export const FACTORY = {"balPunch":1.5,"frontPunch":1.5522,"railShim":0.5587,"capstan":0.7933,"letoff":0.0438,"backcheck":-6.9339,"spoon":-1.6704,"bridle":0,"softFelt":9.7695};
 
 // =====================================================================================================================
 // Dynamics (C3): one note stepped in time.
