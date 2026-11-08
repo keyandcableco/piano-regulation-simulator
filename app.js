@@ -393,7 +393,7 @@ function knobReadings(id) {
 }
 function knobButtons(id) {
   const d = ADJ.find(x => x.id === id);
-  const btn = (sym, delta, step) => el('button', { class: 'nudge', title: `${sym} ${step}`, onclick: () => { S.highlight(d.part, cur); setAdj(id, adj[id] + delta); } },
+  const btn = (sym, delta, step) => el('button', { class: 'nudge', title: `${sym} ${step}`, 'data-anchor': `${id}${sym}`, onclick: () => { S.highlight(d.part, cur); setAdj(id, adj[id] + delta); } },
     el('span', { class: 'sym' }, sym), el('span', { class: 'step' }, step));
   const coarse = d.steps[d.steps.length - 1], fine = d.steps[0];
   const two = d.steps.length > 1;
@@ -407,7 +407,7 @@ function knobButtons(id) {
 }
 // where a knob sits now: the Sandbox says, and a shared rail says it is shared
 function knobValue(id) {
-  const d = ADJ.find(x => x.id === id), net = adj[id] - FACTORY[id];
+  const d = ADJ.find(x => x.id === id), net = Math.round((adj[id] - FACTORY[id]) * 100) / 100 || 0;   // as shown: no "-0.00"
   const valTxt = mode !== 'sandbox' ? ''
     : d.sides ? (Math.abs(net) < 0.005 ? 'no paper' : `paper under the ${d.sides[net > 0 ? 0 : 1]} side (${Math.abs(net).toFixed(1)} mm of drift)`)
     : d.unit === 'mm' || d.unit === '°' ? `${net >= 0 ? '+' : ''}${net.toFixed(2)}${d.unit === '°' ? '°' : ' mm'} from factory`
@@ -567,10 +567,34 @@ function applyAdj() { generation++; clearFrames(); sim.setAdj(adj); sim.reset();
 // ---------- panel ----------
 // append children, skipping the nulls left by conditionals
 const put = (p, ...kids) => p.append(...kids.flat().filter(k => k != null));
-function refresh() {
+// A click that redraws the panel or the part card keeps the button clicked where it was, under the pointer: readings
+// above it change length as you adjust, and would otherwise push it up or down between clicks.
+let pressed = null;
+// (only for the redraw the click itself causes: forgotten once the click has been handled)
+document.addEventListener('click', e => { pressed = e.target.closest?.('[data-anchor]') || null; setTimeout(() => { pressed = null; }); }, true);
+function holdPressed(redraw) {
+  const a = pressed?.isConnected ? pressed : null; pressed = null;
+  if (!a) { redraw(); return; }
+  const box = popEl.contains(a) ? popEl : $('aside'), key = a.dataset.anchor, top = a.getBoundingClientRect().top;
+  redraw();
+  const b = [...box.querySelectorAll('[data-anchor]')].find(x => x.dataset.anchor === key);
+  if (!b) return;
+  const moved = b.getBoundingClientRect().top - top;
+  if (box !== popEl) { box.scrollTop += moved; return; }
+  if (!pop) return;
+  // the card moves; what the stage's edges stop it moving (no wind-up kept for later), it scrolls instead
+  pop.shift -= moved; placePop();
+  const left = b.getBoundingClientRect().top - top;
+  pop.shift += left; popEl.scrollTop += left;
+}
+function refresh() { holdPressed(redraw); }
+function redraw() {
   for (const b of document.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.mode === mode);
   // the action's views and key buttons have nothing to work on while a tool is on the bench
-  $('#views').style.display = $('#keybar').style.display = mode === 'tools' ? 'none' : '';
+  $('#views').style.display = $('#keydock').style.display = mode === 'tools' ? 'none' : '';
+  // the measured distances drawn on the action: the Sandbox can hide them
+  $('#dist-btn').hidden = mode !== 'sandbox';
+  S.setCallouts(mode !== 'sandbox' || distancesOn);
   const p = $('#mode');
   p.replaceChildren(); $('#actionbar').replaceChildren();
   if (showCredits) renderCredits(p);
@@ -584,7 +608,7 @@ function refresh() {
   $('#units').textContent = units === 'in' ? 'inches' : 'mm';
 }
 function testButton(id) {
-  return el('button', { class: 'test', disabled: busy ? '' : false, onclick: () => runTest(id) }, '▶ ', TESTS[id].label);
+  return el('button', { class: 'test', disabled: busy ? '' : false, 'data-anchor': `test:${id}`, onclick: () => runTest(id) }, '▶ ', TESTS[id].label);
 }
 const GRADED = STEPS.filter(s => !s.info);
 // a step checks its own spec and any that go with it (the jack centered side to side with its position, say)
@@ -777,7 +801,7 @@ let pop = null;   // the open card: { part, obj, local } (the spot clicked, pinn
 const popEl = $('#partpop'), popDot = $('#popdot');
 const popKnobs = part => ADJ.filter(d => d.part === (KNOB_PART[part] || part) && !(examActive() && !exam.dampers && DAMPER_KNOBS.includes(d.id))).map(d => d.id);
 function openPop(hit) {
-  pop = { part: hit.part, obj: hit.obj, local: hit.local };
+  pop = { part: hit.part, obj: hit.obj, local: hit.local, h0: null, shift: 0 };
   S.highlight(KNOB_PART[hit.part] || hit.part, cur);
   renderPop();
 }
@@ -812,12 +836,13 @@ function placePop() {
   popDot.hidden = !at.on;
   if (at.on) { popDot.style.transform = `translate(${at.x}px, ${at.y}px)`; pop.last = at; }
   const p = at.on || !pop.last ? at : pop.last;
-  const W = stage.clientWidth, top0 = $('#views').offsetHeight + 16, bottom = stage.clientHeight - $('#keybar').offsetHeight - 16;
+  const W = stage.clientWidth, top0 = $('#views').offsetHeight + 16, bottom = stage.clientHeight - $('#keydock').offsetHeight - 16;
   const mh = `${Math.max(140, bottom - top0)}px`;
   if (popEl.style.maxHeight !== mh) popEl.style.maxHeight = mh;
   const w = popEl.offsetWidth, h = popEl.offsetHeight, gap = 22;
+  pop.h0 ??= h;   // centered on the spot as it first opened: readings that change length afterwards don't re-center it
   const x = Math.max(8, Math.min(W - w - 8, p.x + gap + w <= W - 100 ? p.x + gap : p.x - gap - w));
-  const y = Math.max(top0, Math.min(bottom - h, p.y - h / 2));
+  const y = Math.max(top0, Math.min(bottom - h, p.y - pop.h0 / 2 + pop.shift));
   popEl.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
   popEl.classList.toggle('busy', !!busy);   // faded while a test runs, so the action shows through
 }
@@ -1332,7 +1357,8 @@ const letGo = () => { if (paused && sim.dTarget > sim.d + 0.01) { plan = 'up'; p
 let pedalDown = false;
 const setPedal = down => { pedalDown = down; NOTES.forEach(n => n.sim.setPedal(down)); $('#k-pedal').classList.toggle('on', down); };
 $('#k-pedal').onclick = () => { if (!busy) { setPedal(!pedalDown); pausedNote(); } };
-let labelsOn = false;
+let labelsOn = false, distancesOn = true;
+$('#dist-btn').onclick = () => { distancesOn = !distancesOn; S.setCallouts(distancesOn); $('#dist-btn').classList.toggle('on', distancesOn); };
 $('#labels').onclick = () => { labelsOn = !labelsOn; S.setLabels(labelsOn); $('#labels').classList.toggle('on', labelsOn); };   // hidden in Tools
 // the key front in a corner, so the key's travel shows beside whatever part of the action the main view is on;
 // on from the start where the stage has room for it

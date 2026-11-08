@@ -55,9 +55,13 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -app
 #tip { position: absolute; left: 0; top: 0; pointer-events: none; background: var(--panel); color: var(--ink); border: 1px solid var(--line);
   padding: 2px 7px; border-radius: 4px; font-size: 12px; }
 #views { position: absolute; top: 10px; left: 10px; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 20px); }
-#keybar { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-#keybar .sep { flex: 1; }
-#keypos { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; min-width: 110px; }
+/* the key buttons along the bottom, and above them a line of what the key is doing: its text changes every frame, so
+   it sits on its own line, and the buttons never move as it grows and shrinks */
+#keydock { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; flex-direction: column; gap: 4px; }
+#keybar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#keybar .sep, #keystatus .sep { flex: 1; }
+#keystatus { display: flex; gap: 10px; align-items: baseline; white-space: nowrap; overflow: hidden; font-size: 12px; min-height: 1.45em; pointer-events: none; }
+#keypos { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; flex: none; }
 #toasts { position: absolute; top: 48px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; }
 .toast { background: var(--panel); border: 1px solid var(--line); padding: 6px 12px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.12); transition: opacity .5s; }
 .toast.warn { border-color: var(--warn); color: var(--warn); }
@@ -68,9 +72,11 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -app
 #inset .inset-text { position: absolute; left: 6px; bottom: 5px; font: 600 11px/1 system-ui; color: var(--ink); font-variant-numeric: tabular-nums;
   background: color-mix(in srgb, var(--panel) 85%, transparent); padding: 2px 5px; border-radius: 4px; }
 #inset-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-#keystate { font-size: 12px; color: var(--muted); }
+#keystate { font-size: 12px; color: var(--muted); flex: none; width: 8em; }
 #keystate.down { color: var(--accent); font-weight: 600; }
-#lastevent { font-size: 12px; color: var(--muted); max-width: 26ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#lastevent { font-size: 12px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; pointer-events: auto; }
+/* buttons whose words change keep one width: Pause / Run, inches / mm */
+#k-pause, #units { min-width: 4.6em; }
 #k-loop.on, #k-pause.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 @keyframes nudge { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); } }
 #k-release.attn { background: var(--accent); border-color: var(--accent); color: #fff; animation: nudge 1.6s ease-in-out infinite; }
@@ -165,6 +171,7 @@ button.test { text-align: left; }
 .knobs { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
 .knob { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
 .knob-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.knob-head > :last-child { text-align: right; font-variant-numeric: tabular-nums; }
 .knob-btns { display: flex; gap: 4px; margin: 6px 0 4px; }
 .nudge { min-width: 56px; display: flex; flex-direction: column; align-items: center; padding: 3px 8px; line-height: 1.2; touch-action: manipulation; }
 .nudge .sym { font-weight: 700; font-size: 15px; }
@@ -175,6 +182,7 @@ button.test { text-align: left; }
 .chip.bad .dot { background: var(--bad); }
 details.fold { border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; }
 details.fold > summary { display: flex; align-items: baseline; gap: 8px; padding: 9px 12px; list-style: none; }
+details.fold > summary > :last-child { white-space: nowrap; }
 details.fold > summary::-webkit-details-marker { display: none; }
 details.fold > summary::before { content: '▸'; color: var(--muted); display: inline-block; transition: transform .15s; }
 details.fold[open] > summary::before { transform: rotate(90deg); }
@@ -185,7 +193,10 @@ ol.how { padding-left: 20px; margin: 6px 0; }
 ol.how li { margin: 4px 0; }
 .actionbar { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; gap: 8px; margin: auto -16px 0; padding: 10px 16px;
   background: var(--panel); border-top: 1px solid var(--line); }
-table.specs { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+/* fixed columns, so a reading that grows or shrinks as you adjust doesn't reflow the whole table */
+table.specs { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; table-layout: fixed; }
+.specs tr > :nth-child(1) { width: 38%; }
+.specs tr > :nth-child(2) { width: 28%; }
 .specs th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--line); padding: 4px 4px; }
 .specs td { padding: 5px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .specs td:last-child { font-variant-numeric: tabular-nums; }
@@ -222,10 +233,10 @@ a { color: var(--accent); }
   #keypos { display: none; }
   #toasts { top: 52px; font-size: 13px; width: calc(100% - 32px); }
   #views, #keybar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  #keystatus .sep { display: none; }
   #views button, #keybar button { font-size: 12px; padding: 4px 8px; white-space: nowrap; flex: none; }
   #keystate { display: none; }
-  #lastevent { max-width: 30ch; }
-  #examclock { top: auto; bottom: 52px; right: 84px; font-size: 16px; }   /* left of the move buttons, never over Help */
+  #examclock { top: auto; bottom: 70px; right: 84px; font-size: 16px; }   /* left of the move buttons, never over Help */
   #navpad { top: 46px; transform: none; }   /* up under the view buttons, clear of the exam clock */
   #partpop { width: 250px; max-width: calc(100% - 84px); padding: 6px 8px; }   /* clear of the zoom buttons */
 }
@@ -278,6 +289,7 @@ a { color: var(--accent); }
       <button data-view="dampers">Dampers</button>
       <button id="labels" title="Show part names">Labels</button>
       <button id="inset-btn" title="A small view of the key front in the corner, so you can watch the key travel while the main view shows the action">Key inset</button>
+      <button id="dist-btn" class="on" title="Show or hide the measured distances drawn on the action" hidden>Distances</button>
     </div>
     <div id="toasts"></div>
     <div id="examclock" hidden></div>
@@ -310,6 +322,13 @@ a { color: var(--accent); }
       </ul>
       <button id="movehelp-ok" class="primary">Got it</button>
     </div>
+    <div id="keydock">
+    <div id="keystatus">
+      <span id="keystate"></span>
+      <span id="lastevent"></span>
+      <span class="sep"></span>
+      <span id="keypos"></span>
+    </div>
     <div id="keybar">
       <button id="k-play" title="Strike the key and let it come back up">Play</button>
       <button id="k-loop" title="Keep playing the key, one normal blow after another, so you can watch the action work">Loop</button>
@@ -318,10 +337,7 @@ a { color: var(--accent); }
       <button id="k-ease" title="Let a held key up a little (pressed while the key is still going down, it waits until the hammer has checked)">Ease up</button>
       <button id="k-release" title="Let the key all the way up (Esc)">Let key up</button>
       <button id="k-pedal" title="Damper pedal down or up (P)">Pedal</button>
-      <span id="keystate"></span>
-      <span id="lastevent"></span>
       <span class="sep"></span>
-      <span id="keypos"></span>
       <button data-speed="1">Real speed</button>
       <button data-speed="0.1" class="on">Slow ×10</button>
       <button data-speed="0.02">Slow ×50</button>
@@ -329,6 +345,7 @@ a { color: var(--accent); }
       <button id="k-back" title="Back one frame (comma); hold to keep stepping back">◀ Frame</button>
       <button id="k-fwd" title="Forward one frame (full stop); hold to keep stepping">Frame ▶</button>
       <button id="k-letoff" title="Press slowly and stop just before let-off, in the Jack &amp; knuckle view, ready to step through let-off and the drop a frame at a time">Go to let-off</button>
+    </div>
     </div>
   </div>
   <aside>

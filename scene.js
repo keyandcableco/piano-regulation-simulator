@@ -507,6 +507,9 @@ export function createScene(canvas, overlay) {
     c.mid = opts.end ? [...p2] : [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2, (p1[2] + p2[2]) / 2];
     c.dy = opts.dy || 0;
   }
+  // shown or hidden as a set (the Sandbox's Distances button); hidden ones keep updating, so they come back current
+  let calloutsOn = true;
+  function setCallouts(on) { calloutsOn = on; }
   function clearCallouts(keep = []) {
     for (const [id, c] of callouts) {
       if (keep.includes(id)) continue;
@@ -852,7 +855,7 @@ export function createScene(canvas, overlay) {
     renderer.setScissorTest(true); renderer.setScissor(r.x, y, r.w, r.h); renderer.setViewport(r.x, y, r.w, r.h);
     renderer.render(scene, insetCam);
     renderer.setScissorTest(false); renderer.setViewport(0, 0, r.sw, r.sh);
-    for (const c of callouts.values()) c.line.visible = true;
+    for (const c of callouts.values()) c.line.visible = calloutsOn;
   }
 
   const v3 = new THREE.Vector3();
@@ -867,6 +870,7 @@ export function createScene(canvas, overlay) {
     spinTool();
     controls.update();
     updateLabels();
+    for (const c of callouts.values()) c.line.visible = calloutsOn;
     renderer.render(scene, camera);
     renderInset();
     const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -874,7 +878,7 @@ export function createScene(canvas, overlay) {
       const cut = !inClip(v3.set(...c.mid));   // its line is cut away in a clipped view: hide the label too
       v3.project(camera);
       c.el.style.transform = `translate(${(v3.x * 0.5 + 0.5) * w}px, ${(-v3.y * 0.5 + 0.5) * h + c.dy}px)`;
-      c.el.style.display = v3.z < 1 && !cut ? '' : 'none';
+      c.el.style.display = calloutsOn && v3.z < 1 && !cut ? '' : 'none';
     }
   }
 
@@ -943,6 +947,6 @@ export function createScene(canvas, overlay) {
   }
 
   setNoteCount(1);
-  return { render, update, setView, zoomBy, slideBy, resetView, showTool, hideTool, spinTool, highlight, pick, screenOf, setCallout, clearCallouts, backcheckGap, setBackground, controls, camera, setLabels,
+  return { render, update, setView, zoomBy, slideBy, resetView, showTool, hideTool, spinTool, highlight, pick, screenOf, setCallout, clearCallouts, setCallouts, backcheckGap, setBackground, controls, camera, setLabels,
            setNoteCount, setFocus, setInset, setInsetText, insetEl: insetBox, straightedge, PART_NAMES, VIEWS };
 }
