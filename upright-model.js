@@ -267,7 +267,8 @@ export const ADJ = [
   { id: 'railShim', name: 'Hammer rail rest felts: shim (toward the strings) or cut', unit: 'mm', min: -3, max: 6, step: 0.1 },
   { id: 'capstan', name: 'Capstan: turn the dowel up (+) or down its wire', unit: 'mm', min: -4, max: 4, step: 0.02 },
   { id: 'letoff', name: 'Let-off regulating screw: button down toward the jack (+) or up', unit: 'mm', min: -4, max: 4, step: 0.05 },
-  { id: 'backcheck', name: 'Backcheck wire: bend the head toward the catcher (+) or away', unit: 'mm', min: -15, max: 6, step: 0.1 },
+  // checking moves about 20 mm per mm of bend here, so the finest step is under half the tightest checking band (rule 3)
+  { id: 'backcheck', name: 'Backcheck wire: bend the head toward the catcher (+) or away', unit: 'mm', min: -15, max: 6, step: 0.05 },
   { id: 'spoon', name: 'Spoon: bend toward the damper lever (+) or away', unit: 'mm', min: -4, max: 4, step: 0.05 },
   { id: 'bridle', name: 'Bridle wire: bend its top toward the player (+, tighter strap) or toward the catcher', unit: 'mm', min: -8, max: 8, step: 0.25 },
   { id: 'softFelt', name: 'Soft pedal travel at the hammer rail (its blocking felt)', unit: 'mm', min: 0, max: 30, step: 0.25 },
@@ -278,22 +279,31 @@ export const ADJ = [
 // range; where sources differ the first is the sim's default. Where Greg has overridden the sources, his figure and its
 // date stand instead (rule 1). A spec is a target with a tolerance, or a band (lo, hi) with or without a target.
 export const SPEC = {
+  // level with the neighbours (a straightedge across them); the tolerance is the grand's, the sim's own
+  keyHeight: { target: 0, tol: 0.4, src: 'level with the neighbouring keys [S1, S2]; tolerance the sim\'s own' },
   dip: { target: 0.400 * IN, tol: 0.4, src: 'Steinway .400 in [S1]; 3/8 in+ consoles and larger [S2]' },
   // Greg's call, 2026-11-08 ("Shorter blow"): at the textbook 1-3/4 in this geometry leaves aftertouch at 0.44 mm and
   // escapement at 1.1, both short of their sources; at 0.400 in of dip a blow of 1-5/8 to 1-11/16 in brings both in.
   // The band is his window. The target, a scant 1-11/16 in, is where both sit furthest inside their bands: they pull
   // opposite ways, and at 42.5 mm aftertouch reads 1.04 mm and escapement 3.04, each about 8% of its band in from an edge.
   blow: { target: 42.5, lo: 1.625 * IN, hi: 1.6875 * IN, src: 'Greg 2026-11-08: 1-5/8 to 1-11/16 in, for aftertouch and escapement at 0.400 in dip. The sources: 1-3/4 in [S2]; 1-3/4 to 1-7/8 in studio uprights [S3]; Steinway about 1-7/8 [S1]' },
-  lostMotion: { target: 0.08, tol: 0.05, src: 'under 0.004 in (0.1 mm) on a new action [S3]; the least that lets the jack return [S2]' },
+  // lo is functional: below JACK_CLEAR the jack can't get back under the cushion on a slow release [S2's test]
+  lostMotion: { target: 0.08, lo: 0.05, hi: 0.13, src: 'the least that lets the jack return [S2]; under 0.004 in (0.1 mm) on a new action [S3]' },
   letoff: { target: 0.125 * IN, tol: 0.8, src: '1/8 in [S2]; Steinway 1/16 in [S1]' },
   check: { target: 0.5625 * IN, tol: 0.0625 * IN, src: '5/8 in [S2, S11]; Steinway 1/2 in [S1]: graded 9/16 +- 1/16' },
-  damperShare: { target: 0.5, tol: 0.1, src: 'the damper starts with the hammer about halfway [S1, S2]' },
+  damperTiming: { target: 0.5, tol: 0.1, src: 'the damper starts with the hammer about halfway [S1, S2]' },
   aftertouch: { lo: 1.0, hi: 1.5, src: '0.040-0.060 in [S3]; Steinway about a new penny [S1]' },
   escapement: { lo: 0.0625 * IN, hi: 0.125 * IN, src: 'jack 1/16-1/8 in clear of the butt leather, key held after a medium blow [S2]' },
-  softShare: { target: 0.5, tol: 0.1, src: 'the soft pedal moves the hammers halfway to the strings [S1, S2]' },
+  softPedal: { target: 0.5, tol: 0.1, src: 'the soft pedal moves the hammers halfway to the strings [S1, S2]' },
+  // functional: soft pedal down, the strap must not lift the wippen [S1, S2]; its slack is a reading (rule 4: no
+  // published figure). Ellis set straps with just enough slack for that [S14]
+  bridle: { functional: true, src: 'soft pedal down: the wippens don\'t move [S1, S2]; just enough slack for that [S14]' },
 };
 // a spec's pass band, [lo, hi]
 export const band = s => s.lo !== undefined ? [s.lo, s.hi] : [s.target - s.tol, s.target + s.tol];
+// the room (mm) the jack needs between its top and the cushion to get back under the butt at rest: below it a slow
+// release leaves the jack hanging on the butt leather [T: the sim's own figure, inside Igrec's "under 0.1 mm" new]
+export const JACK_CLEAR = 0.05;
 
 // ---------- the key (stand-in geometry, KEY) ----------
 // Its frame: origin on the underside at the balance pin, drawn level; it rests on its back rail cloth at the back end.
@@ -325,6 +335,9 @@ export function dipOf(a) {
   return frontTop(bal, th0) - frontTop(bal, th);
 }
 export const keyHeightOf = a => { const { bal, th0 } = keyRest(a); return frontTop(bal, th0); };
+// the neighbouring keys' height: they stay at the factory's 1.5 mm of balance punchings
+export const NEIGHBOR_H = keyHeightOf({ balPunch: 1.5 });
+export const keyFrontTop = (a, d) => { const k = keyAngle(a, d); return keyPt(k.bal, k.th, [-KEY.balX, KEY.thick]); };
 
 // ---------- the wippen on the capstan ----------
 // the capstan dowel's flat top (action frame): its centre, and the two ends of its rim in the side view
@@ -540,19 +553,23 @@ export function slowPress(a, step = 0.02) {
 const jackCushionGap = p => polyGap(TRACE.jack.map(q => jackPt(p.phi, p.psi, q)), TRACE.buttCushion.map(q => turn(q, CENTER.butt, -p.g)));
 export function measure(a) {
   const sp = slowPress(a), rest = pose(a, 0), bottom = pose(a, sp.dip, { held: true }), soft = pose(a, 0, { soft: true });
-  const blow = stringGap(rest.g);
+  const blow = stringGap(rest.g), lostMotion = jackGap(rest.phi, 0, rest.gRail);
   return {
-    keyHeight: keyHeightOf(a), dip: sp.dip, blow,
-    lostMotion: jackGap(rest.phi, 0, rest.gRail),          // jack top to butt cushion at rest, mm (S3's jack gap)
+    keyHeight: keyHeightOf(a) - NEIGHBOR_H, dip: sp.dip, blow,   // key height: mm above its neighbours
+    lostMotion,                                            // jack top to butt cushion at rest, mm (S3's jack gap)
     lostMotionKey: sp.moveAt,                              // key travel before the hammer moves, mm
+    jackReturns: lostMotion > JACK_CLEAR,                  // gets back under the butt on a slow release [S2's test]
+    // the hammer rail pulled back from the shanks: how far the crown follows it before the cushion meets the jack
+    // (none if the jack already holds the hammer off the rail) [S1 about 1/64 in; S2 about 1/16 in, wholesale]
+    railFollow: lostMotion > 0 ? stringGap(gOnJack(rest.phi, rest.psi)) - blow : 0,
     letoff: sp.letoffGap, letoffDepth: sp.letoffAt,
     aftertouch: sp.letoffAt === null ? null : sp.dip - sp.letoffAt,
     check: bottom.on === 'backcheck' ? stringGap(bottom.g) : null, checkScrapes: !!bottom.check?.scrapes,
     escapement: jackCushionGap(bottom),                    // key held after the blow, the hammer on the backcheck
-    damperShare: sp.damperAt?.share ?? null, damperDepth: sp.damperAt?.d ?? null,
+    damperTiming: sp.damperAt?.share ?? null, damperDepth: sp.damperAt?.d ?? null,
     damperLift: bottom.dl * Math.hypot(...sub(TRACE.damperFelts[0][2], CENTER.damper)),   // the felt off the strings, mm
-    softBlow: stringGap(soft.g), softShare: 1 - stringGap(soft.g) / blow,
-    strapSlack: rest.slack, softStrapSlack: soft.slack,
+    softBlow: stringGap(soft.g), softPedal: 1 - stringGap(soft.g) / blow,
+    strapSlack: rest.slack, softStrapSlack: soft.slack, softLifts: soft.slack <= 0,
     jammed: bottom.jammed,
   };
 }
@@ -568,7 +585,7 @@ export function capstanFor(a, lostMotion = SPEC.lostMotion.target) {
 // without complaint, so this is where that shows.
 export function regulate(a0 = {}) {
   const a = factory(a0), m = measure(a), missed = [];
-  for (const k of ['dip', 'blow', 'lostMotion', 'letoff', 'check', 'damperShare', 'softShare']) {
+  for (const k of ['dip', 'blow', 'lostMotion', 'letoff', 'check', 'damperTiming', 'softPedal']) {
     const [lo, hi] = band(SPEC[k]);
     if (m[k] === null || m[k] < lo - 1e-9 || m[k] > hi + 1e-9) missed.push(k);
   }
@@ -584,11 +601,52 @@ export function factory(a0 = {}) {
     a.letoff = solve(v => slowPress({ ...a, letoff: v }, 0.05).letoffGap ?? -1, SPEC.letoff.target, -4, 4, 30);
     a.backcheck = solve(v => { const p = pose({ ...a, backcheck: v }, dipOf(a), { held: true }); return p.on === 'backcheck' ? stringGap(p.g) : 99; },
       SPEC.check.target, -15, 6, 40);
-    a.spoon = solve(v => slowPress({ ...a, spoon: v }, 0.05).damperAt?.share ?? 1, SPEC.damperShare.target, -4, 4, 30);
-    a.softFelt = solve(v => 1 - stringGap(gRail({ ...a, softFelt: v }, true)) / SPEC.blow.target, SPEC.softShare.target, 0, 30);
+    a.spoon = solve(v => slowPress({ ...a, spoon: v }, 0.05).damperAt?.share ?? 1, SPEC.damperTiming.target, -4, 4, 30);
+    a.softFelt = solve(v => 1 - stringGap(gRail({ ...a, softFelt: v }, true)) / SPEC.blow.target, SPEC.softPedal.target, 0, 30);
   }
   for (const k of Object.keys(a)) a[k] = +a[k].toFixed(4);
   return a;
+}
+
+// ---------- grading ----------
+// Pass or fail for one spec, with what's wrong in a technician's words; k scales the tolerance (skill level: 1.5
+// Apprentice, 1 Journeyman, 0.75 the top level). A band from a source's range (lo, hi) only widens: at k <= 1 the
+// source's own range stands, so its endpoints always pass (protocol 3.2 rule 2). Functional specs don't scale.
+export function grade(id, m, k = 1) {
+  const s = SPEC[id], v = m[id];
+  if (id === 'bridle') return m.softLifts ? { ok: false, v: m.strapSlack, note: 'soft pedal down, the strap lifts the wippen: the key goes out of level' }
+    : { ok: true, v: m.strapSlack, note: '' };
+  if (id === 'letoff' && v == null) return { ok: false, v: null, note: 'blocks: the jack never lets off' };
+  if ((id === 'aftertouch' || id === 'escapement') && m.letoff == null) return { ok: false, v: null, note: 'no let-off' };
+  if (id === 'aftertouch' && m.jammed) return { ok: false, v, note: 'the jack jams against the jack stop at the bottom' };
+  if (id === 'check' && v == null) return { ok: false, v: null, note: m.checkScrapes ? 'the catcher scrapes the backcheck on the way up' : 'the backcheck misses the catcher' };
+  if (id === 'check' && m.checkScrapes) return { ok: false, v, note: 'the catcher scrapes the backcheck on the way up' };
+  if (id === 'damperTiming' && v == null) return { ok: false, v: null, note: 'the key never lifts the damper' };
+  if (id === 'lostMotion' && v <= 0) return { ok: false, v, note: 'none: the jack holds the hammer off its rail' };
+  if (id === 'lostMotion' && !m.jackReturns) return { ok: false, v, note: 'too little: the jack can\'t get back under the butt on a slow release' };
+  if (id === 'escapement' && v <= 0.05) return { ok: false, v, note: 'the jack rests against the butt leather: the hammer blubbers' };
+  let [lo, hi] = band(s);
+  if (s.lo === undefined) { lo = s.target - s.tol * k; hi = s.target + s.tol * k; }
+  else if (k > 1) { const c = (lo + hi) / 2, h = (hi - lo) / 2 * k; [lo, hi] = id === 'lostMotion' ? [lo, s.target + (hi - s.target) * k] : [c - h, c + h]; }
+  if (v < lo - 1e-9) return { ok: false, v, note: LOW[id] ?? 'too low' };
+  if (v > hi + 1e-9) return { ok: false, v, note: HIGH[id] ?? 'too high' };
+  return { ok: true, v, note: '' };
+}
+const LOW = {
+  keyHeight: 'low', dip: 'shallow', blow: 'short', letoff: 'too close to the strings', aftertouch: 'too little',
+  escapement: 'too little: the jack sits close to the butt leather', check: 'checks too close to the strings',
+  damperTiming: 'lifts early', softPedal: 'the soft pedal moves the hammers too little',
+};
+const HIGH = {
+  keyHeight: 'high', dip: 'deep', blow: 'long', lostMotion: 'too much: the key is loose at the top', letoff: 'too far from the strings',
+  aftertouch: 'too much', escapement: 'too much: the key has to come up farther to repeat', check: 'checks too far from the strings',
+  damperTiming: 'lifts late', softPedal: 'the soft pedal moves the hammers too far',
+};
+// the crown's point nearest the strings at hammer angle g, action frame (where a blow or let-off callout starts)
+export function crownAt(g) {
+  let best = null, gap = Infinity;
+  for (const p of TRACE.headFelt) { const q = turn(p, CENTER.butt, -g), d = stringX(q[1]) - q[0]; if (d < gap) { gap = d; best = q; } }
+  return best;
 }
 
 // The factory regulation, as factory() solves it (tests/upright-kinematics.test.mjs checks they agree), at the shorter
@@ -713,7 +771,7 @@ export class Sim {
       // let off: its spring swings it back toward its place under the butt, unless the cushion's player-side end is in
       // the way (the corner still above the cushion's underside) or the button holds it out
       const psiHome = psiAtX(phi, this.g, x0), q = cornerInButt(phi, psiHome, this.g);
-      const clear = q[1] < CUSH_FACE.y - 0.05;
+      const clear = q[1] < CUSH_FACE.y - JACK_CLEAR;
       const psiTo = Math.max(pb, clear ? psiHome : psiAtX(phi, this.g, CUSH_FACE.x[0] - 0.05));
       this.psi += Math.sign(psiTo - this.psi) * Math.min(Math.abs(psiTo - this.psi), DYN.jackRate * dt);
       if (clear && pb <= psiHome && Math.abs(this.psi - psiHome) < 1e-6) {

@@ -23,6 +23,8 @@ const SHOTS = [
   ['play-mf-strike', 'view=action&play=key&vel=mf&ms=17.8'], ['play-mf-checked', 'view=action&play=key&vel=mf&ms=60'],
   ['play-ff-early-check', 'view=butt&play=key&vel=ff&ms=9'], ['play-staccato-rail', 'view=action&play=staccato&vel=mf&ms=60'],
   ['play-sustain', 'view=damper&play=key&vel=pp&sustain=1&ms=0'],
+  // C4: the Learn panel (content-upright.js) on the factory key with every reading shown, and on a de-regulated one
+  ['learn-blow', 'view=action&learn=4&factory=1&tested=all'], ['learn-aftertouch', 'view=butt&learn=9&seed=3'],
 ].filter(([n]) => !only.length || only.includes(n));
 
 (async () => {

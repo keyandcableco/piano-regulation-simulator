@@ -1,0 +1,374 @@
+// The upright's content (research/upright/protocol.md 5.2, chunk C4): Learn steps, tests, callouts, the de-regulated
+// start and "From the bench" tips. The grand's live in app.js and tips.js; at the switch (C6) the app takes them from
+// content-grand.js and this file alike.
+// Every sentence is checked against its sources (S1 Steinway's upright chapter, S2 Spurlock, S3 Igrec, S14 Ellis) and
+// against the model (protocol 3.8; research/upright/gate5.md lists each claim, its source and the test that shows it).
+// Where the sim doesn't model something a step talks about, the step says so.
+import {
+  FACTORY, ADJ, SPEC, measure, pose, gRail, gOnJack, stringGap, crownAt, keyFrontTop, NEIGHBOR_H, TRACE, CENTER, toSim, turn, jackPt, CORNER,
+} from './upright-model.js';
+import { NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
+
+const IN = 25.4;
+export const fmt = v => v == null ? '—' : `${v.toFixed(Math.abs(v) < 1 ? 2 : 1)} mm`;
+
+// ---------- Learn steps, in the standard upright order (protocol 3.1) ----------
+// Spurlock and Steinway agree that blow and lost motion come before the final key leveling, so every key carries the
+// same action weight on its capstan. Cards marked info are steps the sim doesn't model, shown so the sequence reads
+// complete. A step: spec (graded), also (more graded specs), knobs (ADJ ids), test (the main one), tests.
+export const STEPS = [
+  { info: true, id: 'prep', title: 'Before you regulate: prepare the action',
+    what: 'Regulating over loose screws, worn parts or tight centers is wasted work, and no regulation makes up for worn-out parts. Tighten every screw, the action bracket bolts before the action comes out so the frame stays in line. Check that the felts and leathers are still usable, every center is free but not wobbly, and nothing rubs. Ease tight keys (Steinway: "A tight key will make other adjustments virtually useless."), reshape worn hammers, and take the lost motion out of the pedal rods and trapwork.',
+    how: 'Not in the sim: its screws, centers, felts and keys start out sound.' },
+  { info: true, id: 'seat', title: 'Seat the action and check the strike point',
+    what: 'Everything is measured from the strings, so the action has to sit right against them first. On the top treble note the hammer should strike about 1/8" below the V-bar (Spurlock). Find the best tone by ear, levering the action up or down while you play the note, then set the support posts so the action rests evenly on all of them. Bend the top posts so each bracket is snug under its stud: that keeps the lost motion and the dampers stable.',
+    how: 'Not in the sim: its one note is fixed in place at its strings.',
+    note: 'A support with clearance can make a noise when the pedals are used (Spurlock).' },
+  { info: true, id: 'align', title: 'Align the hammers, wippens and backchecks',
+    what: 'Each hammer should travel straight to its strings, stand square to them and meet them centered (Steinway). Then the wippens: each jack centered on its butt and its toe on its let-off button, with the capstan under the wippen cushion. Then the backchecks, spaced sideways to their catchers. Last, check that the bridle straps are slack enough for the wippens to come down and the jacks to get under the butts (Spurlock).',
+    how: 'Travel a hammer with traveling paper under its butt flange; square it by heating the shank and twisting it gently; space it by loosening the butt flange screw and shifting the flange. Shift a wippen on its loosened flange screw, or put traveling paper between its flange and the rail. Bend dowel capstan wires to line the capstans up under the wippens. Space the backchecks with wire-bending pliers only, so the wippen flanges aren\'t strained (Spurlock). Not in the sim yet: its note is aligned.',
+    note: 'Traveling, spacing and burning work on one another, so repeat them (Steinway). When the capstan, jack and let-off button can\'t all be centered, place the wippen for the best result at all three (Steinway).' },
+  { spec: 'blow', title: 'Blow distance', knobs: ['railShim'], test: 'blowGauge',
+    what: 'Blow distance is the gap between the hammer at rest and the strings. An upright\'s hammers rest on the hammer rail, so the rail sets it. This action\'s specification is 42.5 mm, a scant 1-11/16": at 0.400" of dip, that is where the aftertouch and the jack\'s escapement both come out right (the aftertouch card).',
+    how: 'Shim the hammer rail\'s rest felts to bring the rail, and the hammers, closer to the strings for a shorter blow; take shims out or cut the felts for a longer one. Moving the rail changes the lost motion: set that next.',
+    note: 'Books give 1-3/4" for consoles and larger (Spurlock), 1-3/4" to 1-7/8" for most studio uprights (Igrec) and about 1-7/8" for Steinway\'s verticals; spinets run 1-1/2" (Igrec) to 1-5/8" (Spurlock). At 1-3/4" this action leaves too little aftertouch and escapement, so it runs shorter, inside 1-5/8" to 1-11/16". A longer blow gives the hammer more force; worn hammers usually need a shorter one (Igrec).' },
+  { spec: 'lostMotion', title: 'Lost motion', knobs: ['capstan'], test: 'railPull', tests: ['railPull', 'topPlay', 'jackReturn'],
+    what: 'Lost motion is the small gap between the top of the jack and the butt cushion, the key at rest. The jack needs a little to get back under the butt when the key comes up slowly; more than that wears the butt leather and makes the keys feel loose at the top. The right amount is the least that lets the jack return when the key is let up very slowly after a hard blow, the sustain pedal down (Spurlock): on a new action under 0.1 mm (Igrec).',
+    how: 'Turn the capstan up to take lost motion out, down to add it. Pull the hammer rail gently back from the shanks: each hammer should follow it slightly, about 1/64" (Steinway); one that doesn\'t has none, one that follows a long way has too much. Press the key very lightly at the top: the jack should rise a hair before the hammer moves (Igrec). Then the jack return test.',
+    note: 'Spurlock\'s quick checks, pulling the rail (about 1/16" there) and tapping the keys by the capstans (a hammer that winks has none), find the bad ones fast, but he confirms every key with the jack return test. Set lost motion again whenever you move the rail or level the keys (Igrec). When wear has added lost motion, take it out with the capstans, not by moving the rail (Spurlock). Every capstan turn moves the checking a lot, which is set later. Spurlock tests with the sustain pedal down; the sim\'s test does too, though it doesn\'t model what the damper springs add. In the sim the jack needs 0.05 mm to get back under; it grades up to 0.13.' },
+  { spec: 'keyHeight', title: 'Key height', knobs: ['balPunch'], test: 'straightedge',
+    what: 'With the blow and lost motion set, every key carries its action\'s weight on its capstan the same way, so the keys can be leveled for good (Spurlock). Lay a straightedge across the neighbors: this key should just touch it.',
+    how: 'Add or remove punchings under the key at the balance rail. The key rests on its back rail, so its front moves about twice the punching\'s thickness. A key raised there also dips deeper and checks closer to the strings, and its lost motion shrinks a little: recheck them.',
+    note: 'Spurlock lays out punchings in front of the keys at half the gap between the straightedge and the key. Steinway\'s verticals use a straightedge crowned about 1/32" higher in the middle; the sim\'s neighbors are level.' },
+  { spec: 'dip', title: 'Key dip', knobs: ['frontPunch'], test: 'dipBlock',
+    what: 'Dip is how far the key front travels. Steinway gives about 0.400" for its verticals; Spurlock starts consoles and larger at 3/8" or more, most spinets at 7/16" and most Asian pianos at 10.5 mm. This action\'s specification is 0.400" (10.2 mm).',
+    how: 'Add or remove paper punchings under the front rail cloth punching: thicker stops the key sooner and gives less dip. Use the same pressure on every key (Spurlock).',
+    note: 'Spurlock\'s dip block has a cross piece resting on the neighboring keys: it barely clicks on them when the dip is right, clicks loudly and pushes them down when it\'s too deep, and doesn\'t reach them when it\'s too shallow. More dip gives more aftertouch and more escapement and checks the hammer closer to the strings, so dip comes before those. Sharps are set by matching their checking to the naturals\' (Steinway, Spurlock): what matters is equal capstan rise, not equal key travel.' },
+  { spec: 'letoff', title: 'Let-off', knobs: ['letoff'], test: 'slowPress',
+    what: 'Press the key slowly: the jack\'s toe meets the let-off button, and the jack trips out from under the butt before the hammer reaches the strings. Spurlock sets let-off as close to the strings as is practical, for the most power and the best control in soft playing, and finds 1/8" a good figure; the sim grades 1/8". Steinway lets off about 1/16".',
+    how: 'Turn the let-off regulating screw: lowering the button toward the toe lets off earlier, farther from the strings; raising it, later and closer.',
+    note: 'Let-off doesn\'t change with the capstan, key height, dip, blow or checking (Spurlock), so it can be set any time after the alignment. On a real piano a let-off much closer than 1/8" often blocks on hard blows, as the let-off rail bends and the button felt compresses (Spurlock); the sim\'s rail and button don\'t give.' },
+  { spec: 'aftertouch', also: ['escapement'], title: 'Aftertouch and the jack\'s escapement', knobs: ['frontPunch', 'railShim', 'capstan'], test: 'slowPress', tests: ['slowPress', 'holdLook'],
+    what: 'Aftertouch is the key travel left after let-off: 1.0 to 1.5 mm in most verticals (Igrec; Steinway: about the thickness of a new penny). Then play a medium blow, hold the key down and look at the jack: its top should stand 1/16" to 1/8" clear of the butt leather (Spurlock). With too little, the jack gets in the way of the checking and the hammers blubber; with too much, the key has to come up farther before the note repeats.',
+    how: 'Set both with dip and blow, leaving let-off where it is (Igrec, Spurlock): more dip or a shorter blow gives more of both, and less lost motion gives more aftertouch. Here they come in together only between about 42.35 and 42.6 mm of blow at 0.400" of dip: a shorter blow raises both, and the aftertouch sits near the bottom of its range while the jack\'s clearance sits near the top. Move the blow toward 42.5 mm and reset the lost motion, or change the dip a hair, and look again.',
+    note: 'Spurlock chooses the blow and dip by this test on a few sample notes before anything else. He wants the jack 1/16" to 1/8" clear, knowing escapement shrinks as the dip settles and lost motion grows. Too little aftertouch makes hammers bobble off the jacks; too much makes checking uneven and can jam the jacks at the bottom (Igrec), in the sim against its jack stop.' },
+  { spec: 'check', title: 'Checking', knobs: ['backcheck'], test: 'strikeHold',
+    what: 'The backcheck catches the hammer coming back from the strings and holds it close, so the jack can get back under the butt for a repeat blow before the key is all the way up (Spurlock). Play a moderate blow and hold the key: the hammer should be caught about 1/2" (Steinway) to 5/8" (Spurlock) from the strings.',
+    how: 'Bend the backcheck wire: the head toward the catcher checks the hammer closer to the strings, away from it farther. First make sure the backcheck meets the catcher squarely and the lost motion is close: every later capstan turn changes the checking (Spurlock).',
+    note: 'The sim grades 1/2" to 5/8", so both sources pass. Checking is the most sensitive reading on the action: a hair of dip, key height or capstan moves it. That is why Steinway and Spurlock use it to set the sharps\' dip: a sharp that checks closer than its natural neighbors is rising farther, so its dip is too deep (Spurlock). Checking also moves the jack\'s clearance a little, since the butt leather is held with the hammer: look at the jack again afterwards, as Spurlock does.' },
+  { spec: 'bridle', title: 'Bridle straps', knobs: ['bridle'], test: 'softWatch', tests: ['softWatch'],
+    what: 'The bridle strap ties the catcher to the wippen. It has to be slack enough that the soft pedal, moving the hammers halfway to the strings, doesn\'t lift the wippens (that puts the keys out of level), yet hold the wippen up when the key or the action is out, so the jack can\'t slip under the butt felt (Steinway, Spurlock). Jim Ellis found its main job is repetition: it brings the hammer back from the backcheck faster when the key is let go. He set his straps with just enough slack to pass the soft pedal test.',
+    how: 'Bend the bridle wire with finger pressure (Steinway): its top toward the player takes up slack, toward the catcher lets some out. Then press the soft pedal and watch the wippen: it must not move.',
+    note: 'Spurlock also pushes groups of hammers to the strings by hand to see that no jack falls under its butt felt. The sim doesn\'t model a jack slipping under the felt, and no book gives a slack figure, so it grades only the soft pedal test and shows the slack as a reading. If you change the soft pedal\'s travel later, check the bridles again.' },
+  { info: true, id: 'jackStop', title: 'Jack stop rail',
+    what: 'On a hard blow the jack flies back from the butt farther than the let-off button pushes it. A felted rail, sometimes the let-off rail itself, or a separate jack stop rail limits that, keeping the jack close to the butt for quicker repetition and less noise. Set it to just clear the jacks at full dip: hold the keys down firmly after a hard blow and check that no jack is jammed into the felt (Spurlock).',
+    how: 'The sim\'s note has a fixed jack stop felt that clears the jack at full dip; it can\'t be adjusted yet.' },
+  { spec: 'softPedal', title: 'Soft pedal', knobs: ['softFelt'], test: 'softBlow',
+    what: 'The soft pedal pushes the hammer rail, and every hammer with it, toward the strings. Down, it should bring the hammers halfway to the strings (Steinway, Spurlock); up, it should have no lost motion, but leave the rail resting on its supports (Spurlock).',
+    how: 'Set the travel with the blocking felt glued under the pedal: thicker felt, less travel. Spurlock also glues a felt between the hammer rail and an action bracket, so a hard stomp can\'t throw the rail forward.',
+    note: 'With the pedal down the butts leave the jacks: in the sim about 3 mm of lost motion opens at the jack, so the key moves farther before the hammer does. More travel can make a snug strap lift the wippen: check the bridles again. The sim\'s pedal has no lost motion of its own, and with the pedal up its rail rests on its supports.' },
+  { info: true, id: 'dampers', title: 'Dampers lift together with the pedal',
+    what: 'Press the sustain pedal: every damper should start to lift off its strings at the same moment, and come back to them squarely (Steinway). Each head should sit square and firm on its strings, with even pressure at the top and bottom of its felt (Spurlock). Even pedal lift comes before the spoons (Spurlock).',
+    how: 'Bend the damper wires. Barely wink the pedal with your foot to find the early lifters and correct them, then the late ones (Spurlock). The bends are usually very small: Spurlock uses his fingers and a hook or screwdriver more than a bending tool. A felt that has sat a little off for years should stay that way while it damps well, since it has formed to its strings (Spurlock). Not in the sim: its one damper is already even with the pedal.' },
+  { spec: 'damperTiming', title: 'Spoons: damper timing', knobs: ['spoon'], test: 'damperSlow',
+    what: 'Press the key slowly and watch the damper: it should start to lift when the hammer is about halfway to the strings (Steinway, Spurlock).',
+    how: 'Bend the spoon on the back of the wippen: toward the damper lever lifts the damper earlier, away from it later. The spoons weigh heavily in the touch, so make them as even as you can (Spurlock).',
+    note: 'On a real piano the spoons are bent blind with the action in. Spurlock first teaches his fingers the feel and click of the bender on a spoon, and checks the timing with a gauge propped against the strings at half the blow: lift each wippen until its hammer bumps the gauge, and the damper should just wink. Steinway sets sample notes first, then lines up the spoons between them on the bench. The capstan moves the damper\'s start in key travel, but hardly as a share of the hammer\'s travel.' },
+  { info: true, id: 'sustain', title: 'Sustain pedal',
+    what: 'The sustain pedal needs a little lost motion, so the damper lift rod stands clear of every damper lever at rest and each damper presses its strings with its full spring: about 1/8" (3 mm) at the lift rod (Steinway). Push some strings in by hand: their dampers should follow at least 1/16" (Spurlock). Felt under the pedal limits its travel, so it lifts the dampers about as far as the spoons do (Spurlock) and at least 1/8" clear of the strings (Steinway).',
+    how: 'Set the lost motion at the trapwork adjustment screw and the travel with the blocking felt under the pedal (Steinway). Not in the sim yet: its pedal has no lost motion and lifts the damper felt about 2.6 mm, a little less than the spoon\'s 3.4 at the bottom of the key.' },
+  { info: true, id: 'damperReturn', title: 'Dampers come back freely',
+    what: 'Pull the bottom of the damper lever away from the spoon, or the damper away from the strings, and let it go: it should snap back. If it doesn\'t, see that the spring is whole and engaged and not badly rusted, and that it isn\'t jamming in a worn notch. Push the top of the lever toward the rail a few times: a rough feel or a faint creak means its spring notches need lubricating (Igrec).',
+    how: 'Not in the sim yet: its damper comes back freely. Tight centers and tired springs come with Find the fault.' },
+  { info: true, id: 'middle', title: 'The middle pedal',
+    what: 'On some uprights, Steinway\'s among them, the middle pedal is a sostenuto: it holds up only the dampers that were already lifted when it went down, and the rest go on working normally (Steinway, whose guide gives its adjustments in full).',
+    how: 'Not in the sim.' },
+  { info: true, id: 'again', title: 'Go round again',
+    what: 'Every adjustment moves something set earlier: the rail moves the lost motion, the capstan the checking, key height and dip the checking and the jack\'s escapement. Go through the sequence again until nothing moves. Finish by confirming the lost motion on every key with the jack return test: Spurlock\'s last step, which saves a call-back for a sticking key. Then play-test.',
+    how: 'The final check re-measures everything and shows what drifted.' },
+];
+
+// ---------- tests ----------
+// Each runs on a host context (the preview now; the app at the switch):
+//   ctx.sim  the note's Sim (upright-model.js); ctx.a its regulation; ctx.m = measure(ctx.a)
+//   ctx.view(name)                  turn to one of scene-upright.js's views
+//   ctx.run(seconds) -> Promise     run the Sim that long (drawn as it goes, in slow motion if the test sets scale)
+//   ctx.pause(seconds) -> Promise   wait in real time, the drawing still
+//   ctx.say(text, warn)             the event line and a toast
+//   ctx.release() -> Promise        let the key up and bring everything to rest
+//   ctx.show(a, p) / ctx.show(null) draw a pose of its own (a hand on a part, the rail pulled) instead of the Sim
+//   ctx.grade(id)                   upright-model.js grade() of ctx.m at the current skill level
+// specs: what the test reveals; view: where it looks from; scale: slow motion (sim seconds per real second).
+const MF = 450, FF = 1300;   // mm/s at the key front: a moderate and a hard blow (preview/upright.html VEL)
+export const TESTS = {
+  blowGauge: { label: 'Blow distance gauge', specs: ['blow'], view: 'head',
+    run: async ctx => { await ctx.release(); await ctx.pause(1.5); } },
+  // Steinway's and Spurlock's rail pull: the hammers follow the rail back until their butts sit on the jacks
+  railPull: { label: 'Pull the hammer rail back gently', specs: ['lostMotion'], view: 'butt',
+    run: async ctx => {
+      await ctx.release();
+      const { a, m } = ctx, rest = pose(a, 0), gr = gRail(a);
+      const gTo = m.lostMotion > 0 ? gOnJack(rest.phi, rest.psi) : gr, pull = 1.5;   // the rail goes back 1.5 mm, the hammer as far as the jack lets it
+      for (let i = 0; i <= 20; i++) { const t = i / 20; ctx.show({ ...a, railShim: a.railShim - pull * t }, { ...rest, g: gr + (gTo - gr) * Math.min(1, t * 1.5) }); await ctx.pause(0.04); }
+      ctx.say(m.lostMotion <= 0 ? 'The hammer doesn\'t follow the rail: it already sits on the jack. No lost motion'
+        : `The hammer followed the rail ${fmt(m.railFollow)} at the crown before its butt sat on the jack`, !ctx.grade('lostMotion').ok);
+      await ctx.pause(1.2); ctx.show(null);
+    } },
+  // Igrec: depress the key lightly at the very top and watch when the hammer starts relative to the jack
+  topPlay: { label: 'Press lightly at the top of the key', specs: ['lostMotion'], view: 'butt', scale: 0.2,
+    run: async ctx => {
+      await ctx.release();
+      const { sim, m } = ctx, to = Math.min(sim.dip, Math.max(0, m.lostMotionKey) + 0.3);
+      sim.press(to, 2); await ctx.run(to / 2 + 0.1);
+      ctx.say(m.lostMotion <= 0 ? 'The hammer moved with the key at once: no lost motion'
+        : `The key went down ${fmt(m.lostMotionKey)} before the hammer started up`, !ctx.grade('lostMotion').ok);
+      await ctx.release();
+    } },
+  // Spurlock's final test: a hard blow, then the key let up very slowly with the sustain pedal down
+  jackReturn: { label: 'Jack return: hard blow, sustain down, let the key up very slowly', specs: ['lostMotion'], view: 'butt', scale: 0.5,
+    run: async ctx => {
+      await ctx.release();
+      const { sim } = ctx;
+      sim.setPedal(true); await ctx.run(0.15);
+      sim.press(sim.dip, FF); await ctx.run(0.35);
+      sim.press(0, 10); await ctx.run(sim.dip / 10 + 0.2);
+      const back = sim.jack === 'under';
+      ctx.say(back ? 'The jack got back under the butt' : 'The jack hangs on the butt leather: it can\'t get back under. The note won\'t repeat', !back);
+      sim.setPedal(false); await ctx.run(0.1);
+    } },
+  straightedge: { label: 'Lay the straightedge across the neighbors', specs: ['keyHeight'], view: 'whole',
+    run: async ctx => { await ctx.release(); await ctx.pause(1.5); } },
+  dipBlock: { label: 'Dip block at the key front', specs: ['dip'], view: 'whole', scale: 0.25,
+    run: async ctx => { await ctx.release(); ctx.sim.press(ctx.sim.dip, 12); await ctx.run(ctx.sim.dip / 12 + 0.1); await ctx.pause(1.2); await ctx.release(); } },
+  slowPress: { label: 'Press slowly to the bottom', specs: ['letoff', 'aftertouch'], view: 'action', scale: 1,
+    run: async ctx => { await ctx.release(); ctx.sim.press(ctx.sim.dip, 6); await ctx.run(ctx.sim.dip / 6 + 0.2); await ctx.pause(1.2); } },
+  // Spurlock: a medium blow, hold the key, look at the jack
+  holdLook: { label: 'Medium blow, hold the key, look at the jack', specs: ['escapement'], view: 'butt', scale: 0.1,
+    run: async ctx => {
+      await ctx.release(); ctx.sim.press(ctx.sim.dip, MF); await ctx.run(0.4);
+      const e = ctx.m.escapement;
+      ctx.say(e <= 0.05 ? 'The jack top rests against the butt leather' : `The jack top stands ${fmt(e)} clear of the butt leather`, !ctx.grade('escapement').ok);
+      await ctx.pause(1.4);
+    } },
+  strikeHold: { label: 'Moderate blow and hold', specs: ['check'], view: 'check', scale: 0.1,
+    run: async ctx => { await ctx.release(); ctx.sim.press(ctx.sim.dip, MF); await ctx.run(0.4); await ctx.pause(1.2); } },
+  softWatch: { label: 'Soft pedal down: watch the wippen', specs: ['bridle'], view: 'check', scale: 0.25,
+    run: async ctx => {
+      await ctx.release(); const { sim } = ctx;
+      sim.setSoft(true); await ctx.run(0.3);
+      ctx.say(ctx.m.softLifts ? 'The wippen lifts off its capstan as the hammers go forward: the strap is too tight' : 'The wippen stays on its capstan',
+        ctx.m.softLifts);
+      await ctx.pause(1); sim.setSoft(false); await ctx.run(0.2);
+    } },
+  softBlow: { label: 'Soft pedal down: blow distance gauge', specs: ['softPedal'], view: 'head', scale: 0.25,
+    run: async ctx => {
+      await ctx.release(); const { sim, m } = ctx;
+      sim.setSoft(true); await ctx.run(0.3);
+      ctx.say(`Soft pedal down, the hammer is ${fmt(m.softBlow)} from the strings: ${Math.round(100 * m.softPedal)}% of the way there`, !ctx.grade('softPedal').ok);
+      await ctx.pause(1.4); sim.setSoft(false); await ctx.run(0.2);
+    } },
+  damperSlow: { label: 'Press slowly: watch the damper', specs: ['damperTiming'], view: 'action', scale: 1,
+    run: async ctx => { await ctx.release(); ctx.sim.press(ctx.sim.dip, 6); await ctx.run(ctx.sim.dip / 6 + 0.2); await ctx.pause(1); } },
+};
+
+// ---------- readings: a spec's value in words ----------
+export const SPEC_NAMES = {
+  keyHeight: 'Key height (vs neighbors)', dip: 'Dip', blow: 'Blow', lostMotion: 'Lost motion (at the jack)', letoff: 'Let-off',
+  aftertouch: 'Aftertouch', escapement: 'Jack clear of the butt, key held', check: 'Checking', bridle: 'Strap slack at rest',
+  softPedal: 'Soft pedal: share of the blow', damperTiming: 'Damper starts: share of the blow',
+};
+// a spec's band as the step shows it
+export function bandText(id) {
+  const s = SPEC[id];
+  if (id === 'keyHeight') return 'level with the neighbors';
+  if (id === 'bridle') return 'soft pedal down: the wippen stays put';
+  if (id === 'lostMotion') return 'the least that lets the jack return';
+  if (id === 'damperTiming' || id === 'softPedal') return `${Math.round(100 * (s.target - s.tol))}-${Math.round(100 * (s.target + s.tol))}%`;
+  const [lo, hi] = s.lo !== undefined ? [s.lo, s.hi] : [s.target - s.tol, s.target + s.tol];
+  // small ones in thousandths, as Igrec gives aftertouch; the rest in 64ths
+  const inch = hi < 2 ? `${(lo / IN).toFixed(3).slice(1)}-${(hi / IN).toFixed(3).slice(1)}"` : `${frac(lo)} to ${frac(hi)}`;
+  return `${lo.toFixed(1)}-${hi.toFixed(1)} mm (${inch})`;
+}
+// the nearest 64th of an inch, written as a technician would
+function frac(mm) {
+  let n = Math.round(mm / IN * 64), d = 64;
+  const whole = Math.floor(n / 64); n -= whole * 64;
+  while (n && n % 2 === 0) { n /= 2; d /= 2; }
+  return `${whole ? whole + (n ? '-' : '') : ''}${n ? `${n}/${d}` : whole ? '' : '0'}"`;
+}
+export function readingText(id, m) {
+  const v = m[id];
+  if (id === 'keyHeight') return Math.abs(v) < 0.05 ? 'level' : `${fmt(Math.abs(v))} ${v > 0 ? 'high' : 'low'}`;
+  if (id === 'damperTiming' || id === 'softPedal') return v == null ? '—' : `${Math.round(100 * v)}%`;
+  if (id === 'bridle') return fmt(m.strapSlack);
+  return fmt(v);
+}
+
+// ---------- callouts: measurement lines drawn on the action (sim frame, mm) ----------
+// st: { a, m, p (the drawn pose), events (the Sim's since the test began), shown(id) (is that reading revealed) }
+export function callouts({ a, m, p, events = [], shown }) {
+  const out = [], z = 14, lineSim = (id, p1, p2, text) => out.push({ id, from: [...p1, z], to: [...p2, z], text });
+  const line = (id, p1, p2, text) => lineSim(id, toSim(p1), toSim(p2), text);   // action-frame points
+  const atRest = p.d < 0.01, soft = (p.soft ?? 0) > 0.5;
+  const toString = (g, id, text) => { const c = crownAt(g); line(id, c, [c[0] + stringGap(g), c[1]], text); };
+  if (shown('blow') && atRest && !soft) toString(p.g, 'blow', `blow ${fmt(stringGap(p.g))}`);
+  if (shown('softPedal') && atRest && soft) toString(p.g, 'soft', `soft pedal: ${fmt(stringGap(p.g))}`);
+  const lo = events.find(e => e.type === 'letoff');
+  if (shown('letoff') && lo && !events.some(e => e.type === 'strike')) toString(lo.g, 'letoff', `let off ${fmt(lo.dist)}`);
+  const dm = events.find(e => e.type === 'damperup');
+  if (shown('damperTiming') && dm && m.blow) toString(dm.g, 'damper', `damper starts: ${Math.round(100 * (1 - stringGap(dm.g) / m.blow))}% of the blow`);
+  if (shown('check') && p.on !== 'under' && p.d > 0.9 * m.dip && events.some(e => e.type === 'checked')) toString(p.g, 'check', `checked ${fmt(stringGap(p.g))}`);
+  if (shown('escapement') && p.on === 'off' && p.d > 0.9 * m.dip) {
+    // the jack's top corner to the nearest point of the butt cushion
+    const c = jackPt(p.phi, p.psi, CORNER), cush = TRACE.buttCushion.map(q => turn(q, CENTER.butt, -p.g));
+    const near = cush.reduce((b, q) => Math.hypot(q[0] - c[0], q[1] - c[1]) < Math.hypot(b[0] - c[0], b[1] - c[1]) ? q : b);
+    line('escape', c, near, `jack clear ${fmt(m.escapement)}`);
+  }
+  // the key's front (sim frame): its top against the neighbors' (the straightedge), and how far it has gone down
+  if (shown('keyHeight') && atRest) { const f = keyFrontTop(a, 0); lineSim('keyHeight', f, [f[0], NEIGHBOR_H], readingText('keyHeight', m)); }
+  if (shown('dip') && p.d > 0.05) {
+    const f0 = keyFrontTop(a, 0), f1 = keyFrontTop(a, p.d);
+    lineSim('dip', [f0[0] - 4, f0[1]], [f0[0] - 4, f1[1]], `${fmt(p.d)}${p.d >= m.dip - 0.01 ? ' (dip)' : ''}`);
+  }
+  return out;
+}
+
+// ---------- the de-regulated start ----------
+// Learn's key starts out of regulation on purpose (the grand's 4adbd5f), every knob off by a random amount, but short of
+// blocking, missing the backcheck, scraping, jamming or the strap lifting the wippen at rest (protocol 3.4, eb4b968).
+// rng: () => [0, 1). Off by up to: key height 0.45 mm, dip 0.6, blow 2.2, lost motion 0.15, let-off 2, checking about
+// 8 mm, the damper's start 15% of the blow, the soft pedal 15%.
+const SPREAD = { balPunch: 0.2, frontPunch: 0.3, railShim: 1, capstan: 0.12, letoff: 0.3, backcheck: 0.4, spoon: 0.5, bridle: 3, softFelt: 3 };
+export function deregulated(rng = Math.random) {
+  for (let tries = 0; tries < 200; tries++) {
+    const a = { ...FACTORY };
+    for (const [k, s] of Object.entries(SPREAD)) {
+      const d = ADJ.find(x => x.id === k), v = FACTORY[k] + (2 * rng() - 1) * s;
+      a[k] = Math.max(d.min, Math.min(d.max, Math.round(v / d.step) * d.step));
+    }
+    const m = measure(a);
+    if (m.letoff == null || m.check == null || m.checkScrapes || m.jammed || m.strapSlack <= 0 || m.damperTiming == null) continue;
+    return a;
+  }
+  return { ...FACTORY };
+}
+// a small seeded generator, so the tests and the student emulation see the same keys every run
+export function seeded(seed) {
+  let t = seed >>> 0;
+  return () => { t += 0x6D2B79F5; let r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
+}
+
+// ---------- From the bench ----------
+// Tips and tools from working technicians, credited (the grand's rule, tips.js: forum posters are named, Greg
+// 2026-11-06). Keyed by step (a spec id, or an info step's id). Research notes: research/upright/bench-tips.md.
+const SPURLOCK = { who: 'Bill Spurlock', src: 'Vertical Regulation (Spurlock Specialty Tools)', url: 'https://spurlockspecialtytools.com/index_htm_files/vreg.pdf' };
+const STEINWAY = { who: 'Steinway & Sons', src: 'World-Wide Technical Reference Guide, ch. 5 Upright Regulation', url: 'https://www.indyptg.org/PTG/SteinwayServiceManuals/Chp5.pdf' };
+const IGREC = { who: 'Mario Igrec', src: 'Pianos Inside Out, 2013 (sample pages)', url: 'https://www.pianosinsideout.com/regbig.pdf' };
+const ELLIS = { who: 'Jim Ellis RPT', src: 'Bridle Strap Function, Piano Technicians Journal, Dec 1997' };
+export const PT = (who, year, url) => ({ who, src: `PTG Pianotech forum, ${year}`, url, forum: true });
+// how a tip's credit reads: forum posters by name unless NAME_FORUM_POSTERS is off (then only those who said yes)
+export const creditOf = t => t.forum && !NAME_FORUM_POSTERS && !NAMED_OK.has(t.who) ? t.src : `${t.who}, ${t.src}`;
+
+const MMD = (who, year, url) => ({ who, src: `Mechanical Music Digest, ${year}`, url });
+const PLAYER_CARE = url => ({ who: 'John A. Tuttle', src: 'Player-Care, Regulating the piano action', url });
+// Tips that disagree with a spec the sim grades say which one it grades (protocol 3.2 rule 5).
+export const TIPS = {
+  prep: [
+    { text: 'Diagnose before changing anything: the shims and punchings already in a vertical record what earlier techs found. See how it plays, then test-regulate a few notes with changes you can undo. A maker\'s specs are a starting point, not a verdict.', ...PT('Ed Sutton', 2025, 'https://my.ptg.org/discussion/how-strictly-to-follow-manufacturers-keyboard-regulation-specs-keyframe-shimming') },
+  ],
+  seat: [
+    { text: 'Finding the strike point: hang a hammer on the last note of a section, play it and rock the action up and down for the sweet spot, then match the other end of the section and fill in with a straightedge. Do it in the piano; the treble is the touchy end.', ...MMD('Jon Page', 1998, 'https://www.mmdigest.com/Archives/Digests/199801/1998.01.05.21.html') },
+    { text: 'When regulation won\'t hold or the dampers lift far too early, look for a loose action: pull on each bracket where it sits on its stud to feel for wiggle, and check under the keybed for missing wedges.', ...PT('Paul McCloud', 2023, 'https://my.ptg.org/discussion/kawai-607-regulation') },
+  ],
+  align: [
+    { text: 'Bass hammer tails rubbing their neighbors: take a few mm off with an 80 or 120 grit sanding paddle, holding the shank with pliers and bracing against the hammer rail so the flange takes no strain. For more, take the hammer off.', ...PT('Wim Blees and Rex Roseman', 2024, 'https://my.ptg.org/discussion/tapering-upright-hammers') },
+    { text: 'The capstan wire is a touch adjustment too: bent back from the middle of the wippen cushion the touch gets heavier, forward lighter (3 mm back added 4 to 6 g on a Yamaha U3). It changes the action ratio, so dip, aftertouch and checking need refining after.', who: 'Yuji Nakamura ARPT', src: 'Controlling the Touchweight of the Upright Action, Part 2',
+      url: 'https://yuji-nakamura-sddl.squarespace.com/s/Controlling-the-touch-weight-of-the-upright-action-2-PDF.pdf' },
+  ],
+  blow: [
+    { text: 'Choose blow and dip on two or three sample notes: let-off at 1/8", a reasonable dip, slight lost motion, checking at 5/8", then hold a medium blow and look at the jack. Lengthen or shorten the blow until the jack stands 1/16" to 1/8" clear.', ...SPURLOCK },
+    { text: 'Kawai prints a 46 mm blow, but in practice it usually lands at 42 to 43 mm: moving the rail back far enough for 46 leans the shanks back too far.', ...PT('Don Mannino', 2023, 'https://my.ptg.org/discussion/kawai-607-regulation') },
+    { text: 'If aftertouch comes too low in the keystroke, shorten the blow.', ...MMD('Donald Dusenbury', 2002, 'https://mmdigest.com/Archives/Digests/200208/2002.08.23.06.html') },
+    { text: 'Wear moves the numbers the same way every time: dip grows as the rail cloths pack, let-off closes as the button felt packs, blow grows as hammers and rest felts wear, checking closes. Touch up one and the rest keep drifting.', ...MMD('John Rhodes RPT', 2010, 'https://www.mmdigest.com/Archives/Digests/201002/2010.02.15.07.html') },
+  ],
+  lostMotion: [
+    { text: 'New pianos often arrive with the hammer rail resting too far back, its rest felts settled in shipping. A piece of bushing cloth or a cardboard balance punching on each rest felt restores the lost motion quickly.', ...SPURLOCK },
+    { text: 'The pull and tap checks are quick, but finish every key with the jack return test: it saves the call-back for a "sticking key".', ...SPURLOCK },
+    { text: 'A two-way capstan check: lift the hammer rail a couple of mm by the soft pedal lever and the hammer should move at once; then press the key so lightly the wippen only just lifts, and the hammer must not move yet.', ...MMD('Roger Waring', 2003, 'https://www.mmdigest.com/Archives/Digests/200301/2003.01.20.10.html') },
+    { text: 'Leave a few thousandths rather than none: swelling wood can stop the jack getting back under. Right feels slightly spongy, and the backcheck moves a hair before the hammer. Only a technician should be able to feel it.', ...PLAYER_CARE('https://www.player-care.com/regulating-the-action.html') },
+    { text: 'With unworn butts, Kawai sets its new uprights with the jack just supporting the hammer at rest, almost negative lost motion: pulling the rail back moves no hammer, and nor does pressing the back of the key. (The sim grades a gap that lets the jack return, Spurlock\'s rule.)', ...PT('Don Mannino', 2023, 'https://my.ptg.org/discussion/kawai-607-regulation') },
+  ],
+  keyHeight: [
+    { text: 'Prop up the end white keys to hold the straightedge at the height you want, then lift and tap it to find the keys that are too high.', ...SPURLOCK },
+    { text: 'A vertical\'s keybed bows with the humidity, so balance rail shims fitted when it was low end up too high. A low rail shows as shallow dip, weak blow, incomplete let-off, late checking, no aftertouch and shallow damper lift. Try pulling shims first.', ...PT('Ed Sutton', 2025, 'https://my.ptg.org/discussion/how-strictly-to-follow-manufacturers-keyboard-regulation-specs-keyframe-shimming') },
+    { text: 'Techs disagree on the order: Steven Rosenthal levels the keys first, since key height changes everything after it; Paul McCloud sets the capstans first, since key height can\'t be read true until the lost motion is out. The sim follows Spurlock and Steinway: lost motion first.', ...PT('Steven Rosenthal and Paul McCloud', 2023, 'https://my.ptg.org/discussion/kawai-607-regulation') },
+  ],
+  dip: [
+    { text: 'A dip block with a cross piece shimmed to your chosen dip: it barely clicks on the neighbors when the dip is right. Much faster than comparing block and keys by feel.', ...SPURLOCK },
+    { text: 'Supply-house dip blocks vary: measure each one before you trust the number on it.', ...MMD('Richard Friedman', 2010, 'https://www.mmdigest.com/Archives/Digests/201002/2010.02.15.09.html') },
+    { text: 'Judge dip by what the hammer does: press the key just to the front punching without squashing it, and the hammer should check with a solid catch. Too shallow and it bobbles; too deep and the backcheck pushes it forward.', ...MMD('Ben Gottfried', 2025, 'https://www.mmdigest.com/Archives/Digests/202507/2025.07.15.03.html') },
+  ],
+  letoff: [
+    { text: 'Hang a tapered wooden block on the hammer rail between the shanks and the rail felt, and prop the rail forward until those hammers rest just over 1/8" from the strings. Play each key: at 1/8" let-off the hammer winks and knocks lightly on the block; wider, it doesn\'t wink; closer, it jumps toward the strings.', ...SPURLOCK },
+    { text: 'Measure let-off to the spot where the hammer meets the string (its groove), not to the worn face beside it.', ...PLAYER_CARE('https://www.player-care.com/regulating-the-action.html') },
+  ],
+  aftertouch: [
+    { text: 'For an exact aftertouch, put a cardboard punching of the wanted thickness on the front punching and press the key with a steady weight (8 to 10 oz.): just a little more pressure should take the hammer through let-off.', ...IGREC },
+    { text: 'About a penny\'s thickness at the key, with a breaking feel at let-off. Too much and the jacks hit their stop and the action feels sluggish; too little and the hammers double-strike.', ...PT('Blaine Hebert', 2024, 'https://my.ptg.org/discussion/beginning-tech-questions') },
+    { text: 'Judge dip and blow by the real gap between jack and butt with the key down, not by the printed numbers: odd geometry can bury the jacks at a "correct" dip and blow.', who: 'Dave Renaud', src: 'pianotech mailing list, 2013', url: 'https://groups.google.com/g/pianotech/c/vuJ2DV_nOpg', forum: true },
+  ],
+  check: [
+    { text: 'Set the naturals\' checking first, then line the sharps\' backchecks up with a straightedge across the heads: if all capstans rise the same, all hammers check alike, and a sharp that checks closer has too much dip.', ...SPURLOCK },
+    { text: 'As the action wears, keep the key dip and the hammers checking evenly, even at the cost of an uneven line of backchecks.', ...STEINWAY },
+    { text: 'Some actions come checking an inch or more from the strings and repeat poorly; bringing them back to 5/8" cured most of the sticking.', ...PT('Steven Rosenthal', 2022, 'https://my.ptg.org/discussion/90s-baldwin-hamilton') },
+    { text: 'If you have to bend the backcheck wires a long way to reach a good checking distance, suspect the dip first. (He likes about 3/4"; the sim grades 1/2" to 5/8".)', ...MMD('Ben Gottfried', 2025, 'https://www.mmdigest.com/Archives/Digests/202507/2025.07.15.03.html') },
+  ],
+  bridle: [
+    { text: 'The bridle strap\'s main job is repetition: on a quick release, strap and butt spring together brought the hammer back from check fastest. Holding the wippens up with the action out is a side benefit.', ...ELLIS },
+    { text: 'After the capstans, bend the bridle wires so the straps are taut but the wippens just don\'t move with the soft pedal all the way down. Bend an old wire in its middle, not where it leaves the wippen: corroded wire snaps there.', ...MMD('Bernt W. Damm', 1998, 'https://www.mmdigest.com/Archives/Digests/199801/1998.01.13.07.html') },
+    { text: 'Fitting new clip-on straps: with the action out and the wippen hanging, leave about 1/4" to 3/8" between the top of the jack and the butt. Slide the clip along the catcher to set it, then fine-tune with the wire.', who: 'Howard Piano Industries', src: 'Piano Bridle Strap Replacement', url: 'https://www.howardpianoindustries.com/piano-bridle-strap-replacement/' },
+  ],
+  jackStop: [
+    { text: 'On the first sample note, play mf and hold: the jack should sit a little clear of the butt. Then pull it back by hand to check there is about 1 mm more before the jack stop felt. Moving the rail that carries the felt resets let-off, so do it first.', ...PT('Don Mannino', 2023, 'https://my.ptg.org/discussion/kawai-607-regulation') },
+  ],
+  softPedal: [
+    { text: 'With the soft pedal down and its play taken up, the hammer line should have come about halfway to the strings. A customer may feel little difference even when it works as designed.', ...PT('Terry Farrell', 2025, 'https://my.ptg.org/discussion/upright-soft-pedal') },
+  ],
+  dampers: [
+    { text: 'A tapered hardwood wedge between the lift rail and the whippen moulding, pushed in until a third to half the dampers start to come off: bend the worst wires first, until every damper just budges at the same wedge setting. Check again the next day; a few won\'t hold.', who: 'Craig Brougher', src: 'Player-Care, Regulating Upright Dampers', url: 'https://www.player-care.com/dampers.html' },
+    { text: 'Dampers skewed off to one side on a console: there\'s no need to retrain the felts. Bend the wire so the head sits square on the strings, and the felts follow. (Spurlock leaves a felt that has long sat off alone while it damps well.)', ...PT('Wim Blees', 2024, 'https://my.ptg.org/discussion/bent-damper-question') },
+    { text: 'Block the pedal so most spoons start their damper at half the hammer\'s travel, then bend each wire until its felt just touches the strings with no pressure. What\'s left for the spoons is small.', ...MMD('Larry Broadmoore', 1997, 'https://www.mmdigest.com/Archives/Digests/199712/1997.12.26.18.html') },
+  ],
+  damperTiming: [
+    { text: 'Spoon bending is done blind: tip the action back, watch the bender slip onto a spoon and hear its click, then find the spoons by feel. Tape on the handle marks how far in to reach.', ...SPURLOCK },
+    { text: 'A thin blade on a combination handle is all you need. Get the dampers lifting evenly with the pedal first; an early lifter is usually a packed-down damper felt.', ...PT('Jon Page', 2022, 'https://my.ptg.org/discussion/damper-spoon-timing-article') },
+    { text: 'Taking the keys out costs about 20 minutes and makes the spoons easy to reach. Lift each wippen until the hammer leaves the rail and keep lifting, watching the damper. Set the capstans right before touching the spoons.', ...PT('John Gunderson', 2022, 'https://my.ptg.org/discussion/damper-spoon-timing-article') },
+    { text: 'Not good at bending blind? Set the end spoon of each section in the piano, then lay the action on the bench and bend each spoon until its lever lines up with a straightedge along the levers.', ...PT('David Love', 2022, 'https://my.ptg.org/discussion/damper-spoon-timing-article') },
+    { text: 'He roughs in the spoons before the pedal: a spoon lifting too soon makes the dampers impossible to regulate to the lift rod. (Spurlock and the sim do the pedal first.) A chubby modern bender can be ground thinner to fit.', ...MMD('Art Reblitz', 2000, 'https://www.mmdigest.com/Archives/Digests/200006/2000.06.20.07.html') },
+  ],
+  sustain: [
+    { text: 'Check the lost motion at the lift rod by pushing a few strings toward the soundboard: the dampers should follow by that much.', ...STEINWAY },
+    { text: 'Once the dampers lift together with the rod, set the pedal so its tip moves about 1/4" before it takes up the dampers, so it can\'t hold them off the strings.', ...MMD('Art Reblitz', 2000, 'https://www.mmdigest.com/Archives/Digests/200006/2000.06.20.07.html') },
+  ],
+  damperReturn: [
+    { text: 'Damper spring strength read at the key, as the difference of two downweights: roughly 30 g in the treble, 40 to 50 in the tenor, 70 to 80 in the bass. Too weak and dampers leak; too strong kills pianissimo and makes the touch heavy where the spoon meets the lever.', who: 'Yuji Nakamura ARPT',
+      src: 'Controlling the Touchweight of the Upright Action, Part 1', url: 'https://yuji-nakamura-sddl.squarespace.com/s/Controlling-the-touch-weight-of-the-upright-action-1-PDF.pdf' },
+    { text: 'Damper springs that are too strong slow the key, so the backcheck can\'t stop a bobbling hammer unless the blow is forceful. Weaken them a little.', who: 'Paul McCloud', src: 'pianotech mailing list, 2013', url: 'https://groups.google.com/g/pianotech/c/vuJ2DV_nOpg', forum: true },
+  ],
+  again: [
+    { text: 'The soft pedal finds sluggish hammer flanges: hold the sustain pedal down to get the dampers out of the way, then press and slowly release the soft pedal. As the rail comes back, a slow hammer shows at once.', ...PT('Wim Blees', 2025, 'https://my.ptg.org/discussion/upright-soft-pedal-system-function') },
+  ],
+};
+export const TOOLS = [
+  { name: 'Tapered let-off block', who: 'Bill Spurlock', what: 'hung on the hammer rail to set let-off at 1/8" on many notes at once', url: SPURLOCK.url },
+  { name: 'Cross-piece dip block', who: 'Bill Spurlock', what: 'clicks on the neighboring keys when the dip is right', url: SPURLOCK.url },
+  { name: 'Damper-lift gauge', who: 'Bill Spurlock', what: 'propped against the strings at half the blow: each damper should just wink as its hammer bumps it', url: SPURLOCK.url },
+  { name: 'Spoon benders, direct-blow and spinet', who: 'AMS Piano Tools, sold by Howard Piano Industries', what: 'reach the spoon round the wippen with the action in', url: 'https://www.howardpianoindustries.com/spoon-bender' },
+  { name: 'Upright Damper Timing Tool', who: 'Renner USA', what: 'a clear gauge held to the strings by magnets, sighted through while bending spoons', url: 'https://rennerusa.com/online-store/Upright-Damper-Timing-Tool-p376212065' },
+  { name: 'Upright Let-Off Gauge', who: 'Renner USA', what: 'a rail on the hammer rail behind the shanks to set a section\'s let-off', url: 'https://rennerusa.com/online-store/Upright-Let-Off-Gauge-p376215012' },
+  { name: 'Upright Damper Spring Tension Tool', who: 'Renner USA', what: 'a weighted hook on the damper wire for even damper springs', url: 'https://rennerusa.com/online-store/Upright-Damper-Spring-Tension-Tool-p376203171' },
+  { name: 'Flexible-shaft let-off regulating screwdriver', who: 'Jurgen Goering, Piano Forte Supply', what: 'reaches spade-tipped upright let-off screws and stays on while you test' },
+  { name: 'Lost Motion Compensator', who: 'Kirk Burgett, Jamie Marks and Dana Mazzaglia, Wessell Nickel & Gross (US 8,541,671)', what: 'turns the wippen with the hammer rail, so the soft pedal opens no gap at the jack', url: 'https://patents.google.com/patent/US8541671' },
+  { name: 'Damper wedge', who: 'Craig Brougher', what: 'a tapered hardwood wedge that lifts the dampers a little at a time to even them', url: 'https://www.player-care.com/dampers.html' },
+  { name: 'Strap-cutting jig', who: 'Bernt W. Damm', what: 'a razor blade on a block cuts new bridle straps to one length', url: 'https://www.mmdigest.com/Archives/Digests/199801/1998.01.13.07.html' },
+];

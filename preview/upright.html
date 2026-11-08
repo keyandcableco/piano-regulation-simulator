@@ -9,7 +9,9 @@
      &at=x,y,z &from=x,y,z (world mm) &bg=rrggbb (hex, no #). Click a part for its name. The regulation is the model's
      factory one. The key slider and the pose buttons are slow presses (static poses); the Play row runs the dynamics
      (upright-model.js Sim) in slow motion. A frozen moment of play, for screenshots: &play=key|staccato|slow
-     &vel=pp|mf|ff &ms=<ms after the key starts> (&soft=1, &sustain=1 with it). Space bar: the key, held while it's down. -->
+     &vel=pp|mf|ff &ms=<ms after the key starts> (&soft=1, &sustain=1 with it). Space bar: the key, held while it's down.
+     Learn (C4, content-upright.js): &learn=<step number> opens the panel there, on a de-regulated key (&seed=<n> picks
+     which, &factory=1 the factory regulation), &tested=all shows every reading, &test=<id> runs that test. -->
 <style>
 :root { --ink: #222; --muted: #666; --panel: #fff; --line: #c9c9c9; }
 html, body { margin: 0; height: 100%; background: #eceef0; font: 13px system-ui, sans-serif; color: var(--ink); }
@@ -35,6 +37,19 @@ button.on { background: #2f6e46; color: #fff; border-color: #2f6e46; }
 #readings .note { color: var(--muted); max-width: 320px; margin-top: 4px; }
 .plabel { position: absolute; left: 0; top: 0; white-space: nowrap; font: 600 11px/1 system-ui; color: var(--ink);
   background: color-mix(in srgb, var(--panel) 85%, transparent); border: 1px solid var(--line); padding: 2px 5px; border-radius: 4px; margin: -8px 0 0 4px; pointer-events: none; }
+.callout { position: absolute; left: 0; top: 0; white-space: nowrap; font: 600 12px/1 system-ui; color: #fff; background: #c4482a;
+  padding: 3px 6px; border-radius: 4px; margin: -10px 0 0 6px; pointer-events: none; }
+#learn { position: absolute; right: 8px; top: 48px; bottom: 82px; width: 400px; max-width: calc(100vw - 32px); overflow: auto; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; font-size: 13px; line-height: 1.4; }
+#learn h3 { margin: 6px 0 4px; font-size: 15px; } #learn h4 { margin: 10px 0 2px; font-size: 13px; } #learn p { margin: 4px 0; }
+#learn .muted, #events.muted { color: var(--muted); } #learn .lhead { display: flex; gap: 4px; align-items: center; }
+#learn .grow { flex: 1; } #learn .ltests { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 4px; }
+#learn table { border-collapse: collapse; margin: 4px 0; width: 100%; } #learn td { padding: 2px 6px 2px 0; vertical-align: top; }
+#learn td.v { font-variant-numeric: tabular-nums; white-space: nowrap; } #learn .ok { color: #2f6e46; } #learn .out { color: #b0391c; }
+#learn .knob { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 4px 0; } #learn .knob > span:first-child { flex: 1 1 100%; }
+#learn .kv { min-width: 6em; text-align: center; font-variant-numeric: tabular-nums; } #learn ul { margin: 2px 0; padding-left: 18px; }
+#said { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font-weight: 600; }
+#said:empty { display: none; } #said.warn { color: #b0391c; }
 body.shot #bar, body.shot #picked, body.shot #keybar, body.shot #playbar { display: none; }
 body.shot.readings #readings { top: 8px; }
 </style>
@@ -43,9 +58,9 @@ body.shot.readings #readings { top: 8px; }
 <div id="playbar"><span>Play</span><button id="keyBtn" title="The key goes down while you hold this (or the space bar), and comes up when you let go">Key (hold)</button>
 <select id="vel" title="How hard: the key front's speed going down"><option value="pp">pp</option><option value="mf" selected>mf</option><option value="ff">ff</option></select>
 <select id="slow" title="Slow motion"><option value="100">1/100 speed</option><option value="20" selected>1/20 speed</option><option value="5">1/5 speed</option><option value="2">1/2 speed</option></select>
-<span id="events"></span></div>
+<span id="events"></span><span id="said"></span></div>
 <div id="keybar"><span>Key</span><input id="depth" type="range" min="0" max="10" step="0.02" value="0"><span id="keytext"></span></div>
-<div id="readings" hidden></div></div>
+<div id="readings" hidden></div><div id="learn" hidden></div></div>
 <div id="why" hidden style="position:absolute;inset:0;align-items:center;justify-content:center;padding:24px;text-align:center"></div>
 <script>
 // a page opened from disk can't load its modules, and a browser without WebGL can't draw: say so rather than stay blank
@@ -55,7 +70,8 @@ if (location.protocol === 'file:') why('This page has to come from a local serve
 </script>
 <script type="module">
 import { createUprightScene } from '../scene-upright.js';
-import { FACTORY, SPEC, band, pose, measure, stringGap, Sim, DAMPER_PEDAL_LIFT } from '../upright-model.js';
+import { FACTORY, ADJ, SPEC, band, grade, pose, measure, stringGap, Sim, DAMPER_PEDAL_LIFT } from '../upright-model.js';
+import { STEPS, TESTS, TIPS, SPEC_NAMES, bandText, readingText, callouts, deregulated, seeded, creditOf } from '../content-upright.js';
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById('c');
 let S;
@@ -70,7 +86,10 @@ if (q.get('at')) S.controls.target.set(...q.get('at').split(',').map(Number));
 if (q.get('from')) S.camera.position.set(...q.get('from').split(',').map(Number));
 
 // ---------- the key and the poses (slow presses) ----------
-const a = { ...FACTORY }, m = measure(a);
+const a = { ...FACTORY };
+let m = measure(a);
+// the neighbors keep the factory key (they are what the straightedge lies on); the rail and pedals are shared
+const nb = an => ({ ...an, balPunch: FACTORY.balPunch, frontPunch: FACTORY.frontPunch, capstan: FACTORY.capstan });
 const depth = document.getElementById('depth'), keytext = document.getElementById('keytext');
 depth.max = m.dip.toFixed(2);
 let soft = false, held = false;
@@ -79,8 +98,8 @@ function show(d) {
   stopPlay();
   const p = pose(a, d, { soft, held });
   // the neighbors stay at rest, with the same soft pedal (it moves every hammer)
-  const rest = pose(a, 0, { soft });
-  S.update(a, rest, 1); S.update(a, rest, 2); S.update(a, p, 0);
+  const rest = pose(nb(a), 0, { soft });
+  S.update(nb(a), rest, 1); S.update(nb(a), rest, 2); S.update(a, p, 0);
   depth.value = d;
   keytext.textContent = `${d.toFixed(2)} of ${m.dip.toFixed(2)} mm down: ${held ? 'held after a blow, ' : ''}${STATE[p.on]}`
     + `${p.blocked ? ' (blocked at the strings)' : ''}; crown ${stringGap(p.g).toFixed(1)} mm from the strings${soft ? ', soft pedal down' : ''}`;
@@ -109,6 +128,7 @@ const DT = 0.0001;       // s: the Sim's step (the tests' and the fit's)
 const MAX_STEPS = 120;   // a frame's worth at most (a step costs about 0.2 ms): a slower computer runs slower than chosen
 const vel = document.getElementById('vel'), slow = document.getElementById('slow'), events = document.getElementById('events');
 let sim = null, prog = [], progAt = 0, idle = false, sustain = false, t0 = 0, log = [], carry = 0;
+let testEvents = [];   // the Sim's events since a Learn test began (its callouts read them)
 if (Object.hasOwn(VEL, q.get('vel') ?? '')) vel.value = q.get('vel');
 
 function startPlay() {
@@ -141,7 +161,7 @@ function note(e) {
   events.textContent = log.map(l => l.text).join(' · ');
 }
 function drawPlay() {
-  const p = sim.pose(), an = { ...a, railShim: sim.railShim() }, rest = pose(an, 0);
+  const p = sim.pose(), an = nb({ ...a, railShim: sim.railShim() }), rest = pose(an, 0);
   // the neighbors at rest, on the rail the soft pedal has moved, their dampers on the sustain pedal's lift rod
   rest.dl = Math.max(rest.dl, sim.pedal * DAMPER_PEDAL_LIFT);
   S.update(an, rest, 1); S.update(an, rest, 2); S.update(a, p, 0);
@@ -161,7 +181,7 @@ function advance(secs, cap = Infinity) {
   for (let i = 0; i < n; i++) {
     while (prog.length && sim.t >= progAt - 1e-12) nextStep();
     sim.step(DT);
-    for (const e of sim.events) note(e);
+    for (const e of sim.events) { note(e); testEvents.push(e); }
     sim.events = [];
   }
   const s1 = [sim.g, sim.phi, sim.psi, sim.dl, sim.d, sim.soft, sim.pedal];
@@ -190,22 +210,26 @@ const susBtn = btn('Sustain pedal', () => {
   startPlay(); sim.setPedal(sustain); idle = false;
 }, playbar, events);
 
-// ---------- readings at the factory regulation, against their specs ----------
-{
+// ---------- readings of the current regulation, against their specs ----------
+function renderReadings() {
   const f = (v, n = 2) => v === null || v === undefined ? '-' : v.toFixed(n);
   const row = (name, v, s, unit = 'mm', n = 2) => {
     const [lo, hi] = s ? band(s) : [null, null], out = s && v !== null && (v < lo - 1e-9 || v > hi + 1e-9);
     return `<tr><td>${name}</td><td class="v${out ? ' out' : ''}">${f(v, n)} ${unit}</td><td>${s ? `${f(lo, n)}-${f(hi, n)}` : 'reading'}</td></tr>`;
   };
-  document.getElementById('readings').innerHTML = `<b>Factory regulation</b><table>
+  const isF = Object.keys(FACTORY).every(k => a[k] === FACTORY[k]);
+  document.getElementById('readings').innerHTML = `<b>${isF ? 'Factory regulation' : 'Readings'}</b><table>
     ${row('Dip', m.dip, SPEC.dip)}${row('Blow', m.blow, SPEC.blow)}${row('Lost motion (at the jack)', m.lostMotion, SPEC.lostMotion)}
     ${row('Lost motion (key travel)', m.lostMotionKey, null)}${row('Let-off', m.letoff, SPEC.letoff)}
     ${row('Aftertouch', m.aftertouch, SPEC.aftertouch)}${row('Escapement, key held', m.escapement, SPEC.escapement)}
-    ${row('Checking', m.check, SPEC.check)}${row('Damper starts (share of the blow)', m.damperShare, SPEC.damperShare, '', 2)}
-    ${row('Damper lift at the felts', m.damperLift, null)}${row('Soft pedal (share of the blow)', m.softShare, SPEC.softShare, '', 2)}
+    ${row('Checking', m.check, SPEC.check)}${row('Damper starts (share of the blow)', m.damperTiming, SPEC.damperTiming, '', 2)}
+    ${row('Damper lift at the felts', m.damperLift, null)}${row('Soft pedal (share of the blow)', m.softPedal, SPEC.softPedal, '', 2)}
     ${row('Strap slack at rest', m.strapSlack, null)}${row('Strap slack, soft pedal down', m.softStrapSlack, null)}</table>
     <div class="note">Red: outside the source's band. Blow: Greg's 1-5/8 to 1-11/16 in (2026-11-08). At the textbook 1-3/4 in this
     geometry leaves aftertouch and escapement short; the shorter blow brings both in.</div>`;
+}
+renderReadings();
+{
   if (q.get('readings') === '1') { document.getElementById('readings').hidden = false; rdBtn.classList.add('on'); document.body.classList.add('readings'); }
 }
 const ps = q.get('pose');
@@ -234,12 +258,114 @@ canvas.addEventListener('pointerup', e => {
   const p = S.pick(e); document.getElementById('picked').textContent = p ? p.name : '';
 });
 window.S = S;
+
+// ---------- Learn: content-upright.js's steps, knobs and tests, on a key that starts out of regulation ----------
+const learnEl = document.getElementById('learn'), said = document.getElementById('said');
+let stepIdx = 0, tested = new Set(), busy = false, override = null, testRun = null, testScale = 1;
+const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const specsOf = st => [st.spec, ...(st.also ?? [])];
+const isFactory = () => Object.keys(FACTORY).every(k => a[k] === FACTORY[k]);
+function setRegulation(b, keepTested = false) {
+  stopPlay(); Object.assign(a, b); m = measure(a); depth.max = m.dip.toFixed(2);
+  held = false; heldBtn.classList.remove('on');
+  if (!keepTested) tested = new Set();
+  renderReadings(); show(0); renderLearn();
+}
+function nudge(k, dir) {
+  const d = ADJ.find(x => x.id === k);
+  setRegulation({ [k]: Math.max(d.min, Math.min(d.max, +(a[k] + dir * d.step).toFixed(6))) }, true);
+}
+function renderLearn() {
+  if (learnEl.hidden) return;
+  const st = STEPS[stepIdx], h = [];
+  h.push(`<div class="lhead"><button data-go="-1" ${stepIdx ? '' : 'disabled'}>◀</button><span>Step ${stepIdx + 1} of ${STEPS.length}${st.info ? ' · not in the sim' : ''}</span>`
+    + `<button data-go="1" ${stepIdx < STEPS.length - 1 ? '' : 'disabled'}>▶</button><span class="grow"></span>`
+    + `<button data-key="new" ${busy ? 'disabled' : ''}>New key</button><button data-key="factory" ${busy ? 'disabled' : ''}>Factory</button></div>`);
+  h.push(`<div class="muted">${isFactory() ? 'At the factory regulation.' : 'This key starts out of regulation on purpose: set it right, step by step.'}</div>`);
+  h.push(`<h3>${esc(st.title)}</h3><p>${esc(st.what)}</p><p><b>How:</b> ${esc(st.how)}</p>${st.note ? `<p class="muted">${esc(st.note)}</p>` : ''}`);
+  if (!st.info) {
+    h.push('<div class="ltests">' + (st.tests ?? [st.test]).map(t => `<button data-test="${t}" ${busy ? 'disabled' : ''}>${esc(TESTS[t].label)}</button>`).join('') + '</div>');
+    h.push('<table>' + specsOf(st).map(id => {
+      const r = grade(id, m), on = tested.has(id);
+      return `<tr><td>${esc(SPEC_NAMES[id])}</td><td class="v ${on ? (r.ok ? 'ok' : 'out') : 'muted'}">${on ? `${esc(readingText(id, m))} ${r.ok ? '✓' : '✗'}` : 'run a test'}</td>`
+        + `<td class="muted">${esc(bandText(id))}</td></tr>${on && r.note ? `<tr><td></td><td colspan="2" class="out">${esc(r.note)}</td></tr>` : ''}`;
+    }).join('') + '</table>');
+    h.push(st.knobs.map(k => {
+      const d = ADJ.find(x => x.id === k);
+      return `<div class="knob"><span>${esc(d.name)}</span><button data-knob="${k}" data-dir="-1" ${busy ? 'disabled' : ''}>−</button>`
+        + `<span class="kv">${a[k].toFixed(2)} ${d.unit}</span><button data-knob="${k}" data-dir="1" ${busy ? 'disabled' : ''}>+</button><span class="muted">a step: ${d.step} ${d.unit}</span></div>`;
+    }).join(''));
+  }
+  const tips = TIPS[st.spec ?? st.id] ?? [];
+  if (tips.length) h.push('<h4>From the bench</h4><ul>' + tips.map(t => `<li>${esc(t.text)} <span class="muted">(${t.url
+    ? `<a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(creditOf(t))}</a>` : esc(creditOf(t))})</span></li>`).join('') + '</ul>');
+  learnEl.innerHTML = h.join('');
+}
+learnEl.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.go) { stepIdx = Math.max(0, Math.min(STEPS.length - 1, stepIdx + +b.dataset.go)); renderLearn(); }
+  else if (b.dataset.key) setRegulation(b.dataset.key === 'factory' ? { ...FACTORY } : deregulated());
+  else if (b.dataset.knob) nudge(b.dataset.knob, +b.dataset.dir);
+  else if (b.dataset.test) runTest(b.dataset.test);
+});
+// a test drives its own Sim (TESTS' ctx contract, content-upright.js)
+const ctx = {
+  get sim() { return sim; }, get a() { return a; }, get m() { return m; },
+  view: n => S.setView(n),
+  run: secs => new Promise(r => { testRun = { until: sim.t + secs, r }; }),
+  pause: secs => new Promise(r => setTimeout(r, secs * 1000)),
+  say: (text, warn) => { said.textContent = text; said.classList.toggle('warn', !!warn); },
+  release: async () => {
+    if (sim.d > 0.001 || sim.checked || sim.soft > 0 || sim.pedal > 0) { sim.press(0, UP); sim.setSoft(false); sim.setPedal(false); await ctx.run(0.4); }
+    sim.reset(); testEvents = [];
+  },
+  show: (an, p) => { override = an ? { a: an, p } : null; },
+  grade: id => grade(id, m),
+};
+async function runTest(id) {
+  if (busy) return;
+  const t = TESTS[id];
+  busy = true; stopPlay(); held = false; heldBtn.classList.remove('on');
+  sim = new Sim(a); window.SIM = sim; idle = true; testEvents = []; testScale = t.scale ?? 1;
+  said.textContent = ''; said.classList.remove('warn');
+  renderLearn(); S.setView(t.view);
+  try { await t.run(ctx); } catch (err) { console.error(err); }
+  override = null; testRun = null;
+  for (const sp of t.specs) tested.add(sp);
+  busy = false; renderLearn();
+  window.testDone = (window.testDone || 0) + 1;
+}
+function renderCallouts() {
+  const p = override ? override.p : sim ? sim.pose() : pose(a, +depth.value, { soft, held });
+  const list = callouts({ a, m, p, events: testEvents, shown: id => tested.has(id) });
+  for (const c of list) S.setCallout(c.id, c.from, c.to, c.text);
+  S.clearCallouts(list.map(c => c.id));
+}
+const learnBtn = document.createElement('button'); learnBtn.textContent = 'Learn';
+learnBtn.onclick = () => {
+  learnEl.hidden = !learnEl.hidden; learnBtn.classList.toggle('on', !learnEl.hidden);
+  if (!learnEl.hidden) { document.getElementById('readings').hidden = true; rdBtn.classList.remove('on'); if (isFactory()) setRegulation(deregulated()); else renderLearn(); }
+  else S.clearCallouts();
+};
+bar.appendChild(learnBtn);
+if (q.has('learn')) {
+  learnEl.hidden = false; learnBtn.classList.add('on');
+  stepIdx = Math.max(0, Math.min(STEPS.length - 1, (+q.get('learn') || 1) - 1));
+  setRegulation(q.get('factory') === '1' ? { ...FACTORY } : deregulated(q.has('seed') ? seeded(+q.get('seed')) : Math.random));
+  if (q.get('tested') === 'all') { for (const st of STEPS) if (!st.info) specsOf(st).forEach(sp => tested.add(sp)); renderLearn(); }
+  if (Object.hasOwn(TESTS, q.get('test') ?? '')) runTest(q.get('test'));
+}
 // ready for a screenshot once a few frames are drawn (the view is set instantly, so nothing is still moving)
 let frames = 0, last = performance.now();
 (function loop(now = performance.now()) {
   const real = Math.min(0.05, (now - last) / 1000); last = now;
   // the Sim runs until everything has come to rest, then waits for the next input
-  if (sim && !idle) { idle = !advance(real / +slow.value, MAX_STEPS); drawPlay(); }
+  if (override) S.update(override.a, override.p, 0);
+  else if (sim && testRun) {
+    advance(real * testScale, MAX_STEPS); drawPlay();
+    if (sim.t >= testRun.until - 1e-9) { const r = testRun.r; testRun = null; r(); }
+  } else if (sim && !idle) { idle = !advance(real / +slow.value, MAX_STEPS); drawPlay(); }
+  if (!learnEl.hidden) renderCallouts();
   S.render(); if (++frames === 3) window.ready = true; requestAnimationFrame(loop);
 })();
 </script></body></html>

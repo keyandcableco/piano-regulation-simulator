@@ -27,7 +27,7 @@ test('a regulation out of a knob\'s reach says which specs it missed (the search
 });
 
 test('the factory meets each spec it regulates to', () => {
-  for (const k of ['dip', 'blow', 'lostMotion', 'letoff', 'check', 'damperShare', 'softShare']) {
+  for (const k of ['dip', 'blow', 'lostMotion', 'letoff', 'check', 'damperTiming', 'softPedal']) {
     const [lo, hi] = band(SPEC[k]);
     assert.ok(M0[k] >= lo - 1e-9 && M0[k] <= hi + 1e-9, `${k} ${M0[k]?.toFixed(3)} outside ${lo.toFixed(3)}-${hi.toFixed(3)} (${SPEC[k].src})`);
   }
@@ -61,7 +61,7 @@ const SIGNS = [
   [6, 'railShim', 0.3, 'lostMotion', +1, 'sourced'],
   [8, 'letoff', 0.2, 'letoff', +1, 'geometry'],
   [9, 'backcheck', 0.5, 'check', -1, 'geometry'],
-  [10, 'spoon', 0.2, 'damperShare', -1, 'geometry'],
+  [10, 'spoon', 0.2, 'damperTiming', -1, 'geometry'],
   [11, 'bridle', 1, 'strapSlack', -1, 'geometry'],
   [13, 'frontPunch', 0.2, 'dip', -1, 'sourced'],
   [14, 'frontPunch', -0.2, 'aftertouch', +1, 'sourced: more dip, more aftertouch'],
@@ -79,7 +79,7 @@ for (const [row, k, step, reading, sign, basis, reset] of SIGNS) {
 }
 
 test('signs.md rows 25-26: the soft pedal halves the blow and opens lost motion', () => {
-  near(M0.softShare, 0.5, SPEC.softShare.tol, 'soft pedal share of the blow');
+  near(M0.softPedal, 0.5, SPEC.softPedal.tol, 'soft pedal share of the blow');
   const p = pose(FACTORY, 0, { soft: true });
   assert.ok(jackGap(p.phi, 0, p.gRail) > M0.lostMotion + 2, 'the butts leave the jacks');
 });

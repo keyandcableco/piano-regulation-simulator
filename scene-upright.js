@@ -503,6 +503,33 @@ export function createUprightScene(canvas, overlay) {
       camera.aspect = w / h; camera.updateProjectionMatrix();
     }
   }
+  // ---------- callouts: measurement lines with labels (content-upright.js callouts(); the grand's scene.js idiom) ----------
+  const callouts = new Map(), cv = new THREE.Vector3();
+  function setCallout(id, p1, p2, text) {
+    let c = callouts.get(id);
+    if (!c) {
+      const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xe0583a, depthTest: false }));
+      line.renderOrder = 10; scene.add(line);
+      const el = document.createElement('div'); el.className = 'callout'; overlay.appendChild(el);
+      c = { line, el }; callouts.set(id, c);
+    }
+    c.line.geometry.setFromPoints([new THREE.Vector3(...p1), new THREE.Vector3(...p2)]);
+    c.el.textContent = text;
+    c.mid = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2, (p1[2] + p2[2]) / 2];
+  }
+  function clearCallouts(keep = []) {
+    for (const [id, c] of callouts) { if (keep.includes(id)) continue; scene.remove(c.line); c.line.geometry.dispose(); c.el.remove(); callouts.delete(id); }
+  }
+  function placeCallouts() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    for (const c of callouts.values()) {
+      const cut = !inClip(cv.set(...c.mid));   // its line is cut away in a clipped view: hide the label too
+      cv.project(camera);
+      c.el.style.transform = `translate(${(cv.x * 0.5 + 0.5) * w}px, ${(-cv.y * 0.5 + 0.5) * h}px)`;
+      c.el.style.display = cv.z < 1 && !cut ? '' : 'none';
+    }
+  }
   function render() {
     resize();
     if (viewAnim) {
@@ -514,13 +541,15 @@ export function createUprightScene(canvas, overlay) {
     controls.update();
     updateLabels();
     renderer.render(scene, camera);
+    placeCallouts();
   }
   // let go of everything this scene made (the app's switch between actions will build and drop scenes)
   function dispose() {
     controls.dispose();
     scene.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
     for (const l of LABELS) l.e.remove();
+    clearCallouts();
     renderer.dispose();
   }
-  return { render, update, setView, setNeighbors, setLabels, setBackground, pick, screenOf, dispose, controls, camera, scene, notes, VIEWS, partMeshes };
+  return { render, update, setView, setNeighbors, setLabels, setBackground, pick, screenOf, setCallout, clearCallouts, dispose, controls, camera, scene, notes, VIEWS, partMeshes };
 }
