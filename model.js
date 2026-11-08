@@ -683,7 +683,19 @@ const REP_CENTER = 0.088, REP_SLIDE = 0.05;
 const LAND_LOSS = 1.0;
 const POP_W = 2.0;   // leaving the lever faster than this is a visible pop
 const STRIKE_W = 0.5; // reaching the string slower than this, the hammer just leans on it (rad/s)
-const REST_E = 0.35; // rebound off the string
+// Rebound off the string. In Scott Murphy's high-speed videos (PTG Education Hub, "High Speed Video of the Grand Piano
+// Action") a clean strike, the jack escaped and the key held, comes back at 0.41-0.63 of its speed over seven blows from
+// pp to fff on a Shigeru Kawai action model (median 0.49, a little less the harder the blow), and at 0.59 off a grand's
+// string.
+const REST_E = 0.5;
+// The backcheck gives like a spring: a hammer coming down into it goes on by CHECK_TAU (s) times its speed, slowing
+// evenly, and is held where it stops. On the Shigeru model the check came 3.7 mm deeper for each m/s the hammer left the
+// string at (19.4 mm after p, 26.5 after ff), 13-36 ms after the strike. It starts to take the hammer CHECK_GIVE (mm at
+// the crown) above its face, the give of the Strike and hold test's blow (250 mm/s) at factory, so that blow stops at the
+// face and the check reading, the factory and the miss and scrape leans stay where they were. A softer blow is held short
+// of the face, a harder one past it; the drawn backcheck doesn't give.
+const CHECK_TAU = 0.0037;
+const CHECK_GIVE = 2.2;
 const STRIKE_R = Math.hypot(G.crownC[0], G.crownC[1] + G.crownR);   // centre pin to the felt that meets the string, mm
 const BOUNCE_V = 0.01;  // a knuckle landing on the jack slower than this (m/s) just settles
 // A jack spring working the jack's rounded top back under a knuckle that sits a hair below where the jack would hold
@@ -801,7 +813,7 @@ export class Sim {
     if (this.wedge0 > 0) {
       const x = Math.min(1, this.wedgeT / WEDGE_T);
       jackG = wasEsc ? g : jackG - this.wedge0 * (1 - x * x * (3 - 2 * x));   // at the reset exactly at the hammer, not a rounding error above it
-      if (!st.checked) this.wedgeT += dt;
+      if (!st.checked && !st.catching) this.wedgeT += dt;
       if (x >= 1) this.wedge0 = 0;
     }
     const jackDriving = jackG >= this.g - 1e-6;
@@ -830,20 +842,38 @@ export class Sim {
     if (g < gR) { g = gR; w = Math.max(0, w); }
     // backcheck
     const gC = gFromTail(L.bcCatchY);
+    const gTake = gC + CHECK_GIVE / STRIKE_R;   // where the backcheck starts to take the hammer
     const catchActive = L.depth >= G.bcInPath && a.backcheck >= -G.bcMissLean;
-    if (catchActive && g > gC + 0.02) st.aboveCheck = true;
+    if (catchActive && g > gC + 0.02) st.aboveCheck = true;   // 0.02 rad is above gTake too
     if (!catchActive) st.aboveCheck = false;
     if (catchActive && w > 0 && g < gC && a.backcheck > G.bcScrapeLean && !this.scraped) { this.scraped = true; this.emit('scrape'); }
-    if (!st.checked && catchActive && st.aboveCheck && this.g >= gC && g < gC && w < 0) {
-      st.checked = true; st.dChecked = this.d; g = gC; w = 0;
-      this.emit('checked', { dist: G.stringY - crownY(gC) });
+    // the hammer falls past where the backcheck takes it, or a key still going down carries that point up past the
+    // hammer within the step (so the hammer was above where it stood a step ago)
+    if (!st.checked && !st.catching && catchActive && st.aboveCheck && g < gTake && w < 0 &&
+        (this.g >= gTake || this.g >= gFromTail(this.L.bcCatchY) + CHECK_GIVE / STRIKE_R)) {
+      // the tail meets the backcheck, which takes up the hammer's speed over CHECK_TAU x that speed
+      st.catching = true; st.dChecked = this.d; st.wCatch = -this.w;
+      g = this.g; w = this.w;
+    }
+    if (st.catching) {
+      // a key coming up lets go of the tail while it's still being caught, as it does once it's held
+      if (this.d < st.dChecked - 0.8 || !catchActive) { st.catching = false; st.aboveCheck = false; this.emit('uncheck'); }
+      else {
+        st.dChecked = Math.max(st.dChecked, this.d);
+        w = Math.min(0, this.w + st.wCatch / (2 * CHECK_TAU) * dt);
+        g = this.g + w * dt;
+        if (w >= 0) {
+          st.catching = false; st.checked = true; st.give = gTake - g; w = 0;
+          this.emit('checked', { dist: G.stringY - crownY(g) });
+        }
+      }
     }
     if (st.checked) {
       st.dChecked = Math.max(st.dChecked, this.d);
-      const net = springF(a, L, Math.min(knuckleBottom(gC)[1], L.hornTop)) - 1;
+      const net = springF(a, L, Math.min(knuckleBottom(gTake - st.give)[1], L.hornTop)) - 1;   // the spring where the knuckle is held
       if (net > G.checkHold) { st.checked = false; this.emit('jumpcheck'); }
       else if (this.d < st.dChecked - 0.8 || !catchActive) { st.checked = false; st.aboveCheck = false; this.emit('uncheck'); }
-      else { g = gC; w = 0; } // the backcheck grips the tail
+      else { g = gTake - st.give; w = 0; } // the backcheck grips the tail where it stopped it
     }
     // string
     if (g > gString()) {
