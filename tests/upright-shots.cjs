@@ -20,8 +20,8 @@ const SHOTS = [
   ['held-damper', 'view=damper&pose=held'], ['soft-angle', 'view=angle&pose=soft'], ['held-jack-front', 'view=jackfront&pose=held'],
   // C3: frozen moments of play (the Sim): an mf blow at the strike and checked, ff checked early by the wippen's
   // overshoot, a staccato's hammer back on the rail, the sustain pedal holding the dampers off
-  ['play-mf-strike', 'view=action&play=key&vel=mf&ms=19.8'], ['play-mf-checked', 'view=action&play=key&vel=mf&ms=60'],
-  ['play-ff-early-check', 'view=butt&play=key&vel=ff&ms=9'], ['play-staccato-rail', 'view=action&play=staccato&vel=mf&ms=66'],
+  ['play-mf-strike', 'view=action&play=key&vel=mf&ms=17.8'], ['play-mf-checked', 'view=action&play=key&vel=mf&ms=60'],
+  ['play-ff-early-check', 'view=butt&play=key&vel=ff&ms=9'], ['play-staccato-rail', 'view=action&play=staccato&vel=mf&ms=60'],
   ['play-sustain', 'view=damper&play=key&vel=pp&sustain=1&ms=0'],
 ].filter(([n]) => !only.length || only.includes(n));
 
