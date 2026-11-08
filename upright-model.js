@@ -166,8 +166,12 @@ export const SCREWS = {
   wippenFlange: { p: [10, -55], dir: [-1, 0], len: 14 },   // through the plate into the rail's back face
   damperFlange: { p: [10, -26], dir: [-1, 0], len: 14 },   // through the foot into the rail's back face
 };
-// The bridle wire stands this far toward the treble of the backcheck wire (z, + toward the bass as everywhere).
-export const BRIDLE_Z = -3;
+// The bridle wire stands this far toward the treble of the backcheck wire (z, + toward the bass as everywhere): on
+// the filmed model its hook sits beside the backcheck wire, so the strap hangs in the bridle wire's plane, clear of the
+// backcheck wire (Greg 2026-11-08: it read as hooked on the backcheck). The strap leaves the catcher at STRAP_Z0 and
+// runs over to the wire as it hangs [T: the side offsets aren't in the side-on clips].
+export const BRIDLE_Z = -4.5;
+export const STRAP_Z0 = -1.5;
 
 // ---------- the rails: placed by the filmed model's faces, their sections stand-ins [T] ----------
 // The filmed model is a one-note model on a cast stand: a metal bracket in place of the main rail, a wire loop with a

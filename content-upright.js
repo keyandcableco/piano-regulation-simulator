@@ -218,7 +218,7 @@ export function callouts({ a, m, p, events = [], shown }) {
   const lo = events.find(e => e.type === 'letoff');
   if (shown('letoff') && lo && !events.some(e => e.type === 'strike')) toString(lo.g, 'letoff', `let off ${fmt(lo.dist)}`);
   const dm = events.find(e => e.type === 'damperup' && e.d > 0.01);   // the key's lift, not the sustain pedal's
-  if (shown('damperTiming') && dm && m.blow) toString(dm.g, 'damper', `damper starts: ${Math.round(100 * (1 - stringGap(dm.g) / m.blow))}% of the blow`);
+  if (shown('damperTiming') && dm && m.blow && !events.some(e => e.type === 'strike')) toString(dm.g, 'damper', `damper starts: ${Math.round(100 * (1 - stringGap(dm.g) / m.blow))}% of the blow`);
   if (shown('check') && p.on !== 'under' && p.d > 0.9 * m.dip && events.some(e => e.type === 'checked')) toString(p.g, 'check', `checked ${fmt(stringGap(p.g))}`);
   if (shown('escapement') && p.on === 'off' && p.d > 0.9 * m.dip) {
     // the jack's top corner to the nearest point of the butt cushion

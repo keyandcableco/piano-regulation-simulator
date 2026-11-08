@@ -33,7 +33,7 @@ const AREAS = [
   { name: 'Backcheck and bridle', knobs: ['backcheck', 'bridle'], specs: ['check', 'bridle'] },
   { name: 'Damper', knobs: ['spoon'], specs: ['damperTiming'] },
 ];
-const VIEW_BUTTONS = [['action', 'Action'], ['angle', '3/4'], ['whole', 'Key'], ['butt', 'Jack & butt'], ['jackfront', 'Jack from the keys'],
+const VIEW_BUTTONS = [['action', 'Action'], ['angle', '3/4'], ['keyfront', 'Key front'], ['whole', 'Key'], ['butt', 'Jack & butt'], ['jackfront', 'Jack from the keys'],
   ['check', 'Backcheck'], ['wippen', 'Wippen'], ['damper', 'Damper'], ['front', 'From the keys']];
 const EVENT_TEXT = {
   letoff: e => `Let off ${e.dist.toFixed(1)} mm from the strings`, strike: e => `Struck at ${e.v.toFixed(1)} m/s`, blocked: () => 'Blocked on the strings',
@@ -55,7 +55,12 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   canvas.scene = S;   // for the headless checks (tests/upright-app-check.cjs)
   const viewBtns = VIEW_BUTTONS.map(([v, label]) => mark(el('button', { 'data-uview': v, onclick: () => view(v) }, label)));
   const labelsBtn = mark(el('button', { title: 'Show part names', onclick: () => { labelsOn = !labelsOn; S.setLabels(labelsOn); labelsBtn.classList.toggle('on', labelsOn); } }, 'Labels'));
-  $('#views').append(...viewBtns, labelsBtn);
+  // the key front in a corner, as the grand has it: on where the stage has room
+  const insetBtn = mark(el('button', { title: 'A small view of the key front in the corner, so you can watch the key travel while the main view shows the action',
+    onclick: () => setInset(!insetBtn.classList.contains('on')) }, 'Key inset'));
+  const setInset = on => { S.setInset(on); insetBtn.classList.toggle('on', on); };
+  S.insetEl.onclick = () => view('keyfront');
+  $('#views').append(...viewBtns, labelsBtn, insetBtn);
   const keyState = mark(el('span', { class: 'u-keystate' })), lastEvent = mark(el('span', { class: 'u-lastevent' })), keyPos = mark(el('span', { class: 'u-keypos' }));
   $('#keystatus').append(keyState, lastEvent, mark(el('span', { class: 'sep' })), keyPos);
   const kb = (label, title, onclick) => mark(el('button', { title, onclick }, label));
@@ -153,6 +158,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     keyState.textContent = d < 0.05 && sim.dTarget < 0.05 ? 'Key at rest' : sim.dTarget > sim.d + 0.01 ? 'Key going down' : sim.dTarget > 0.05 ? 'Key held down' : 'Key coming up';
     keyState.classList.toggle('down', d > 0.05);
     keyPos.textContent = `key ${d.toFixed(2)} mm down${lagging ? ' · slower than chosen' : ''}`;
+    S.setInsetText(`Key front · ${d.toFixed(2)} mm down${d >= sim.dip - 0.01 ? ' (dip)' : ''}`);
     for (const b of keyBtns) b.disabled = busy;
     const list = callouts({ a, m, p: override ? override.p : sim.pose(), events: testEvents, shown: revealed });
     for (const c of list) S.setCallout(c.id, c.from, c.to, c.text);
@@ -330,7 +336,11 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   window.addEventListener('keyup', e => { if (active && e.code === 'Space' && e.target === document.body) letUp(); });
 
   // ---------- shown and hidden by the app's switch ----------
-  function show() { active = true; view(viewNow); }
+  let insetSet = false;
+  function show() {
+    active = true; view(viewNow);
+    if (!insetSet) { insetSet = true; setInset(document.getElementById('stage').clientWidth >= 700); }
+  }
   function hide() { active = false; closeCard(); tip.hidden = true; plan = null; letUp(); }
   function setMode(next) {
     if (busy || next === mode) return;
