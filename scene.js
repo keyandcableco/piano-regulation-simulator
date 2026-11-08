@@ -748,7 +748,7 @@ export function createScene(canvas, overlay) {
     n.wippen.rotation.z = L.phi;
     n.jack.rotation.z = jackOverride ?? sim.psi;
     // side play the center tests rock (model.js Sim.reset): the jack on its pin, the hammer on its pin (the wippen: below)
-    n.jack.position.z = BASS * (sim.jackRock || 0);
+    n.jack.rotation.x = Math.asin(BASS * (sim.jackRock || 0) / G.jackTop[1]);   // rocking on its pin: the top moves, not the end in the cheeks
     n.align.rotation.y = Math.asin(-BASS * (sim.hammerRock || 0) / G.crownC[0]);
     // repetition lever: horn sits under the knuckle or at its stop/drop limit
     const kb = knuckleBottom(hammerOverride ?? sim.g)[1];
