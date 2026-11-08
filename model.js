@@ -26,8 +26,18 @@ export const G = {
   jackTop: [16.5, 46.7], jackTopR: 1, jackFront: [11.9, 48.9], toe: [-25.0, 5.1],   // jackFront: front end of the top face
   // repetition lever (local to its centre pin): where the knuckle sits on the horn, top of the drop screw's felt
   horn: [-33.5, 16.5], tip: [-51.6, 22.1],
-  windowFelt: [[-43.3, 12.6], [-42.8, 19.0]],   // face of the jack stop felt on the window's front wall, bottom to top
-  // hammer (local to the shank centre pin, +x along the shank): the knuckle, the crown's arc, the tail
+  // Face of the jack stop felt on the window's front wall, bottom to top. It sits nearer the jack than the Boston's: at
+  // factory the jack's top-front corner rests 4.95 mm from it, and would rest 6.5 from Hirschkorn's felt (contact 9,
+  // research/wippen/spec.md §3: a circle r 5 at [-49.4, 18.5], §5, 6.2 from the jack at his own regulation). It stays here
+  // because it is where a tripped jack stops (updateJack): at factory the jack clears it by 1.7 mm at the bottom of a slow
+  // press, and jams once aftertouch passes about 2.5 mm. The corner moves only 3.7 mm against the lever from rest to there,
+  // so no felt can be 6.2 away at rest and keep that: moved 1.25 mm out, to 6.2, it would clear by 2.95 and let about
+  // 0.7 mm more aftertouch through before the jack jams. No source gives that clearance.
+  windowFelt: [[-43.3, 12.6], [-42.8, 19.0]],
+  // hammer (local to the shank centre pin, +x along the shank): the knuckle, the crown's arc, the tail.
+  // At factory the shank rests 15.35° head-down, not the Boston's measured 16.42° (research/wippen/spec.md §1): the factory
+  // solve sets the capstan for the textbook 1¾ in blow (44.45 mm), not his 47.0, so the head rests 2.5 mm higher. Set to a
+  // 47.0 blow, this geometry rests at 16.42°.
   H: [323.3, 146.1], knuckleC: [16.96, -9.08], knuckleR: 4.4,
   coreT: 1.2, coreEnd: 1.2,         // the knuckle's wood core: a thin tongue through the roll's middle, ending this far past its centre (Greg's photo)
   crownC: [132.13, 35.6], crownR: 10.2,  // felt top 45.8 above the shank, 140 out from the centre pin
@@ -120,6 +130,10 @@ export const ADJ = [
 
 // ---------- textbook specs ----------
 // Generic textbook targets of the kind a PTG exam expects. Change them here.
+// They are not the measured Boston's regulation: Hirschkorn set his GP-178 to dip 10.0 mm, blow 48 (47.0 as measured),
+// let-off 1.0 mm from the string, drop to 3.0 and check at 15 (research/wippen/spec.md §1, §6), and at rest it shows
+// 6.3 mm from the let-off button to the jack's toe, 4.9 from the drop screw to its felt and 0.9 from the shank to the rest
+// rail. factory() regulates the same geometry to these targets instead, which leaves 7.75, 6.04 and 3.18 mm at rest.
 export const SPEC = {
   // Steinway's guide asks for slight side play at the front rail bushing, at rest and held down, and a little at the
   // balance pin when the key is turned at its front, even across the keyboard; no technician standard gives it in mm.
@@ -287,7 +301,9 @@ export function linkage(a, d) {
     G.heelR + G.capDomeR, 0.4, -0.6);
   const wp = p => add(G.W, rot(p, phi));
   const J = wp(G.jackPivotW), R = wp(G.repPivotW);
-  // jack
+  // jack: jackScrew is how far the screw moves the jack's top, mm along its arc about the pin (the top corner's centre is
+  // 49.5 mm out). The wippen spec (research/wippen/spec.md §5) divides by 47, the top's height above the pin, which turns
+  // it about 5% more per mm; dividing by the radius keeps the knob's millimetres true at the top.
   const psiRest = a.jackScrew / Math.hypot(...G.jackTop);
   const jackPt = (psi, p) => add(J, rot(p, phi + psi));
   const btn = a.letoff;
@@ -651,6 +667,9 @@ export function factory() {
     bis(a, 'letoff', () => measure(a).letoff ?? 0, SPEC.letoff.target, 84, 102);
     bis(a, 'drop', () => measure(a).drop ?? 0, SPEC.drop.target, 128, 152);
     bis(a, 'backcheck', () => measure(a).check, SPEC.check.target, -4, 4);
+    // set for SPEC.spring's rise from check (net 0.55 hammer weights), which takes about 1.355 at rest. The Boston's
+    // measured spring is 1.16 at rest (research/wippen/spec.md §3, §5): here that rises from check with 0.35, still a
+    // pass, but toward the sluggish end.
     bis(a, 'repSpring', () => measure(a).spring, SPEC.spring.target, 0.3, 2.4);
     bis(a, 'damperGap', () => measureDampers(a).damperTiming ?? 1, SPEC.damperTiming.target, 0, 9);
     const kl = measureDampers(a).keyLiftBottom;
