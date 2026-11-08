@@ -281,8 +281,11 @@ export function measureKey(a) {
 // distance from the pin): research/wippen/spec.md §7. Healthy torques are Hirschkorn's, measured on the Boston (Table A.9,
 // kinetic friction: hammer 0.00101 N·m, wippen and jack 0.000397, repetition lever 0.00247). He didn't measure the damper
 // underlever: there the middle of Renner's range. A gram gauge reads a center at `at` mm from its pin; `band` is the
-// published range there, in grams. Hirschkorn's four fall inside them: wippen and jack near the low end, the hammer near
-// the top, the repetition lever in the middle (the tightest center on purpose: it brakes the lever, Igrec).
+// published range there, in grams. Hirschkorn's four fall inside the range used for each: wippen and jack near the low
+// end, the hammer near the top, the repetition lever in the middle (the tightest center on purpose: it brakes the lever,
+// Igrec). The two sources differ: Renner's table puts the wippen at 2-3 g at 23 mm (46-69 mm·g) and the lever at 6-8 g
+// where the drop screw touches, both above the measured Boston, and Igrec's hammer range stops at 100 mm·g, just under it.
+// So the wippen, jack and lever are graded on Igrec's ranges (gauged springs unhooked) and the hammer on Renner's.
 //   Renner: Renner USA Technical Manual "Renner Flange Bushing Cloth" (Bill Spurlock, 2014), its friction table.
 //   Igrec: Mario Igrec, Pianos Inside Out (2013), Table 5, gauged with the springs unhooked.
 export const CENTERS = {
@@ -295,7 +298,10 @@ export const CENTERS = {
   under: { name: 'Damper underlever center', T: 40, at: 20, band: [1, 3], src: 'Renner' },  // 20-60 mm·g
 };
 // what the friction works against (Hirschkorn Table A.1 masses and centers of mass)
-export const HAMMER_WT = 1199;   // the hammer's weight about its pin: 11.74 g, 102 mm out (the sim's "hammer weight")
+// the hammer's weight about its pin: 11.74 g, 102 mm out (the sim's "hammer weight"). Its friction is used as a share of
+// that weight: the share is Hirschkorn's, the acceleration it makes follows the sim's own gravity GA (60 rad/s², where his
+// weight over inertia gives 76), as the hammer's weight does
+export const HAMMER_WT = 1199;
 export const JACK_SPRING = 430;  // the jack spring, about constant: 0.0042 N·m (Hirschkorn §A.4)
 const JACK_WT = 52;              // the jack's own weight about its pin, the arm level: 2.65 g, 19.5 mm out
 const WIPPEN_WT = 1040;          // the wippen with its jack and lever about the flange pin, level: 600 + 248 + 188 mm·g
@@ -321,7 +327,7 @@ export const CENTER_FAULTS = {
   // Steve Howard (Howard Piano Industries, 2023): over 6-7 g at the toe is too tight; this one sticks (the sim's own)
   jackTight: { center: 'jack', kind: 'tight', T: 12 * 25, name: 'Tight jack center' },
   jackLoose: { center: 'jack', kind: 'loose', T: 0.3 * 25, play: 1.0, clicks: true, name: 'Loose jack center' },
-  // Jessica Masse after Don Mannino (PTG, 2007): it can reach about 7 g in humid weather and still work, and must not
+  // Don Mannino (2007, quoted by Jessica Masse, PTG 2023): it can reach about 7 g in humid weather and still work, and must not
   // drop below the low end or the lever won't hold the knuckle
   repTight: { center: 'rep', kind: 'tight', T: 10 * 56, name: 'Tight repetition lever center' },
   repLoose: { center: 'rep', kind: 'loose', T: 1 * 56, name: 'Loose repetition lever center' },
@@ -346,8 +352,10 @@ export function measureCenters(a) {
     out[`${k}Play`] = cf?.center === k ? cf.play || 0 : 0;
   }
   out.swings = swingCount(T.hammer);
-  // spring unhooked, the wippen held tender up: the jack should fall slowly under its own weight (Don Mannino, via
-  // Jessica Masse, PTG 2007). With the jack's 52 mm·g of weight, Hirschkorn's 40 does just that.
+  // spring unhooked, the wippen held tender up: the jack should fall slowly under its own weight (Don Mannino, 2007,
+  // quoted by Jessica Masse, PTG 2023). With the jack's 52 mm·g of weight, Hirschkorn's 40 does just that. The test
+  // reads tighter than Igrec's range: a jack between 52 and his 100 mm·g passes the gauge but won't fall (Mannino's own
+  // figure for the jack is 1-2 g, 25-50 mm·g). None of the faults sits there.
   out.jackFall = T.jack >= JACK_WT ? 'stays' : T.jack < CENTERS.jack.band[0] * CENTERS.jack.at ? 'flops' : 'slow';
   // Igrec's tilt test: the stack tilted so the wippens hang, pushed toward the shanks and let go; slow ones get gauged
   out.wippenShare = fallShare(WIPPEN_WT, T.wippen, CENTERS.wippen.T); out.wippenTilt = fallOf(out.wippenShare);

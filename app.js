@@ -106,7 +106,7 @@ const STEPS = [
     knobs: [], centers: ['hammer', 'wippen', 'jack', 'rep'], test: 'swingHammer', tests: ['swingHammer', 'wobbleHammer', 'wippenTilt', 'tenderPlay', 'jackFall', 'repGauge'],
     what: 'Regulating over loose screws, tight centers or sticky keys is wasted work. Tighten the action and keyframe screws, and check that every center swings freely but not loosely: the hammer flange, the wippen flange, the jack and the repetition lever (the damper underlevers come with the dampers). Ease any tight key bushings, and shape or file worn hammers and fit them to the strings: both change blow and let-off, so they come first.',
     how: 'Swing the hammer and count, then hold its flange and flex the shank sideways. Tilt the wippen and let it fall back; wiggle the jack\'s tender side to side; with the springs unhooked, let the jack fall under its own weight and gauge the repetition lever at the drop screw. A tight center whose cloth is still firm is eased; a loose one is repinned with the next half size up; one that wobbles with its friction right has worn cloth and is rebushed. Key bushings are on the card after next; tightening screws and shaping hammers aren\'t on this card.',
-    note: 'Friction is read in grams on a gram gauge at a stated distance from the pin. Rule out regulation first: let-off, dip, blow, key bushings and damper timing can all feel like a sluggish center (Rob Goodale). When one center is sluggish, check that part\'s others too (Igrec).' },
+    note: 'Friction is read in grams on a gram gauge at a stated distance from the pin. Rule out regulation first: let-off, dip, blow, key bushings and damper timing can all feel like a sluggish center (Rob Goodale). When one center is sluggish, check that part\'s others too (Igrec). The published ranges differ: Renner\'s table runs tighter than Igrec\'s for the wippen and the repetition lever, so the sim grades those, and the jack, on Igrec\'s, and the hammer on Renner\'s. The healthy hammer here is the measured Boston\'s, at the tight end: about 5 half-swings.' },
   { info: true, id: 'bedding', title: 'Bed the keyframe',
     what: 'The keyframe has to sit flat on the keybed at the front rail, balance rail and back rail. If it rocks, it knocks, and the key dip and height wander.',
     how: 'Knock test with the action in: press on the rails and listen. Sand the front rail where it doesn\'t touch; set the balance rail glide bolts so they just touch, never lifting the rail.' },
@@ -332,19 +332,20 @@ const TESTS = {
     } },
   // Igrec's step 45: tilt the stack so the wippens hang, push one toward the shanks and let it go. It falls back by its
   // own weight; a slow one gets its flange gauged. The key isn't under it (drawn where it rests).
-  wippenTilt: { label: 'Tilt the stack: lift the wippen, let it fall back', specs: ['wippenCenter'], view: 'rails', scale: 0.25,
+  wippenTilt: { label: 'Tilt the stack: lift the wippen, let it fall back', specs: ['wippenCenter'], view: 'rails', scale: 0.1,
     run: async () => {
       await releaseKey();
       sim.keyShown = 0;
       const up = sim.dip * 0.6;
-      sim.press(up, 15); await waitSim(up / 15 + 0.1); await waitReal(0.3);
+      sim.press(up, 40); await waitSim(up / 40 + 0.05); await waitReal(0.3);
       if (m.wippenTilt === 'hangs') { say('Let go, the wippen stays up: its flange center is seized', 'warn'); await waitReal(1.2); }
       else {
         // it falls in a time that goes as one over the square root of its weight's pull less the friction
-        const v = KEY.upSpeed * Math.sqrt(m.wippenShare);
+        const v = KEY.upSpeed * Math.sqrt(m.wippenShare), longer = 1 / Math.sqrt(m.wippenShare);
         sim.press(0, v); sim.lifting = true;   // (lifting: the key's own bushings have no part in it)
-        await waitSim(up / v + 0.1);
-        say(m.wippenTilt === 'slow' ? 'Let go, the wippen comes back slowly, behind its neighbors: a tight flange center' : 'Let go, the wippen drops straight back', m.wippenTilt === 'slow' ? 'warn' : '');
+        await waitSim(up / v + 0.05);
+        say(m.wippenTilt === 'slow' ? `Let go, the wippen comes back slowly, taking about ${longer.toFixed(1)} times as long as a free one: a tight flange center`
+          : 'Let go, the wippen drops straight back', m.wippenTilt === 'slow' ? 'warn' : '');
         await waitReal(0.6);
       }
       sim.keyShown = null;
@@ -364,7 +365,7 @@ const TESTS = {
         : 'Solid: no side play in the jack or the wippen flange', p ? 'warn' : '');
       await waitReal(0.6);
     } },
-  // Don Mannino (via Jessica Masse, PTG 2007): the jack spring unhooked, the wippen held tender up, the jack should fall
+  // Don Mannino (2007, quoted by Jessica Masse, PTG 2023): the jack spring unhooked, the wippen held tender up, the jack should fall
   // slowly under its own weight. Drawn in place: the jack swings out from under the knuckle, the hammer on its lever.
   jackFall: { label: 'Spring unhooked: let the jack fall', specs: ['jackCenter'], view: 'escapement',
     run: async () => {
@@ -644,7 +645,7 @@ const SCENARIOS = [
   { complaint: 'Played softly, this note gives a little tick.', faults: { center: 'jackLoose' }, alone: true,
     answer: 'A loose jack center: wiggled at the tender, the jack rocks on its pin in the wippen, and with the spring unhooked it drops and flops. Repin the jack (Igrec).' },
   { complaint: 'Quick repeated notes feel a little slow on this key, as if the hammer were slow to come back up after a loud note.', faults: { center: 'repTight' }, alone: true,
-    answer: 'A tight repetition lever center: with its spring unhooked the lever gauges 10 g at the drop screw (Igrec: 2 to 6 at 58 mm), and it brakes the spring\'s lift. The spring itself is fine: ease the center, don\'t strengthen the spring.' },
+    answer: 'A tight repetition lever center: with its spring unhooked the lever gauges 10 g at the drop screw (Igrec: 2 to 6 at 58 mm), and it brakes the spring\'s lift: the hammer rises from check about a fifth slower. The spring itself is fine: ease the center, don\'t strengthen the spring.' },
   { complaint: 'Soft repeated notes on this key aren\'t as even as on its neighbors.', faults: { center: 'repLoose' }, alone: true,
     answer: 'A repetition lever center too loose: about 1 g at the drop screw with the spring unhooked (Igrec: 2 to 6 at 58 mm). It is meant to be the tightest center in the wippen, a brake that steadies the lever (Igrec); below the low end the lever doesn\'t hold the knuckle steady for the jack to reset (Don Mannino). The gauge finds it; in play it shows only a little. Repin it a half size up.' },
   { complaint: 'After this humid summer, this note keeps ringing a little after I let the key go.', faults: { center: 'underTight' }, alone: true,

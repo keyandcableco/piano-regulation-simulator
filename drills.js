@@ -133,7 +133,7 @@ export function mountSwingDrill(root, { el, toast }) {
       loose: [fixBtn('Repin: next half size up', 'Repinned with the next half size up, snug in the birdseye.', { T: sized() })],
       // repinning a worn bushing tightens it but leaves the wobble (Renner)
       worn: [fixBtn('Rebush the flange', 'Rebushed: new cloth, sized with a new pin, burnished.', { T: sized(), wobble: false }),
-        fixBtn('Repin: next half size up', 'Repinned: tighter, but it still wobbles. One side of the cloth is worn.', { T: Math.min(6, g * 1.6) * H.at, wobble: true })],
+        fixBtn('Repin: next half size up', 'Repinned: tighter, but it still wobbles. One side of the cloth is worn.', { T: Math.min(0.9 * H.band[1], g * 1.6) * H.at, wobble: true })],
     };
     verdict.replaceChildren(
       el('p', { class: c === call ? 'okc' : 'badc' }, c === call ? `Right: the center is ${words[call]}.` : `Not quite: the center is ${words[call]}.`),
@@ -160,7 +160,7 @@ export function mountSwingDrill(root, { el, toast }) {
     el('div', { class: 'row' }, el('button', { class: 'primary', onclick: release }, 'Let it go'), input, el('button', { onclick: check }, 'Check my count'),
       el('button', { onclick: wobble }, 'Wobble it')),
     wobbleLine, verdict,
-    el('p', { class: 'credit' }, 'About nine half-swings for hard bushings: Chris Brown RPT, Key Steps for Grand Regulating. Counts against the gram gauge: Brown and Fred Sturm (PTG). Friction range and the wobble test: Renner USA\'s flange bushing cloth manual (Bill Spurlock).'));
+    el('p', { class: 'credit' }, 'About nine half-swings for hard bushings: Chris Brown RPT, Key Steps for Grand Regulating. Counts against the gram gauge: a fit to Brown\'s figure and Fred Sturm\'s (PTG), not a published rule. Friction range and the wobble test: Renner USA\'s flange bushing cloth manual (Bill Spurlock).'));
   draw();
   return () => cancelAnimationFrame(raf);
 }
