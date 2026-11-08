@@ -1,5 +1,5 @@
 import { G, IN, ADJ, SPEC, DAMPER_SPECS, DAMAGE, FACTORY, NEIGHBOR_H, Sim, measure, grade, hamPt, crownY, crownTop, keyAngle, keyPt,
-         jackGeom, knuckleBottom, coreBack, eff, repSupportZ, sideZ, linkage, gString as gStringNow } from './model.js';
+         jackGeom, knuckleBottom, coreBack, eff, repSupportZ, sideZ, jackSide, linkage, gString as gStringNow } from './model.js';
 import { createScene, NOTE_Z, BASS } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
@@ -115,7 +115,7 @@ const STEPS = [
   { spec: 'hammerTravel', title: 'Travel the hammers', knobs: ['hammerTravel'], test: 'travelLift',
     what: 'Lift the hammer slowly to the strings: it should rise straight, without drifting sideways. A hammer that travels off its path ends up striking a different spot than where it rests.',
     how: 'Put a strip of thin paper under one side of the hammer flange to tilt its path: under the side the hammer drifts toward as it rises. That side of the flange lifts and the path swings back. Paper on the wrong side makes the drift worse. Travel before spacing, since traveling moves the hammer at the strings.',
-    note: 'Wippens and jacks are squared the same way at their flanges; the sim keeps those square.' },
+    note: 'Wippen flanges take traveling paper too, behind the flange on the wippen rail: that comes with the jack step.' },
   { spec: 'hammerSpacing', title: 'Space the hammers to the strings', knobs: ['hammerSpace'], test: 'alignSight',
     what: 'At the strings, the hammer should be centered on its unison so it strikes all three strings evenly (makers vary: some favor the treble side).',
     how: 'Loosen the flange screw, shift the hammer sideways, retighten.',
@@ -128,9 +128,9 @@ const STEPS = [
     what: 'Every other measurement starts from the key, so level it first. Lay a straightedge across the neighboring keys: this key should just touch it.',
     how: 'Add or remove punchings under the key at the balance rail. The key rocks on the back rail, so the front moves about twice the punching thickness.',
     note: 'Key height also changes dip and aftertouch, which you set later.' },
-  { spec: 'jackPos', also: ['wippenSpacing'], title: 'Jack position under the knuckle', knobs: ['jackScrew', 'wippenSpace'], test: 'sightJack', tests: ['sightJack', 'sightJackFront'],
+  { spec: 'jackPos', also: ['wippenSpacing'], title: 'Jack position under the knuckle', knobs: ['jackScrew', 'wippenSpace', 'wippenTravel'], test: 'sightJack', tests: ['sightJack', 'sightJackFront'],
     what: 'Line up the back of the jack with the back of the knuckle core: the thin wood tongue through the middle of the felt roll, which runs up into the shank. Follow the line of the tongue\'s back face down: it should meet the back of the jack\'s top corner. Seen from the front, the jack should also stand centered under the knuckle.',
-    how: 'Turn the jack regulating screw to move it front to back. Too far back and the jack drags as it escapes and is slow to get back under the knuckle; too far forward and it has less of the knuckle to push on. To center it side to side, loosen the wippen flange screw and shift the wippen, or tilt it with traveling paper under the flange.',
+    how: 'Turn the jack regulating screw to move it front to back. Too far back and the jack drags as it escapes and is slow to get back under the knuckle; too far forward and it has less of the knuckle to push on. To center it side to side, loosen the wippen flange screw and shift the whole wippen, or put traveling paper behind one side of the wippen flange, between it and the rail: the wippen swings like a gate and the jack moves toward the side the paper is on.',
     note: 'Near its mark, jack position changes how let-off feels (forward lightens the bump) more than where it happens; the sim models where, not the feel. Set too far forward, the knuckle slips off the back of the jack before the button trips it: let-off comes early and the blow is weak. The knuckle rides on the jack\'s rounded, slick back corner, so moving the jack also moves the hammer a little: recheck the wink and blow after. Spacing the hammers moves the knuckles sideways, so center the jacks after the hammers. Steinway\'s guide (written for its uprights) also centers the jack\'s toe on its button, and calls for a compromise when the two disagree.' },
   { spec: 'wink', title: 'Repetition lever height', knobs: ['repStop'], test: 'wink',
     what: 'Trip the jack with the key at rest: the hammer should "wink", dropping a little (about 1/16") onto the repetition lever, and the jack should slip back under the knuckle when you let it go. Put another way, the top of the lever sits just below the top of the jack, about the thickness of a thin front punching.',
@@ -370,7 +370,7 @@ function setAdj(id, v) {
 const KNOB_FOR = {
   balPunch: ['keyHeight'], frontPunch: ['dip', 'aftertouch'], capstan: ['blow', 'lostMotion', 'aftertouch'], restRail: ['restGap', 'lostMotion'],
   hammerTravel: ['hammerTravel'], hammerSpace: ['hammerSpacing'], hammerSquare: ['hammerSquare'],
-  jackScrew: ['jackPos'], wippenSpace: ['wippenSpacing'], repStop: ['wink'], letoff: ['letoff'], drop: ['drop'], repSpring: ['spring'],
+  jackScrew: ['jackPos'], wippenSpace: ['wippenSpacing'], wippenTravel: ['wippenSpacing'], repStop: ['wink'], letoff: ['letoff'], drop: ['drop'], repSpring: ['spring'],
   backcheck: ['check'], backcheckSpace: ['backcheckAlign'], backcheckSquare: ['backcheckAlign'],
   damperGap: ['damperTiming'], damperStop: ['damperStop'], pedalLift: ['pedalLift'],
   damperDrag: ['damperFall'], damperCenter: ['damperSeat'], damperLevel: ['damperSeat'],
@@ -399,17 +399,29 @@ function knobButtons(id) {
   const two = d.steps.length > 1;
   return el('div', { class: 'knob-btns' },
     // a shim goes under one side or the other: the choice of side is the adjustment
-    d.sides ? d.sides.map((s, i) => btn(`${s[0].toUpperCase()}${s.slice(1)} side`, i ? -fine : +fine, `${i ? 'right' : 'left'} from the keys · add ${d.stepLabel[0]}`)) : [
+    d.sides ? d.sides.map((s, i) => btn(`${s[0].toUpperCase()}${s.slice(1)} side`, i ? -fine : +fine, `${i ? 'right' : 'left'} from the keys · add ${d.stepLabel[0]}`)) :
+    // a sideways move names the way it goes: the bass is on the left from the keys
+    d.dirs ? [two ? btn('◀◀', +coarse, `${d.stepLabel[1]} toward the bass`) : null, btn('◀', +fine, `${d.stepLabel[0]} toward the bass`),
+      btn('▶', -fine, `${d.stepLabel[0]} toward the treble`), two ? btn('▶▶', -coarse, `${d.stepLabel[1]} toward the treble`) : null] : [
       two ? btn('−−', -coarse, d.stepLabel[1]) : null,
       btn('−', -fine, d.stepLabel[0]),
       btn('+', +fine, d.stepLabel[0]),
       two ? btn('++', +coarse, d.stepLabel[1]) : null]);
 }
+// traveling paper: how many strips, under which side, and which way that moved the part
+function paperTxt(d, net) {
+  const side = d.sides[net > 0 ? 0 : 1];
+  // a fault can leave the hammer drifting by any amount, so its paper is told in drift; the wippen's only moves by whole strips
+  if (d.id !== 'wippenTravel') return `paper under the ${side} side: drifts ${Math.abs(net).toFixed(1)} mm toward the ${d.sides[net > 0 ? 1 : 0]}`;
+  const n = Math.round(Math.abs(net) / d.steps[0]);
+  return `${n} strip${n === 1 ? '' : 's'} behind the ${side} side: jack ${Math.abs(net).toFixed(2)} mm toward the ${side}`;
+}
 // where a knob sits now: the Sandbox says, and a shared rail says it is shared
 function knobValue(id) {
   const d = ADJ.find(x => x.id === id), net = Math.round((adj[id] - FACTORY[id]) * 100) / 100 || 0;   // as shown: no "-0.00"
   const valTxt = mode !== 'sandbox' ? ''
-    : d.sides ? (Math.abs(net) < 0.005 ? 'no paper' : `paper under the ${d.sides[net > 0 ? 0 : 1]} side (${Math.abs(net).toFixed(1)} mm of drift)`)
+    : d.sides ? (Math.abs(net) < 0.005 ? 'no paper' : paperTxt(d, net))
+    : d.dirs ? (Math.abs(net) < 0.005 ? 'at factory' : `${Math.abs(net).toFixed(2)} mm toward the ${net > 0 ? 'bass' : 'treble'} from factory`)
     : d.unit === 'mm' || d.unit === '°' ? `${net >= 0 ? '+' : ''}${net.toFixed(2)}${d.unit === '°' ? '°' : ' mm'} from factory`
     : id === 'damperDrag' ? `drag ${adj[id].toFixed(2)}` : `${adj[id].toFixed(2)} × hammer weight`;
   return multi() && SHARED.has(id) ? [valTxt, 'shared by all three notes'].filter(Boolean).join(' · ') : valTxt;
@@ -738,7 +750,7 @@ const AREAS = [
   { id: 'hammer', name: 'Hammer, blow and rest rail', tests: ['travelLift', 'alignSight', 'wiggle', 'blowGauge', 'hammerLine', 'restRail', 'topPlay'],
     knobs: ['hammerTravel', 'hammerSpace', 'hammerSquare', 'capstan', 'restRail'] },
   { id: 'jack', name: 'Jack and repetition lever', tests: ['sightJack', 'sightJackFront', 'wink', 'slowPress', 'easeUp'],
-    knobs: ['jackScrew', 'wippenSpace', 'repStop', 'letoff', 'drop', 'repSpring'] },
+    knobs: ['jackScrew', 'wippenSpace', 'wippenTravel', 'repStop', 'letoff', 'drop', 'repSpring'] },
   { id: 'backcheck', name: 'Backcheck', tests: ['strikeHold', 'sightBackcheck'], knobs: ['backcheck', 'backcheckSpace', 'backcheckSquare'] },
   { id: 'dampers', name: 'Dampers and pedal', tests: ['damperSlow', 'pedalTest', 'damperSight'],
     knobs: ['damperGap', 'damperStop', 'pedalLift', 'damperDrag', 'damperCenter', 'damperLevel'] },
@@ -1287,7 +1299,7 @@ function updateCallouts() {
     S.setCallout('jack', [jg.backX, jg.backY, 8 + nz], [coreBack(g, jg.backY), jg.backY, 8 + nz], reading('jackPos').txt); keep.push('jack');
   }
   if (show('wippenSpacing') && atRest && viewNow === 'jackfront') {
-    const jg = jackGeom(L, sim.psi), zj = nz + BASS * (adj.wippenSpace || 0);
+    const jg = jackGeom(L, sim.psi), zj = nz + BASS * jackSide(adj);
     S.setCallout('jackside', [jg.backX - 3, jg.topY + 1, zj], [jg.backX - 3, jg.topY + 1, zj - BASS * m.wippenSpacing], reading('wippenSpacing').txt); keep.push('jackside');
   }
   if (letoffMark !== null && sim.d > 0.05 && show('letoff')) {
