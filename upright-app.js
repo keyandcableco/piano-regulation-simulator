@@ -9,7 +9,9 @@ import { createUprightScene } from './scene-upright.js';
 import { STEPS, TESTS, TIPS, TOOLS, SPEC_NAMES, bandText, readingText, callouts, deregulated, creditOf } from './content-upright.js';
 
 const DT = 0.0001;          // s: the Sim's step (its tests' and fit's)
-const MAX_STEPS = 120;      // at most this many steps a screen frame (about 0.2 ms each): a slow device runs slower
+// At most this many steps a screen frame. Each costs about 0.2 ms of computing, so 120 is about 24 ms: real speed
+// (166 steps a frame at 60 Hz) runs at about 70%, and the key line says so; the slow-motion speeds keep up.
+const MAX_STEPS = 120;
 const STRIKE = 450, SLOW = 6, UP = 236;   // mm/s at the key front: a moderate blow, a slow press, a quick release [S15]
 // the parts each knob works on (for the highlight), and what each knob sets
 const KNOB_PARTS = { balPunch: ['balrail', 'key'], frontPunch: ['frontrail'], railShim: ['hammerrail'], capstan: ['capstan'],
@@ -80,6 +82,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
 
   // ---------- the regulation ----------
   function setRegulation(b, { keepTested = true } = {}) {
+    if (busy) return;   // a running test has the Sim
     Object.assign(a, b); m = measure(a);
     sim = new Sim(a); sim.setSoft(softOn); sim.setPedal(sustainOn); sim.soft = softOn ? 1 : 0; sim.pedal = sustainOn ? 1 : 0;
     if (!keepTested) tested = new Set();
@@ -99,17 +102,19 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   function play(kind) {
     if (busy) return;
     plan = null; idle = false;
+    if (kind !== 'up') testEvents = [];   // the callouts read this press's events
     if (kind === 'up') { sim.press(0, UP); return; }
     if (kind === 'slow') { sim.press(sim.dip, SLOW); return; }
     sim.press(sim.dip, STRIKE);
     if (kind === 'play') plan = 'up';
   }
-  function setSoft(on) { if (busy) return; idle = false; softOn = on; sim.setSoft(on); softBtn.classList.toggle('on', on); }
-  function setSustain(on) { if (busy) return; idle = false; sustainOn = on; sim.setPedal(on); susBtn.classList.toggle('on', on); }
+  function setSoft(on) { if (busy) return; idle = false; testEvents = []; softOn = on; sim.setSoft(on); softBtn.classList.toggle('on', on); }
+  function setSustain(on) { if (busy) return; idle = false; testEvents = []; sustainOn = on; sim.setPedal(on); susBtn.classList.toggle('on', on); }
   function setSpeed(s) { speed = s; for (const b of speedBtns) b.classList.toggle('on', +b.dataset.uspeed === s); }
   function view(name) { viewNow = name; S.setView(name); for (const b of viewBtns) b.classList.toggle('on', b.dataset.uview === name); }
 
   // ---------- the loop (app.js's frame() calls this while the upright is shown) ----------
+  // returns how many steps it ran (none when the frame is shorter than a step)
   function advance(secs) {
     carry += secs;
     let n = Math.floor(carry / DT + 1e-9);
@@ -126,15 +131,16 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       sim.events = [];
       if (testRun && sim.t >= testRun.until - 1e-12) { const r = testRun.r; testRun = null; r(); }
     }
+    return n;
   }
   const state = () => [sim.d, sim.dTarget, sim.g, sim.w, sim.phi, sim.v, sim.psi, sim.dl, sim.vd, sim.soft, sim.softTarget, sim.pedal, sim.pedalTarget];
   function frame(dtReal) {
     if (override) S.update(override.a, override.p, 0);
     else {
       if (busy || plan || !idle) {
-        const s0 = state();
-        advance(dtReal * (busy ? testScale : speed));
-        idle = !busy && !plan && state().every((v, i) => Math.abs(v - s0[i]) < 1e-9);
+        const s0 = state(), n = advance(dtReal * (busy ? testScale : speed));
+        // idle only once a frame's steps left everything where it was, the key where it is going
+        idle = n > 0 && !busy && !plan && sim.d === sim.dTarget && state().every((v, i) => Math.abs(v - s0[i]) < 1e-9);
         if (idle) lagging = false;
       }
       const p = sim.pose(), an = { ...a, railShim: sim.railShim(), balPunch: FACTORY.balPunch, frontPunch: FACTORY.frontPunch, capstan: FACTORY.capstan };
@@ -195,7 +201,8 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   }
   function knobRow(k, { sets = false } = {}) {
     const d = ADJ.find(x => x.id === k), net = Math.round((a[k] - FACTORY[k]) * 100) / 100 || 0;
-    const btn = (sym, dir) => el('button', { class: 'nudge', title: `${sym} ${d.step} ${d.unit}`, 'data-anchor': `u-${k}${sym}`, disabled: busy ? '' : false,
+    // the card's buttons (sets) anchor apart from the panel's, so a click in the card never scrolls the panel
+    const btn = (sym, dir) => el('button', { class: 'nudge', title: `${sym} ${d.step} ${d.unit}`, 'data-anchor': `u-${sets ? 'card-' : ''}${k}${sym}`, disabled: busy ? '' : false,
       onclick: () => nudge(k, dir) }, el('span', { class: 'sym' }, sym), el('span', { class: 'step' }, `${d.step} ${d.unit}`));
     return el('div', { class: 'knob' },
       el('div', { class: 'knob-head' },
@@ -218,9 +225,11 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   const GRADED = STEPS.filter(s => !s.info);
   const stepDone = st => specsOf(st).every(id => tested.has(id) && gradeL(id).ok);
   function goStep(i) {
+    if (busy) return;
     stepIdx = i;
     const st = STEPS[i];
-    if (st && !st.info) { S.highlight(st.knobs.flatMap(k => KNOB_PARTS[k])); view(TESTS[st.test].view); } else S.highlight([]);
+    S.highlight(stepParts());
+    if (st && !st.info) view(TESTS[st.test].view);
     refresh();
   }
   function renderLearn(p) {
@@ -236,7 +245,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
         el('p', {}, bad.length ? 'Everything was re-measured. These are out of spec now (often because a later step moved them):' : 'Every measurement is in spec. That key is regulated.'),
         bad.length ? el('ul', {}, bad.map(s => el('li', {}, el('button', { class: 'linkish', onclick: () => goStep(STEPS.indexOf(s)) }, s.title)))) : null,
         readingsTable(GRADED.flatMap(specsOf)),
-        el('div', { class: 'row' }, el('button', { onclick: () => { setRegulation(deregulated(), { keepTested: false }); goStep(0); } }, 'Start over with a new key')));
+        el('div', { class: 'row' }, el('button', { disabled: busy ? '' : false, onclick: () => { setRegulation(deregulated(), { keepTested: false }); goStep(0); } }, 'Start over with a new key')));
       return;
     }
     const nav = ok => el('div', { class: 'row' },
@@ -260,7 +269,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       AREAS.map(ar => el('details', { class: 'fold', open: '' }, el('summary', {}, ar.name),
         readingsTable(ar.specs), el('div', { class: 'knobs' }, ar.knobs.map(k => knobRow(k))))));
   }
-  function renderPanel(p) { if (mode === 'learn') renderLearn(p); else renderSandbox(p); }
+  function renderPanel(p) { if (mode === 'learn') renderLearn(p); else renderSandbox(p); renderCard(); }
   function renderCredits(p, back) {
     const all = Object.values(TIPS).flat(), people = [...new Set(all.map(t => t.who))].sort();
     put(p, el('h2', {}, 'From the bench: upright credits'),
@@ -274,12 +283,13 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
 
   // ---------- the part card: a clicked part's knobs and what they set ----------
   function openCard(hit, x, y) {
-    if (!PART_KNOBS[hit.part]) { closeCard(); toast(hit.name); return; }
+    if (!PART_KNOBS[hit.part]) { closeCard(); toast(hit.name); return; }   // a part with no knobs of its own: its name
     cardPart = hit.part; card.style.left = `${Math.min(x + 12, canvas.clientWidth - 290)}px`; card.style.top = `${Math.max(8, Math.min(y - 20, canvas.clientHeight - 320))}px`;
     S.highlight(PART_KNOBS[hit.part].flatMap(k => KNOB_PARTS[k]).concat(hit.part));
     renderCard();
   }
-  function closeCard() { cardPart = null; card.hidden = true; }
+  const stepParts = () => { const st = STEPS[stepIdx]; return mode === 'learn' && st && !st.info ? st.knobs.flatMap(k => KNOB_PARTS[k]) : []; };
+  function closeCard() { if (cardPart) S.highlight(stepParts()); cardPart = null; card.hidden = true; }
   function renderCard() {
     if (!cardPart) return;
     card.replaceChildren(el('div', { class: 'pop-head' }, el('b', { style: 'flex:1' }, S.PART_NAMES[cardPart] || cardPart), el('button', { class: 'pop-x', title: 'Close', onclick: closeCard }, '×')),

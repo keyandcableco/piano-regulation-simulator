@@ -1,7 +1,8 @@
 // The grand in the app, recorded so a change to the shared page (C6: the Grand / Upright switch) can be shown to leave
 // it as it was: the stage's pixels in the deterministic states (Sandbox at factory, each view, a frozen strike), the
 // panel's text in each tab, the key's events on a Play, and any page errors.
-// node tests/grand-baseline.cjs <out_dir> [base_url]; then compare two out_dirs with tests/grand-compare.cjs.
+// node tests/grand-baseline.cjs <out_dir> [base_url]; then compare two out_dirs with tests/grand-compare.py. Two runs of
+// the same code differ only where something animates (the "Let key up" button's pulse), by a few levels.
 // Needs a server on the checkout and Chrome (playwright-core from minichord-lab's node_modules, SwiftShader WebGL).
 const { chromium } = require('/home/gregory/minichord-lab/tests/node_modules/playwright-core');
 const fs = require('fs');

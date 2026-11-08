@@ -1815,7 +1815,10 @@ function frame(now) {
   // a frame button held down steps on (or back) every screen frame, after a moment so a click is one step
   if (frameHold && now - frameHold.t0 > 350) { if (frameHold.dir > 0) stepFrames = Math.max(stepFrames, 1); else if (frameHistory.length) frameBack(); else frameHold = null; }
   if (moveHold && now - moveHold.t0 > 350) moveStep(moveHold, dtReal * 6);   // held: about six clicks a second, smoothly
-  if (action === 'upright') { U.frame(dtReal); requestAnimationFrame(frame); return; }
+  if (action === 'upright') {   // the upright's frame; a fault in it mustn't stop the loop the grand comes back to
+    try { U.frame(dtReal); } catch (err) { console.error(err); }
+    requestAnimationFrame(frame); return;
+  }
   let dtSim = Math.min(dtReal * scale, 120 * H_STEP);
   if (paused) { dtSim = stepFrames ? Math.min(FRAME_S * scale, 120 * H_STEP) : 0; stepFrames = Math.max(0, stepFrames - 1); }
   if (cue?.run) runCue();
@@ -1849,15 +1852,21 @@ requestAnimationFrame(frame);
 // ---------- Grand / Upright ----------
 // The switch in the header, remembered like the level, and #upright in the address opens the upright. Switching lets
 // the grand's key go and leaves it as it was; the upright opens on its Sandbox at the factory regulation.
+let loadingUpright = null;   // the first load of upright-app.js, shared by every click while it loads
 async function setAction(kind) {
+  if (kind === 'upright' && !U) {
+    try {
+      loadingUpright ??= import('./upright-app.js').then(({ createUprightApp }) => {
+        U ??= createUprightApp({ el, put, toast, level, refresh });
+        U.S.setBackground(stageColor());
+      });
+      await loadingUpright;
+    } catch (err) { loadingUpright = null; console.error(err); toast('The upright could not load. Try reloading the page.', 'warn'); return; }
+  }
+  // (checked after the load: a test or an exam may have started while it loaded)
   if (kind === action || busy || U?.busy) return;
   if (kind === 'upright') {
     if (mode === 'exam' && exam.started && !exam.done) { toast('Finish or leave the exam first', 'warn'); return; }
-    if (!U) {
-      const { createUprightApp } = await import('./upright-app.js');
-      U = createUprightApp({ el, put, toast, level, refresh });
-      U.S.setBackground(stageColor());
-    }
     if (mode !== 'learn' && mode !== 'sandbox') $('.tab[data-mode=sandbox]').click();
     setLoop(false); clearPlan(); cue = null; setPaused(false); releaseOthers(); sim.press(0, 60); closePop(); S.highlight(null); tip.hidden = true;
   }
