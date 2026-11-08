@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Upright action preview</title>
+<link rel="icon" href="data:,">
+<!-- Work bench for the upright drawing (research/upright/protocol.md, C1). Not linked from the app: the upright joins it
+     at the switch (C6). URL: ?view=<name> &labels=1 &at=x,y,z &from=x,y,z (world mm) &bg=#rrggbb. Click a part for its name. -->
+<style>
+:root { --ink: #222; --muted: #666; --panel: #fff; --line: #c9c9c9; }
+html, body { margin: 0; height: 100%; background: #eceef0; font: 13px system-ui, sans-serif; color: var(--ink); }
+#stage { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+canvas { width: 100%; height: 100%; display: block; }
+#overlay { position: absolute; inset: 0; pointer-events: none; }
+#bar { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+#bar button { font: inherit; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); cursor: pointer; }
+#bar button.on { background: #2f6e46; color: #fff; border-color: #2f6e46; }
+#picked { position: absolute; left: 8px; bottom: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; }
+#picked:empty { display: none; }
+.plabel { position: absolute; left: 0; top: 0; white-space: nowrap; font: 600 11px/1 system-ui; color: var(--ink);
+  background: color-mix(in srgb, var(--panel) 85%, transparent); border: 1px solid var(--line); padding: 2px 5px; border-radius: 4px; margin: -8px 0 0 4px; pointer-events: none; }
+body.shot #bar, body.shot #picked { display: none; }
+</style>
+<script type="importmap">{ "imports": { "three": "../vendor/three/three.module.min.js", "three/addons/": "../vendor/three/addons/" } }</script>
+</head><body><div id="stage"><canvas id="c"></canvas><div id="overlay"></div><div id="bar"></div><div id="picked"></div></div>
+<script type="module">
+import { createUprightScene } from '../scene-upright.js';
+const q = new URLSearchParams(location.search);
+const canvas = document.getElementById('c');
+const S = createUprightScene(canvas, document.getElementById('overlay'));
+S.setBackground(q.get('bg') || '#eceef0');
+if (q.has('shot')) document.body.classList.add('shot');
+let labels = q.get('labels') === '1';
+S.setLabels(labels);
+S.setView(q.get('view') || 'action', true);
+if (q.get('at')) S.controls.target.set(...q.get('at').split(',').map(Number));
+if (q.get('from')) S.camera.position.set(...q.get('from').split(',').map(Number));
+const bar = document.getElementById('bar');
+for (const name of Object.keys(S.VIEWS)) {
+  const b = document.createElement('button'); b.textContent = name; b.onclick = () => S.setView(name); bar.appendChild(b);
+}
+const lb = document.createElement('button'); lb.textContent = 'Labels'; lb.classList.toggle('on', labels);
+lb.onclick = () => { labels = !labels; S.setLabels(labels); lb.classList.toggle('on', labels); }; bar.appendChild(lb);
+let down = null;
+canvas.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
+canvas.addEventListener('pointerup', e => {
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return;   // a drag turns the view; a click names the part
+  const p = S.pick(e); document.getElementById('picked').textContent = p ? p.name : '';
+});
+window.S = S;
+(function loop() { S.render(); requestAnimationFrame(loop); })();
+setTimeout(() => { window.ready = true; }, 600);
+</script></body></html>
