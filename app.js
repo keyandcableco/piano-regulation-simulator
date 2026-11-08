@@ -37,11 +37,12 @@ const fmtBoth = mm => units === 'in' ? `${fracIn(mm)} (${fmm(mm)})` : `${fmm(mm)
 
 // ---------- skill level ----------
 // Apprentice: readings live everywhere, looser tolerances, hints. Journeyman: readings only after
-// the test that measures them. RPT: exam-tight tolerances and damage faults in the mix.
+// the test that measures them. Exam: exam-tight tolerances and damage faults in the mix.
+// (Key stays 'rpt' so saved settings still load; the name avoids PTG's RPT credential.)
 const LEVELS = {
   apprentice: { name: 'Apprentice', tolK: 1.5, live: true, hints: true },
   journeyman: { name: 'Journeyman', tolK: 1, live: false, hints: false },
-  rpt: { name: 'RPT', tolK: 0.75, live: false, hints: false, damage: true },
+  rpt: { name: 'Exam', tolK: 0.75, live: false, hints: false, damage: true },
 };
 let LEVEL = LEVELS.journeyman;
 try { const v = localStorage.getItem('regsim-level'); if (v && Object.hasOwn(LEVELS, v)) LEVEL = LEVELS[v]; } catch {}
@@ -1316,13 +1317,14 @@ function renderExam(p) {
   if (!exam.started) {
     put(p, el('h2', {}, 'Exam practice: grand regulation'),
       el('p', {}, 'Practice for the grand section of PTG\'s Technical Exam. PTG\'s source book addendum (2005) says only that you assemble, align and regulate a disassembled grand action model in 50 minutes. Here you get a 3-note model, already assembled and de-regulated, with key height and dip given as targets. Regulate all three notes evenly.'),
+      el('p', { class: 'muted small' }, 'An independent practice tool, not affiliated with or endorsed by the Piano Technicians Guild.'),
       el('ul', { class: 'small' },
-        el('li', {}, LEVEL.live ? 'At Apprentice level readings show as you work; at Journeyman and RPT they stay hidden until you run the test that measures them.' : 'Readings stay hidden until you run the test that measures them, on that note.'),
+        el('li', {}, LEVEL.live ? 'At Apprentice level readings show as you work; at Journeyman and Exam they stay hidden until you run the test that measures them.' : 'Readings stay hidden until you run the test that measures them, on that note.'),
         el('li', {}, 'Click a key, or the note buttons, to work on a note. The hammer rest rail is shared.'),
         el('li', {}, LEVEL.live ? 'Adjust by clicking the part of the action you would turn, or with the controls listed under each test.'
           : 'Adjust by clicking the part of the action you would turn: its controls come up beside it. The panel lists the tests, not the adjustments; knowing which part to turn is part of the exam.'),
         el('li', {}, 'Assembly is skipped, but aligning is in: travel, space and square each hammer, center each jack and backcheck. The real 50 minutes include assembling the model, so you can set a shorter clock to leave yourself that time.'),
-        LEVEL.damage ? el('li', {}, 'At RPT level one note may also have a damaged part to find and repair (on the real exam, repairs are a separate section).') : null,
+        LEVEL.damage ? el('li', {}, 'At Exam level one note may also have a damaged part to find and repair (on the real exam, repairs are a separate section).') : null,
         el('li', {}, 'Scoring: each spec on each note, plus how even the three notes are. 80% is this practice\'s pass mark, not PTG\'s.')),
       el('label', { class: 'row small' }, el('input', { type: 'checkbox', ...(examDampers ? { checked: '' } : {}), onchange: e => { examDampers = e.target.checked; } }),
         ' Include dampers and pedal (lift timing, stop rail, pedal lift, falling together). PTG\'s grand section may not include them.'),
