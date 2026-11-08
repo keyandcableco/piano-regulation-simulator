@@ -801,7 +801,15 @@ export function factory() {
 
 // ---------- time-stepped simulation (for watching it move) ----------
 const GA = 60;       // hammer free-fall, rad/s^2
-const DAMP = 25;     // damping while the knuckle rides the repetition lever
+// Damping while the knuckle rides the repetition lever up. 20 fits Scott Murphy's high-speed videos (PTG Education Hub,
+// "High Speed Video of the Grand Piano Action"): the app's ease-up rises out of check at about 0.16 m/s at the crown,
+// floats 1.3 mm over the drop screw and dips 0.5 below where it then sits (his ease-up on a Steinway action model: about
+// 0.12 m/s, 1.2 mm, 0.45); on his grand the soft blows of "Hammer Bobbling" rise back at 0.18-0.28 m/s, and with
+// this the sim's give 0.15-0.22 (its catch stops the hammer a moment first).
+const DAMP = 20;
+// Moving up faster than this (rad/s) when the lever stops at the drop screw, the hammer carries on and floats; slower,
+// it stays on the lever
+const FLOAT_W = 0.05;
 // A hammer settling down onto the repetition lever is braked by friction, in hammer weights at the horn, worked out
 // at the drop position: the lever's center (Hirschkorn Table A.9, 252 g·mm, the lever turning 0.53 times the hammer's
 // angle over the knuckle's 17.3 mm arm, 88 g of hammer) gives 0.088, and the knuckle sliding on its buckskin (Table A.8
@@ -815,7 +823,8 @@ const REP_CENTER = 0.088, REP_SLIDE = 0.05;
 // (at factory a strike and hold now needs about 180 mm/s of key speed to check; 170 without this).
 // Fitted to Scott Murphy's high-speed videos of a Steinway grand action model (PTG Education Hub, "High Speed Video of
 // the Grand Piano Action"): after a rise from check the hammer floated 1.2 mm (at the crown) over the drop screw and
-// came back only about 0.45 mm below where it then sat, still a frame (33 ms) later; the same test here gives 0.54.
+// came back only about 0.45 mm below where it then sat, still a frame (33 ms) later; the same test here gives 0.54,
+// and the sim's own ease-up, now that the hammer floats (FLOAT_W), floats 1.3 mm and dips 0.52.
 // Hirschkorn's damping for this contact (Table A.8, contact 10, 2.935 s/m) takes only about 4% off at let-off speeds,
 // so it can't account for that on its own.
 const LAND_LOSS = 1.0;
@@ -835,6 +844,16 @@ const REST_E = 0.5;
 const CHECK_TAU = 0.0037;
 const CHECK_GIVE = 2.2;
 const STRIKE_R = Math.hypot(G.crownC[0], G.crownC[1] + G.crownR);   // centre pin to the felt that meets the string, mm
+// The backcheck only grips a tail that comes into it firmly. In Scott Murphy's "Hammer Bobbling" clips (PTG Education
+// Hub, a grand filmed at 1000 frames/s) every firm blow (1.2-1.5 m/s at the string) stayed checked and every soft one
+// (0.84-0.97 m/s) was slowed by the backcheck and came straight back out onto the repetition lever, with normal
+// regulation and with too little drop, a strong spring or too little aftertouch (the line falls between 0.63 and
+// 0.75 m/s off the string; his p blow on the Shigeru model, 0.78 off, was held too). Driven by the same key motion,
+// the sim's catches begin at 0.49-0.73 m/s at the crown for the firm blows, 0.45 for the Shigeru p, and 0.23-0.40 for
+// the soft ones, so the line sits between (narrowly: the sim's softer rebound leaves the p blow just above it). A
+// catch slower than this (m/s at the crown) doesn't hold if the spring lifts there at all; a firmer one holds up to
+// G.checkHold, as before. The app's Strike and hold (250 mm/s) catches at 0.51-0.71 on every fault case tried.
+const CHECK_HOLD_V = 0.42;
 const BOUNCE_V = 0.01;  // a knuckle landing on the jack slower than this (m/s) just settles
 // A jack spring working the jack's rounded top back under a knuckle that sits a hair below where the jack would hold
 // it (up to G.wedge) doesn't snap the hammer up. At the reset the hammer stays where it is and keeps its speed, and
@@ -855,7 +874,7 @@ export class Sim {
     const L = linkage(this.a, 0);
     let g = gOnJack(L); for (let i = 0; i < 4; i++) g = staticHammer(this.a, L, this.st, g).g;
     this.g = g; this.w = 0; this.psi = L.psiRest; this.L = L; this.events = [];
-    this.blocked = false; this.scraped = false; this.jammed = false; this.bounceD = null; this.onBtn = false; this.onScrew = false;
+    this.blocked = false; this.scraped = false; this.jammed = false; this.bounceD = null; this.floatD = null; this.struckD = null; this.onBtn = false; this.onScrew = false;
     this.onRep = false;
     this.wedge0 = 0; this.wedgeT = 0;   // the gap a jack that has just reset still has to take up (rad), and for how long it has
     // a key held down by a tight bushing, and the hand lifting it; the key tests' rocking, twisting and stack-off
@@ -928,7 +947,8 @@ export class Sim {
     const wasEsc = st.escaped;
     this.psi = updateJack(a, L, st, this.g);
     if (!wasEsc && st.escaped) this.emit('letoff', { dist: G.stringY - crownY(this.g) });
-    if (wasEsc && !st.escaped) this.emit('reset');
+    // the jack back under the knuckle drives the next strike: a new blow, not a bobble off the lever
+    if (wasEsc && !st.escaped) { this.emit('reset'); this.struckD = this.floatD = null; }
     if (st.jammed && !this.jammed) this.emit('jackjam');
     this.jammed = st.jammed;
     let jackG = st.escaped ? -Infinity : gOnJackAt(L, this.psi);
@@ -972,9 +992,13 @@ export class Sim {
     }
     const jackDriving = jackG >= this.g - 1e-6;
     if (onRep && g > gHorn && !jackDriving) {
-      // a pop is the spring kicking the hammer up as the key comes up or holds; on the way down the blow just leaves the lever
+      // The lever stops at the drop screw and the hammer carries on up with its own speed, then falls back onto it (a
+      // float: Scott Murphy's clips show 1.2-2.4 mm over the drop screw after a rise out of check); a crawl stays on the
+      // lever. A pop is the spring kicking it up fast as the key comes up or holds; on the way down the blow just leaves it.
       if (w > POP_W) { if (!this.popped && this.dTarget <= this.d) this.emit('pop'); this.popped = true; }
-      else { g = gHorn; w = Math.min(w, (gHorn - this.g) / dt); }
+      else if (w < FLOAT_W) { g = gHorn; w = Math.min(w, (gHorn - this.g) / dt); }
+      // off the lever after this key-down has already struck: striking again before the key comes up is a bobble
+      if (w >= FLOAT_W && this.struckD !== null && this.floatD === null) this.floatD = this.d;
     }
     if (jackG > g) {
       // With the key held down on the front rail, a hammer falling back onto a jack that has not escaped far enough
@@ -1020,8 +1044,14 @@ export class Sim {
         g = this.g + w * dt;
         if (jackG > g + 1e-6) { st.catching = false; st.aboveCheck = false; if (!caughtNow) this.emit('uncheck'); g = gFree; w = wFree; }
         else if (w >= 0) {
-          st.catching = false; st.checked = true; st.give = gTake - g; w = 0;
-          this.emit('checked', { dist: G.stringY - crownY(g) });
+          st.catching = false; w = 0;
+          // too soft a catch to grip: if the spring lifts at all there, it takes the hammer straight back out
+          if (st.wCatch * STRIKE_R / 1000 < CHECK_HOLD_V && springF(a, L, Math.min(knuckleBottom(g)[1], L.hornTop)) > 1) {
+            this.emit('softcheck', { dist: G.stringY - crownY(g) });
+          } else {
+            st.checked = true; st.give = gTake - g;
+            this.emit('checked', { dist: G.stringY - crownY(g) });
+          }
         }
       }
     }
@@ -1042,9 +1072,10 @@ export class Sim {
       } else if (w > STRIKE_W) {
         this.strikes = (this.strikes || 0) + 1;
         this.emit('strike', { v: a.power * w * STRIKE_R / 1000 });
-        // thrown back up off the jack and struck again: the hammer bobbled
+        // thrown back up off the jack, or floated up off the repetition lever, and struck again: the hammer bobbled
         if (this.bounceD !== null) this.emit('bobble');
-        this.bounceD = null;
+        else if (this.floatD !== null) this.emit('bobble', { lever: true });
+        this.bounceD = null; this.floatD = null; this.struckD = this.d;
         if (a.clicky) this.emit('click');
         g = gString(); w = -REST_E * Math.abs(w);
       } else {
@@ -1055,6 +1086,9 @@ export class Sim {
     }
     if (this.d < 0.5) { this.scraped = false; this.popped = false; }
     if (this.bounceD !== null && this.d < this.bounceD - 0.5) this.bounceD = null;   // the key came up: a new blow is a new note
+    // only a new blow from the jack (its reset, above) or the key back up ends the note: easing the key up a little,
+    // the hammer can still float up off the lever and strike again
+    if (this.d < 0.5) this.struckD = this.floatD = null;
     if (g < gString() - 1e-4) { this.blocked = false; this.buzzing = false; }   // off the string: a new blow can block or buzz again
     this.g = g; this.w = w; this.L = L;
     this.stepDamper(dt);

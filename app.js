@@ -1405,8 +1405,11 @@ function handleEvents() {
     if (e.type === 'pop') say('Pop: you would feel a bump in the key', 'warn');
     if (e.type === 'scrape') say('The hammer tail scraped the backcheck', 'warn');
     if (e.type === 'jumpcheck') say('The hammer jumped out of check', 'warn');
+    if (e.type === 'softcheck') say(show('check') ? `Too soft to stay checked: the backcheck slowed it ${fmt(e.dist)} from the string and the repetition lever lifted it back out`
+      : 'Too soft to stay checked: the repetition lever lifted the hammer back out');
     if (e.type === 'damperbounce') say('The damper bobbled on the strings', 'warn');
-    if (e.type === 'bobble') say('The hammer bounced off the jack and struck again (bobble)', 'warn');
+    if (e.type === 'bobble') say(e.lever ? 'The hammer floated up off the repetition lever and struck again (bobble)'
+      : 'The hammer bounced off the jack and struck again (bobble)', 'warn');
     // the tender reaching the let-off button and the lever reaching the drop screw: together in a well-regulated action
     if (e.type === 'tender' || e.type === 'dropscrew') {
       contactD[e.type] = e.d;
