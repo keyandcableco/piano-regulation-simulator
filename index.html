@@ -84,7 +84,7 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -app
 .cat-btn .k { color: var(--muted); font-size: 12px; }
 .cat-btn .v { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
 #view-btn { width: 14.4em; }
-#speed-btn { width: 8em; }
+#speed-btn { width: 11.2em; }
 .kplay { font-weight: 600; }
 #stage .kplay:not(:disabled) { border-color: var(--accent); }
 /* a dot on Key & pedal while something in it stays on: Loop, a pedal */
@@ -295,7 +295,13 @@ a { color: var(--accent); }
   #view-btn { width: 14em; }
   #speed-btn { width: 7.5em; }
   .cat-btn { gap: 4px; }
-  #framepad { top: 58px; transform: none; width: 88px; }   /* under the view button */
+  .cat-btn .wide { display: none; }   /* the Speed button names just the speed */
+  /* the frame buttons two by two under the view button, clear of the bottom bar even with the browser's own bars
+     showing (a picture 250 px tall); a shorter one scrolls them */
+  #framepad { top: 58px; transform: none; width: 176px; grid-template-columns: 1fr 1fr; grid-template-areas: "back fwd" "pause done" "letoff letoff";
+    max-height: calc(100% - 118px); overflow-y: auto; }
+  #framepad .cap { display: none; }
+  #k-back { grid-area: back; } #k-fwd { grid-area: fwd; } #k-pause { grid-area: pause; } #frames-done { grid-area: done; } #k-letoff { grid-area: letoff; }
   #framepad button { min-height: 36px; font-size: 13px; }
   #keystate { display: none; }
   #examclock { top: auto; bottom: 70px; right: 84px; font-size: 16px; }   /* left of the move buttons, never over Help */
@@ -431,8 +437,8 @@ a { color: var(--accent); }
           </div>
         </div>
       </div>
-      <div class="cat" id="cat-speed" data-value>
-        <button class="cat-btn" id="speed-btn" title="How fast the action moves, and frame by frame"><span class="v">Slow ×10</span></button>
+      <div class="cat" id="cat-speed" data-value="Speed">
+        <button class="cat-btn" id="speed-btn" title="How fast the action moves, and frame by frame"><span class="k wide">Speed</span><span class="v">Slow ×10</span></button>
         <div class="menu" id="menu-speed" role="menu" aria-label="Speed" hidden>
           <div class="mhead">Speed</div>
           <div class="mgrid three" id="speedmenu">

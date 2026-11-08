@@ -52,10 +52,11 @@ function sync() {
   for (const cat of document.querySelectorAll('.cat')) {
     const list = [...cat.querySelectorAll('.menu button')].filter(shown);
     for (const b of list) if (b.getAttribute('role') !== 'menuitem') b.setAttribute('aria-checked', String(b.classList.contains('on')));
-    if (cat.dataset.value !== undefined) {
+    if (cat.dataset.value !== undefined) {   // (data-value names the category for a screen reader, where a phone hides its word)
       const on = list.find(b => b.getAttribute('role') === 'menuitemradio' && b.classList.contains('on'));
       const v = cat.querySelector('.cat-btn .v');
       if (on && v.textContent !== on.dataset.short) v.textContent = on.dataset.short;
+      if (on) v.parentElement.setAttribute('aria-label', `${cat.dataset.value}: ${on.dataset.short}`);
     }
     if (cat.dataset.dot !== undefined) cat.classList.toggle('latched', list.some(b => b.getAttribute('role') === 'menuitemcheckbox' && b.classList.contains('on')));
   }
@@ -76,22 +77,30 @@ export function initControls() {
   }
   // a tap anywhere else closes the menu (and still does what it was for)
   window.addEventListener('pointerdown', e => { if (open && !open.contains(e.target)) closeMenu(); }, true);
-  // ahead of the page's own keys: Escape closes the menu instead of letting the key up, and the arrows move through the
-  // menu instead of sliding the view
+  // ahead of the page's own keys while a menu is open: Escape closes the menu instead of letting the key up, and the
+  // arrows move through the menu instead of sliding the view (with it closed, Enter or Space opens it, and the arrows
+  // still slide the view)
   window.addEventListener('keydown', e => {
-    const onBtn = e.target.classList?.contains('cat-btn') ? e.target.closest('.cat') : null;
-    if (!open) {
-      if (onBtn && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); e.stopPropagation(); openMenu(onBtn, true); }
-      return;
-    }
+    if (!open) return;
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMenu(open.contains(document.activeElement)); return; }
     if (e.key === 'Tab') { closeMenu(); return; }
-    const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1, Home: -Infinity, End: Infinity }[e.key];
+    const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1, Home: -1, End: 1 }[e.key];
     if (step === undefined) return;
     e.preventDefault(); e.stopPropagation();
-    const list = items(open), i = list.indexOf(document.activeElement);
-    const next = !Number.isFinite(step) ? (step < 0 ? 0 : list.length - 1) : i < 0 ? (step > 0 ? 0 : list.length - 1) : (i + step + list.length) % list.length;
-    list[next]?.focus();
+    const list = items(open), cur = document.activeElement, i = list.indexOf(cur);
+    let next;
+    if (e.key === 'Home') next = list[0];
+    else if (e.key === 'End') next = list.at(-1);
+    else if (i < 0) next = step > 0 ? list[0] : list.at(-1);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') next = list[(i + step + list.length) % list.length];
+    else {   // up or down the grid: the nearest item in the next row, by its left edge; past the last row, round to the other end
+      const r = cur.getBoundingClientRect();
+      const gap = b => { const q = b.getBoundingClientRect(); return step > 0 ? q.top - r.bottom : r.top - q.bottom; };
+      const cost = b => gap(b) * 1000 + Math.abs(b.getBoundingClientRect().left - r.left);
+      const ahead = list.filter(b => gap(b) >= -1);
+      next = ahead.length ? ahead.reduce((a, b) => (cost(b) < cost(a) ? b : a)) : step > 0 ? list[0] : list.at(-1);
+    }
+    next?.focus();
   }, true);
   window.addEventListener('resize', () => { if (open) place(open); });
   // the apps turn their buttons on and off (and #app.upright swaps the action): follow them

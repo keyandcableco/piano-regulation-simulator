@@ -9,7 +9,10 @@ const path = require('path');
 
 const [out, base = 'http://localhost:8812'] = process.argv.slice(2);
 if (!out) { console.error('usage: node tests/controls-check.cjs <out_dir> [base_url]'); process.exit(2); }
-const SIZES = [['desktop', 1280, 800], ['phone360', 360, 740], ['phone375', 375, 812], ['phone390', 390, 844]];
+// (the short ones: a phone with its browser's own bars showing, an iPhone SE's 553 px the shortest)
+const SIZES = [['desktop', 1280, 800], ['phone360', 360, 740], ['phone375', 375, 812], ['phone390', 390, 844], ['phone360x640', 360, 640], ['phoneSE', 375, 553]];
+// the views only tests use, as app.js names them on the View button (TEST_VIEWS there; upright-app.js's too)
+const TEST_VIEW_NAMES = ['Traveling', 'Jack from the keys', 'Backcheck, end on', 'Backcheck, above', 'Damper heads', 'Three dampers', 'Key tops', 'Hammer head'];
 const GRAND_VIEWS = ['action', 'angle', 'keyfront', 'escapement', 'hammer', 'rails', 'hammerline', 'backcheck', 'dampers'];
 const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'whole', 'wippen', 'butt', 'jackfront', 'check', 'damper'];
 
@@ -48,7 +51,7 @@ const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'whole', 'wippen', 'butt', 'j
       for (const b of r) check(b.scroll <= 0 && b.right <= -8 && b.bottom - b.top < 60, t(`${label} ${b.s} fits on one row (overflow ${b.scroll}, ${(-b.right).toFixed(0)} px to spare, ${(b.bottom - b.top).toFixed(0)} px tall)`));
       check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), t(`${label} page has no sideways scroll`));
       // no button's words cut short (every speed, and the longest view name in the menu)
-      const cut = await page.evaluate(async () => {
+      const cut = await page.evaluate(async names => {
         const bad = [], fits = (e, why) => { if (e.scrollWidth > e.clientWidth + 0.5) bad.push(why); };
         for (const b of document.querySelectorAll('.bar > button, .cat-btn')) if (b.offsetParent) fits(b, b.textContent);
         const sp = document.querySelector('#speed-btn .v'), was = sp.textContent;
@@ -56,9 +59,10 @@ const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'whole', 'wippen', 'butt', 'j
         sp.textContent = was;
         const vn = document.getElementById('view-now'), vw = vn.textContent;
         for (const b of document.querySelectorAll('#menu-view b')) { vn.textContent = b.textContent; if (getComputedStyle(b.closest('button')).display !== 'none') fits(vn, b.textContent); }
+        for (const n of names) { vn.textContent = n; fits(vn, n); }
         vn.textContent = vw;
         return bad;
-      });
+      }, TEST_VIEW_NAMES);
       check(!cut.length, t(`${label} no words cut short${cut.length ? ': ' + cut.join(', ') : ''}`));
     };
     await fit('grand');
@@ -134,6 +138,13 @@ const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'whole', 'wippen', 'butt', 'j
     await page.waitForFunction(() => /let-off in/.test(document.getElementById('keypos').textContent) || /before let-off/.test(document.getElementById('lastevent').textContent), null, { timeout: 60000 });
     check((await viewNow()) === 'Jack & knuckle', t('Go to let-off: View says Jack & knuckle'));
     await page.waitForTimeout(300); await shot('framepad');
+    // nothing covers the frame buttons, Play or Let key up while the frame buttons are out (a short phone picture too)
+    const covered = await page.evaluate(() => ['#k-pause', '#k-back', '#k-fwd', '#k-letoff', '#frames-done', '#k-play', '#k-release'].filter(s => {
+      const b = document.querySelector(s), r = b.getBoundingClientRect(), st = document.getElementById('stage').getBoundingClientRect();
+      if (r.bottom > st.bottom || r.top < st.top) return true;
+      return [[r.left + 4, r.top + 4], [r.right - 4, r.bottom - 4], [(r.left + r.right) / 2, (r.top + r.bottom) / 2]].some(([x, y]) => !b.contains(document.elementFromPoint(x, y)));
+    }));
+    check(!covered.length, t(`frame buttons, Play and Let key up all uncovered${covered.length ? ': covered ' + covered.join(' ') : ''}`));
     const kp = () => page.$eval('#keypos', e => e.textContent);
     const k0 = await kp(); await tap('#k-fwd'); await page.waitForTimeout(200); const k1 = await kp();
     await tap('#k-back'); await page.waitForTimeout(200); const k2 = await kp();
@@ -149,17 +160,35 @@ const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'whole', 'wippen', 'butt', 'j
     const spots1 = await spots();
     check(spots1 === spots0, t(`bar buttons stayed put${spots1 === spots0 ? '' : `: ${spots0} → ${spots1}`}`));
 
-    // the keyboard: arrows open and move through a menu, Enter picks, focus back on the category
+    // the keyboard: Enter opens a menu on its item that is on, the arrows move through its grid, Enter picks, focus back
+    // on the category, whose arrows then still slide the view rather than open it
     if (!phone) {
-      await page.focus('#view-btn'); await page.keyboard.press('ArrowDown');
+      await page.focus('#view-btn'); await page.keyboard.press('Enter');
       const f0 = await page.evaluate(() => document.activeElement.dataset.view);
       await page.keyboard.press('ArrowDown'); const f1 = await page.evaluate(() => document.activeElement.dataset.view);
+      await page.keyboard.press('ArrowLeft'); const f2 = await page.evaluate(() => document.activeElement.dataset.view);
       await page.keyboard.press('Enter'); await page.waitForTimeout(200);
       const back = await page.evaluate(() => document.activeElement.id);
-      check(f0 === 'angle' && f1 === 'keyfront' && back === 'view-btn' && (await viewNow()) === 'Key front', t(`keyboard: ${f0} → ${f1}, Enter picks, focus back on View`));
+      check(f0 === 'angle' && f1 === 'escapement' && f2 === 'keyfront' && back === 'view-btn' && (await viewNow()) === 'Key front', t(`keyboard: ${f0} ↓ ${f1} ← ${f2}, Enter picks, focus back on View`));
+      await page.keyboard.press('ArrowDown');
+      check(!(await menuOpen('menu-view')), t('an arrow on the View button leaves the menu shut (it slides the view)'));
       await page.keyboard.press('Enter'); await page.keyboard.press('Tab');
       check(!(await menuOpen('menu-view')), t('Tab leaves and closes the menu'));
       await page.evaluate(() => document.activeElement.blur());
+      // a mouse pick lets go of the focus: Space strikes the key again; K pauses (the frame buttons come out), comma and
+      // full stop step, K runs, P works the pedal
+      await pick('cat-view', '[data-view="hammer"]');
+      await page.keyboard.down('Space'); await page.waitForTimeout(400);
+      const held = await keyDown(); await page.keyboard.up('Space'); await page.waitForTimeout(500);   // (at Slow ×10)
+      check(/going down|held/.test(held) && /coming up|rest/.test(await keyDown()), t(`Space after a menu pick strikes the key (${held}), and lets it go (${await keyDown()})`));
+      await page.waitForTimeout(2500);
+      await page.keyboard.press('k');
+      const padOut = await page.$eval('#framepad', e => !e.hidden) && (await page.$eval('#k-pause', e => e.textContent)) === 'Run';
+      await page.keyboard.press('k'); await page.keyboard.press('p');
+      const pedal = await page.$eval('#k-pedal', e => e.classList.contains('on'));
+      await page.keyboard.press('p');
+      check(padOut && pedal && (await page.$eval('#k-pause', e => e.textContent)) === 'Pause', t('K pauses with the frame buttons out, K runs, P works the pedal'));
+      await tap('#frames-done');
     }
 
     // each mode: the View button follows the views a mode or a test picks

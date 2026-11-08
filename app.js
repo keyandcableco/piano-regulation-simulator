@@ -100,7 +100,8 @@ const TOGETHER = new Set(['angle', 'damperline', 'damperrow']);
 const focusFor = name => !multi() || name === 'hammerline' || (examActive() ? exam.done : TOGETHER.has(name)) ? null : cur;
 const view = name => { viewNow = name; travelRestG = null; S.setFocus(focusFor(name)); S.setView(name, NOTE_Z[cur]); showView(); };
 // the View button names the view, and its menu marks it; the views only tests use are named here
-const TEST_VIEWS = { travel: 'Traveling', jackfront: 'Jack from the keys', checkfront: 'Backcheck from the keys', checktop: 'Backcheck from above',
+// (short enough to fit the button: tests/controls-check.cjs lists them too)
+const TEST_VIEWS = { travel: 'Traveling', jackfront: 'Jack from the keys', checkfront: 'Backcheck, end on', checktop: 'Backcheck, above',
   damperline: 'Damper heads', damperrow: 'Three dampers', keytop: 'Key tops' };
 function showView() {
   for (const b of document.querySelectorAll('[data-view]')) b.classList.toggle('on', b.dataset.view === viewNow);
@@ -436,7 +437,7 @@ async function runTest(id) {
   if (busy) return;
   const gen = generation;
   clearPlan(); cue = null; recentWarn.clear();   // a test's own press stays down; its warnings always show
-  setPaused(false);                     // a test runs the action itself
+  setPaused(false); $('#framepad').hidden = true;   // a test runs the action itself
   releaseOthers();
   busy++;
   view(t.view);
@@ -1242,7 +1243,7 @@ const examActive = () => mode === 'exam' && exam.started;
 // three notes in play: the exam model, or the Sandbox's three keys
 const multi = () => examActive() || (mode === 'sandbox' && threeKeys);
 function startExam() {
-  setPaused(false); clearFrames(); closePop();
+  setPaused(false); $('#framepad').hidden = true; clearFrames(); closePop();
   const restRail = deregulated().restRail;
   const shared = deregulated();
   NOTES.forEach(n => {
@@ -1605,7 +1606,6 @@ function setPaused(on) {
 // Done puts the frame buttons away, and the action runs again (nothing on the bar would say it was still paused)
 const framesDone = () => { if (paused && !busy) setPaused(false); if (!paused) $('#framepad').hidden = true; };
 $('#frames-done').onclick = framesDone;
-$('#framepad').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); framesDone(); } });
 $('#k-frames').onclick = () => { if (busy) return; setPaused(true); if (idleNow()) explain('Paused: Play or Go to let-off, then Frame ▶ steps through it'); };
 $('#k-letoff-m').onclick = () => $('#k-letoff').click();
 // a clicked frame button lets go of the keyboard, so Space goes back to striking the key (the frame keys work anywhere)
