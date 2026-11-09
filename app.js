@@ -1,5 +1,6 @@
 import { G, IN, ADJ, SPEC, DAMPER_SPECS, DAMAGE, FACTORY, NEIGHBOR_H, Sim, measure, grade, hamPt, crownY, crownTop, keyAngle, keyPt,
-         jackGeom, knuckleBottom, coreBack, eff, repSupportZ, sideZ, jackSide, linkage, gString as gStringNow } from './model.js';
+         jackGeom, knuckleBottom, coreBack, eff, repSupportZ, sideZ, jackSide, linkage, gRail, gString as gStringNow } from './model.js';
+import { hand, GRAND_HOLD, HOLD_NAMES, dragTo } from './hand.js';
 import { createScene, NOTE_Z, BASS } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
@@ -437,6 +438,7 @@ async function runTest(id) {
   const t = TESTS[id];
   if (busy) return;
   const gen = generation;
+  endGrab();   // a test runs the action itself
   clearPlan(); cue = null; recentWarn.clear();   // a test's own press stays down; its warnings always show
   setPaused(false); $('#framepad').hidden = true;   // a test runs the action itself
   releaseOthers();
@@ -1402,7 +1404,8 @@ let letoffMark = null, checkMark = null, letoffD = null, contactD = {};
 function handleEvents() {
   for (const e of sim.events) {
     const show = id => revealed(id);
-    if (e.type === 'letoff') {
+    if (e.type === 'letoff' && e.hand) say('Jack tripped by hand: the knuckle slips off it');
+    else if (e.type === 'letoff') {
       // let-off is judged on a slow press; a hard blow trips at a slightly different point
       const slow = sim.keySpeed <= 20;
       // a hard blow, or the jack back under, ends the slow press's marks: drop and aftertouch hang from them
@@ -1581,7 +1584,7 @@ let paused = false, stepFrames = 0, frameNo = 0, frameHold = null;
 const FRAME_S = 1 / 60, H_STEP = 0.0002;   // 0.2 ms steps keep the escapement timing stable
 const frameHistory = [], HISTORY_MAX = 900;   // about 15 s of frames
 const clearFrames = () => { frameHistory.length = 0; cue = null; };
-const SNAP_SKIP = new Set(['a', 'L', 'events', 'dip', 'keyRock', 'keyTwist', 'keyShown', 'stackOff', 'jackRock', 'wippenRock', 'hammerRock', 'ulShown']), SNAP_LAZY = ['strikes', 'popped', 'buzzing'];   // fields a Sim sets only later
+const SNAP_SKIP = new Set(['a', 'L', 'events', 'dip', 'hand', 'keyRock', 'keyTwist', 'keyShown', 'stackOff', 'jackRock', 'wippenRock', 'hammerRock', 'ulShown']), SNAP_LAZY = ['strikes', 'popped', 'buzzing'];   // fields a Sim sets only later
 const snapSim = s => Object.fromEntries(Object.entries(s).filter(([k]) => !SNAP_SKIP.has(k)).map(([k, v]) => [k, v && typeof v === 'object' ? structuredClone(v) : v]));
 // nothing moving: keys up, hammers and dampers still (a damper can rest up on the pedal's tray), the pedal not moving
 // (a hammer at rest can keep a speed of 1e-16 or so from the last step's rounding)
@@ -1690,6 +1693,7 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   showCredits = false;
   if (mode === 'drills') { drillsStop?.(); drillsEl = null; }
   if (mode === 'tools') { S.hideTool(); toolSel = null; S.setLabels(labelsOn); }
+  endGrab();
   mode = b.dataset.mode; tested = new Set(); verdict = null; S.clearCallouts(); setPaused(false); clearFrames(); closePop();
   $('#framepad').hidden = true;
   if (mode === 'tools') { S.setLabels(false); if (sim.dTarget > 0) sim.press(0, 60); if (TOOLBAG.length) pickTool(TOOLBAG[0].id); }
@@ -1725,9 +1729,14 @@ window.addEventListener('keyup', e => { if (mode !== 'tools' && action === 'gran
 // hover names, press the key by clicking it
 const tip = $('#tip');
 canvas.addEventListener('pointermove', e => {
-  const part = S.pick(e)?.part;
-  canvas.style.cursor = part === 'key' ? 'pointer' : '';   // the key plays; anywhere else drags the view
-  if (part) { tip.textContent = S.PART_NAMES[part] || part; tip.style.transform = `translate(${e.offsetX + 14}px, ${e.offsetY + 10}px)`; tip.hidden = false; }
+  if (grab) { if (grab.id === e.pointerId) moveGrab(e); return; }
+  const hit = S.pick(e), part = hit?.part, hold = holdOf(hit);
+  // with Move parts on, a part that moves; else the key, which plays; anywhere else drags the view
+  canvas.style.cursor = hold ? 'move' : part === 'key' ? 'pointer' : '';
+  if (part) {
+    tip.textContent = (S.PART_NAMES[part] || part) + (hold ? ` · drag to move ${HOLD_NAMES[hold]}` : '');
+    tip.style.transform = `translate(${e.offsetX + 14}px, ${e.offsetY + 10}px)`; tip.hidden = false;
+  }
   else tip.hidden = true;
 });
 canvas.addEventListener('pointerleave', () => { tip.hidden = true; });
@@ -1740,6 +1749,9 @@ canvas.addEventListener('pointerdown', e => {
     selectNote(hit.note);
     if (focusFor(viewNow) !== null) view(viewNow);
   }
+  // Move parts: the part is taken hold of once the pointer moves; let go where it was pressed, it was a click
+  const hold = e.button === 0 && e.isPrimary && !grab ? holdOf(hit) : null;
+  if (hold) { S.controls.enabled = false; grab = { id: e.pointerId, x: e.clientX, y: e.clientY, hit, hold, slot: cur, started: false }; tip.hidden = true; return; }
   if (part === 'key' && !busy) { keyHeld = e.pointerId; S.controls.enabled = false; setLoop(false); clearPlan(); cue = null; releaseOthers(); sim.press(sim.dip, 250); pausedNote(); }
   else clickAt = clickAt || e.button !== 0 || !e.isPrimary ? null   // a second finger, or a right or middle button, turns the view
     : { x: e.clientX, y: e.clientY, id: e.pointerId, hit, shift: e.shiftKey || e.ctrlKey };
@@ -1747,6 +1759,12 @@ canvas.addEventListener('pointerdown', e => {
 // a click that didn't turn the view: a part opens its card, empty space closes it
 let clickAt = null;
 canvas.addEventListener('pointerup', e => {
+  if (grab?.id === e.pointerId) {
+    const g = endGrab();
+    // not moved: a click, which opens the part's card as it does without Move parts (the key's tests sit on its rails)
+    if (!g.started && g.hit.part !== 'key' && mode !== 'tools' && mode !== 'drills') openPop(g.hit);
+    return;
+  }
   const c = clickAt; clickAt = null;
   if (!c || c.id !== e.pointerId || c.shift || Math.hypot(e.clientX - c.x, e.clientY - c.y) > 6 || mode === 'tools' || mode === 'drills') return;
   // a neighbor's part clicked while a test runs (the note can't switch then) would open a card working on the wrong note
@@ -1757,6 +1775,7 @@ canvas.addEventListener('pointerup', e => {
 const endHold = e => {
   const mine = h => e.pointerId === undefined || h.id === e.pointerId;
   if (clickAt && mine(clickAt)) clickAt = null;
+  if (grab && mine(grab)) endGrab();
   if (frameHold && mine(frameHold)) frameHold = null;
   if (moveHold && mine(moveHold)) moveHold = null;
   if (keyHeld !== null && mine({ id: keyHeld })) { keyHeld = null; S.controls.enabled = true; letGo(); }
@@ -1765,6 +1784,78 @@ window.addEventListener('pointerup', endHold);
 window.addEventListener('pointercancel', endHold);
 window.addEventListener('blur', endHold);
 canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// ---------- Move parts: dragging a part moves it by hand (hand.js) ----------
+// What a drag takes hold of here and how far it goes. The wippen is held by the key it sits on (the Sim's 'key'),
+// so lifting it presses the key; the jack trips up to its stop felt and on; the repetition lever only presses down.
+let grab = null;   // { id, x, y: where the pointer went down, hit, hold, slot, started, lo, hi } while a part is held
+const holdOf = hit => hand.on && hit && !busy && !cue?.run && mode !== 'tools' && mode !== 'drills' &&
+  !sim.stackOff && sim.keyShown == null ? GRAND_HOLD[hit.part] ?? null : null;
+function holdRange(s, hold) {
+  if (hold === 'key' || hold === 'wippen') return [s.d, 0, s.dip];
+  if (hold === 'jack') return [s.psi, s.L.psiRest, Math.max(s.L.psiRest + 0.2, s.psi + 0.1)];
+  if (hold === 'rep') { const top = linkage(s.a, s.d).hornTop, q = Math.min(top, knuckleBottom(s.g)[1]); return [q, top - 3, top]; }
+  if (hold === 'hammer') return [s.g, gRail(s.a), gStringNow()];
+  return [s.yd, 0, s.a.damperStop];
+}
+// the note drawn with the held part at q, for dragTo to see where the spot grabbed goes
+function heldAt(s, hold, q) {
+  if (hold === 'key' || hold === 'wippen') return { ...s, keyShown: null, d: q, L: linkage(s.a, q) };
+  if (hold === 'jack') return { ...s, psi: q };
+  if (hold === 'rep') return { ...s, L: { ...s.L, hornTop: q } };
+  if (hold === 'hammer') return { ...s, g: q };
+  return { ...s, yd: q, ulShown: null };
+}
+function moveGrab(e) {
+  const s = NOTES[grab.slot].sim;
+  if (!grab.started) {
+    if (Math.hypot(e.clientX - grab.x, e.clientY - grab.y) < 4) return;
+    const [q, lo, hi] = holdRange(s, grab.hold);
+    Object.assign(grab, { started: true, lo, hi });
+    setLoop(false); cue = null;
+    if (grab.hold === 'key' || grab.hold === 'wippen') clearPlan();
+    s.grab(grab.hold === 'wippen' ? 'key' : grab.hold, q);
+  }
+  if (!s.hand) { endGrab(); return; }   // a reset took it out of the hand
+  const r = canvas.getBoundingClientRect();
+  s.hand.q = dragTo({ obj: grab.hit.obj, local: grab.hit.local, camera: S.camera, canvas, q: s.hand.q, lo: grab.lo, hi: grab.hi,
+    x: e.clientX - r.left, y: e.clientY - r.top, pose: q => S.update(grab.slot, heldAt(s, grab.hold, q), s.a, null, null, false) });
+  S.update(grab.slot, s, s.a, null, null, false);   // drawn where it really is again
+}
+// let go (the key comes back up by itself); returns what was held
+function endGrab() {
+  const g = grab; grab = null;
+  if (!g) return null;
+  S.controls.enabled = true;
+  const s = NOTES[g.slot]?.sim;
+  if (g.started && s?.hand) { s.letGo(); if (g.hold === 'key' || g.hold === 'wippen') s.press(0, KEY.upSpeed); }
+  return g;
+}
+const handBtn = $('#nav-hand');
+function setHand(on) {
+  hand.on = on; handBtn.classList.toggle('on', on); handBtn.setAttribute('aria-pressed', String(on));
+  if (!on) { endGrab(); U?.dropHand(); }
+}
+handBtn.onclick = () => {
+  setHand(!hand.on);
+  if (hand.on) toast('Drag a part to move it by hand. Drag empty space to turn the view; ✋ again to stop');
+};
+
+// ---------- the panel: hidden, the picture has the whole window ----------
+const panelBtn = $('#panel-btn');
+let panelScroll = 0;
+function setPanel(shown) {
+  const app = $('#app'), aside = $('aside');
+  if (!shown && !app.classList.contains('nopanel')) panelScroll = aside.scrollTop;
+  app.classList.toggle('nopanel', !shown);
+  if (shown) aside.scrollTop = panelScroll;
+  panelBtn.textContent = shown ? 'Hide panel' : 'Show panel';
+  panelBtn.setAttribute('aria-expanded', String(shown));
+  closeMenu();
+  try { localStorage.setItem('regsim-panel', shown ? 'shown' : 'hidden'); } catch {}
+}
+panelBtn.onclick = () => { setPanel($('#app').classList.contains('nopanel')); panelBtn.blur(); };
+{ let shown = true; try { shown = localStorage.getItem('regsim-panel') !== 'hidden'; } catch {} setPanel(shown); }
 
 // ---------- moving the view with buttons ----------
 // Dragging turns the view, but sliding (Shift, Ctrl or right-drag) and zooming are easy to miss, so the picture has
@@ -1815,8 +1906,13 @@ function advance(dtSim) {
   if (mode !== 'tools') snapshot();
   for (const n of NOTES) {
     const s2 = n.sim;
-    if (s2 !== sim && s2.d === 0 && s2.dTarget === 0 && s2.w === 0 && s2.yd === 0 && s2.vd === 0 && s2.pedal === s2.pedalTarget) continue;
-    for (let t = 0; t < dtSim; t += H_STEP) n.sim.step(Math.min(H_STEP, dtSim - t));
+    if (s2 !== sim && !s2.hand && s2.d === 0 && s2.dTarget === 0 && s2.w === 0 && s2.yd === 0 && s2.vd === 0 && s2.pedal === s2.pedalTarget) continue;
+    // The frame's time in equal steps of at most H_STEP. Stepped H_STEP at a time with the rest left over, a frame could end
+    // on a step thousands of times shorter than the one before (down to 1e-18 s, from rounding, when the frame was a whole
+    // number of steps), and a jack lifting the hammer just after a reset (WEDGE_T, timed by the step before) threw it at up
+    // to 40 rad/s in it: a phantom blow of up to 5.5 m/s.
+    const k = Math.max(1, Math.ceil(dtSim / H_STEP - 1e-6));
+    for (let i = 0; i < k; i++) n.sim.step(dtSim / k);
   }
   simTime += dtSim; frameNo++;
   const did = sim.events.map(e => e.type);
@@ -1850,8 +1946,10 @@ function frame(now) {
     try { U.frame(dtReal); } catch (err) { console.error(err); }
     requestAnimationFrame(frame); return;
   }
-  let dtSim = Math.min(dtReal * scale, 120 * H_STEP);
-  if (paused) { dtSim = stepFrames ? Math.min(FRAME_S * scale, 120 * H_STEP) : 0; stepFrames = Math.max(0, stepFrames - 1); }
+  // a part held by hand moves at the hand's own pace, real speed, paused or not; let go, it goes on at the chosen speed
+  const held = NOTES.some(n => n.sim.hand);
+  let dtSim = Math.min(dtReal * (held ? 1 : scale), 120 * H_STEP);
+  if (paused && !held) { dtSim = stepFrames ? Math.min(FRAME_S * scale, 120 * H_STEP) : 0; stepFrames = Math.max(0, stepFrames - 1); }
   if (cue?.run) runCue();
   else if (dtSim > 0) advance(dtSim);
   NOTES.forEach((n, i) => { if (i === 0 || multi()) S.update(i, n.sim, eff(n.adj), i === cur ? hammerOverride : null, i === cur ? jackOverride : null, i === cur); });
@@ -1905,7 +2003,7 @@ async function setAction(kind) {
     setLoop(false); clearPlan(); cue = null; setPaused(false); releaseOthers(); sim.press(0, 60); closePop(); S.highlight(null); tip.hidden = true;
     $('#framepad').hidden = true;
   }
-  closeMenu();
+  closeMenu(); endGrab(); U?.dropHand();
   action = kind; showCredits = false;
   $('#app').classList.toggle('upright', kind === 'upright');
   for (const b of document.querySelectorAll('#action-switch button')) b.classList.toggle('on', b.dataset.action === kind);

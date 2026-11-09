@@ -864,6 +864,10 @@ const BOUNCE_V = 0.01;  // a knuckle landing on the jack slower than this (m/s) 
 // Before this the reset lifted the crown 3.2 mm in one step, stopped a falling hammer in mid-air, and could fire a
 // checked hammer at the string when the check let go.
 const WEDGE_T = 0.05;
+// A hand holding a part (Move parts in the app) eases it to where the pointer puts it, critically damped at this rate
+// (rad/s: about 60 ms behind a steady drag), rather than jumping there: a pointer's jerky steps would otherwise snap the
+// jack up under the knuckle and throw the hammer off it.
+const HAND_W = 35;
 
 export class Sim {
   constructor(a) { this.setAdj(a); this.reset(); }
@@ -883,6 +887,7 @@ export class Sim {
     // the center tests' side play, drawn from jackRock (mm at the jack's top), wippenRock (mm at the jack, the wippen moving
     // on its flange) and hammerRock (mm at the crown), + bass; ulShown lifts the underlever alone (mm at its lift felt)
     this.jackRock = this.wippenRock = this.hammerRock = this.ulShown = null;
+    this.hand = null;
     this.t = 0; this.pedal = this.pedal ?? 0; this.pedalTarget = this.pedalTarget ?? 0;
     this.yd = Math.min(this.pedal * this.a.pedalLift, this.a.damperStop); this.vd = 0;
     this.up = this.yd > 0.05; this.hitStop = false; this.liftedAt = this.up ? 0 : null;
@@ -896,7 +901,7 @@ export class Sim {
     // the foot presses the pedal over about a tenth of a second; let go, the tray drops away faster than the dampers fall
     const rate = this.pedalTarget > this.pedal ? dt / 0.1 : dt / 0.02;
     this.pedal += Math.sign(this.pedalTarget - this.pedal) * Math.min(Math.abs(this.pedalTarget - this.pedal), rate);
-    const push = Math.max(damperKeyLift(a, this.L), this.pedal * a.pedalLift);
+    const push = Math.max(damperKeyLift(a, this.L), this.pedal * a.pedalLift, this.hand?.hold === 'damper' ? Math.min(this.hand.at, a.damperStop) : 0);
     // free flight first (rising after a hard blow, or falling); the underlever or tray takes over
     // whenever it is at or above where the head would be
     const gEff = G.dmpGravity * (this.vd > 0 ? 1 + a.damperDrag : 1 - Math.min(0.95, a.damperDrag));
@@ -922,9 +927,27 @@ export class Sim {
     else if (this.stuck && target < this.d) { if (target === 0 && this.dTarget === 0) this.lifting = true; else this.emit('keystuck'); }
     this.dTarget = Math.max(0, Math.min(target, this.dip + 1)); this.keySpeed = speed;
   }
+  // A hand on one part (the app's Move parts), holding it at q and moved by setting hand.q: 'key' (q: key travel, mm; the
+  // app's wippen is held this way too, the key following a lifted wippen since it is heavier at the front), 'jack' (its
+  // angle on the wippen: the hand trips it as the let-off button does), 'rep' (the repetition lever's horn height, mm: a
+  // finger can only press it down from its stop), 'hammer' (its angle: lifted off whatever holds it up) or 'damper'
+  // (its lift, mm). Everything else goes on as the model has it.
+  grab(hold, q) { this.hand = { hold, q, at: q, v: 0 }; }
+  letGo() {
+    const h = this.hand; this.hand = null;
+    if (h?.hold !== 'hammer') return;
+    // a hammer set down on the backcheck stays there, as one caught by it does
+    const L = this.L, st = this.st, gC = gFromTail(L.bcCatchY), gTake = gC + CHECK_GIVE / STRIKE_R;
+    if (L.depth >= G.bcInPath && this.a.backcheck >= -G.bcMissLean && st.aboveCheck && this.g <= gTake && this.g >= gC - 0.02) {
+      st.checked = true; st.catching = false; st.give = gTake - this.g; st.dChecked = this.d; this.w = 0;
+    }
+  }
   step(dt) {
     const a = this.a, st = this.st;
     const dPrev = this.d;
+    const h = this.hand;
+    if (h) { h.v += (HAND_W * HAND_W * (h.q - h.at) - 2 * HAND_W * h.v) * dt; h.at += h.v * dt; }
+    if (h?.hold === 'key') { this.d = this.dTarget = Math.max(0, Math.min(h.at, this.dip)); this.keySpeed = Math.abs(h.v); }
     const dir = Math.sign(this.dTarget - this.d);
     // the action's weight brings a key up; a tight bushing's friction slows it, or holds it down
     let speed = this.keySpeed;
@@ -944,12 +967,16 @@ export class Sim {
     if (onBtn && !this.onBtn) this.emit('tender');
     if (onScrew && !this.onScrew) this.emit('dropscrew');
     this.onBtn = onBtn; this.onScrew = onScrew;
+    // a hand trips the jack as the button would, or holds the repetition lever down from its stop
+    const handTrip = h?.hold === 'jack' && h.at > L.psiBtn;
+    if (handTrip) L.psiBtn = h.at;
+    if (h?.hold === 'rep') L.hornTop = Math.min(L.hornTop, h.at);
     const wasEsc = st.escaped;
     this.psi = updateJack(a, L, st, this.g);
-    if (!wasEsc && st.escaped) this.emit('letoff', { dist: G.stringY - crownY(this.g) });
+    if (!wasEsc && st.escaped) this.emit('letoff', { dist: G.stringY - crownY(this.g), hand: handTrip });
     // the jack back under the knuckle drives the next strike: a new blow, not a bobble off the lever
     if (wasEsc && !st.escaped) { this.emit('reset'); this.struckD = this.floatD = null; }
-    if (st.jammed && !this.jammed) this.emit('jackjam');
+    if (st.jammed && !this.jammed && !handTrip) this.emit('jackjam');   // (a hand pushing it there isn't a regulation fault)
     this.jammed = st.jammed;
     let jackG = st.escaped ? -Infinity : gOnJackAt(L, this.psi);
     const gHorn = gFromKnuckle(L.hornTop);
@@ -974,6 +1001,9 @@ export class Sim {
     // but never throws it back up
     if (onRep && this.w <= 0 && w < 0) w = Math.min(0, w + GA * (a.repFr + REP_SLIDE * sF + a.hammerFrX) * dt);
     let g = this.g + w * dt;
+    // a hand holding the hammer puts it where it is held; what holds it up from below (the jack, the lever, the rail) still does
+    const held = h?.hold === 'hammer';
+    if (held) { g = Math.min(h.at, gString()); w = (g - this.g) / dt; }
     // the backcheck: where it starts to take the hammer, and where it has it this step if it holds or is catching it
     const gC = gFromTail(L.bcCatchY);
     const gTake = gC + CHECK_GIVE / STRIKE_R;
@@ -991,11 +1021,12 @@ export class Sim {
       if (x >= 1) this.wedge0 = 0;
     }
     const jackDriving = jackG >= this.g - 1e-6;
-    if (onRep && g > gHorn && !jackDriving) {
+    if (onRep && g > gHorn && !jackDriving && !held) {
       // The lever stops at the drop screw and the hammer carries on up with its own speed, then falls back onto it (a
       // float: Scott Murphy's clips show 1.2-2.4 mm over the drop screw after a rise out of check); a crawl stays on the
       // lever. A pop is the spring kicking it up fast as the key comes up or holds; on the way down the blow just leaves it.
-      if (w > POP_W) { if (!this.popped && this.dTarget <= this.d) this.emit('pop'); this.popped = true; }
+      // (a key held by hand is going down when the hand is)
+      if (w > POP_W) { if (!this.popped && this.dTarget <= this.d && !(h?.hold === 'key' && h.v > 0)) this.emit('pop'); this.popped = true; }
       else if (w < FLOAT_W) { g = gHorn; w = Math.min(w, (gHorn - this.g) / dt); }
       // off the lever after this key-down has already struck: striking again before the key comes up is a bobble
       if (w >= FLOAT_W && this.struckD !== null && this.floatD === null) this.floatD = this.d;
@@ -1008,7 +1039,7 @@ export class Sim {
       // Anywhere else the key and wippen give under the knuckle and it settles.
       // A jack slipping back under lifts the knuckle a hair; that lift comes out of the bounce, not on top of it.
       const vk = -this.w * G.knuckleC[0] / 1000;   // the knuckle's downward speed, m/s
-      if (vk > BOUNCE_V && this.d >= this.dip - 0.02) {
+      if (vk > BOUNCE_V && this.d >= this.dip - 0.02 && !held) {
         w = Math.sqrt(Math.max(0, (Math.max(0, 1 - 2 / 3 * G.jackD * vk) * this.w) ** 2 - 2 * GA * Math.max(0, jackG - g)));
         this.bounceD = this.d;   // a strike before the key comes back up is a bobble
       }
@@ -1029,7 +1060,15 @@ export class Sim {
     // the hammer falls past where the backcheck takes it, or a key still going down carries that point up past the
     // hammer within the step (so the hammer was above where it stood a step ago)
     let caughtNow = false;
-    if (!st.checked && !st.catching && catchActive && st.aboveCheck && g < gTake && w < 0 &&
+    // the spring's lift on a knuckle at height z, as the backcheck judges it; none while a finger holds the lever down clear of it
+    const liftAt = z => h?.hold === 'rep' && z > L.hornTop ? 0 : springF(a, L, Math.min(z, L.hornTop));
+    if (held) {
+      // the hand lifts the tail off the backcheck, and can't push it in deeper than its face (or than it already is)
+      st.checked = st.catching = false;
+      const floor = Math.min(gC, this.g);
+      if (catchActive && st.aboveCheck && g < floor) { g = floor; w = Math.max(0, w); }
+    }
+    if (!held && !st.checked && !st.catching && catchActive && st.aboveCheck && g < gTake && w < 0 &&
         (this.g >= gTake || this.g >= gFromTail(this.L.bcCatchY) + CHECK_GIVE / STRIKE_R)) {
       // the tail meets the backcheck, which takes up the hammer's speed over CHECK_TAU x that speed
       st.catching = true; st.dChecked = this.d; st.wCatch = -this.w; caughtNow = true;
@@ -1046,7 +1085,7 @@ export class Sim {
         else if (w >= 0) {
           st.catching = false; w = 0;
           // too soft a catch to grip: if the spring lifts at all there, it takes the hammer straight back out
-          if (st.wCatch * STRIKE_R / 1000 < CHECK_HOLD_V && springF(a, L, Math.min(knuckleBottom(g)[1], L.hornTop)) > 1) {
+          if (st.wCatch * STRIKE_R / 1000 < CHECK_HOLD_V && liftAt(knuckleBottom(g)[1]) > 1) {
             this.emit('softcheck', { dist: G.stringY - crownY(g) });
           } else {
             st.checked = true; st.give = gTake - g;
@@ -1057,7 +1096,7 @@ export class Sim {
     }
     if (st.checked) {
       st.dChecked = Math.max(st.dChecked, this.d);
-      const net = springF(a, L, Math.min(knuckleBottom(gTake - st.give)[1], L.hornTop)) - 1;   // the spring where the knuckle is held
+      const net = liftAt(knuckleBottom(gTake - st.give)[1]) - 1;   // the spring where the knuckle is held
       if (net > G.checkHold) { st.checked = false; this.emit('jumpcheck'); }
       else if (this.d < st.dChecked - 0.8 || !catchActive) { st.checked = false; st.aboveCheck = false; this.emit('uncheck'); }
       else if (jackG > gTake - st.give + 1e-6) { st.checked = false; st.aboveCheck = false; this.emit('uncheck'); g = gFree; w = wFree; }

@@ -551,7 +551,9 @@ export function createUprightScene(canvas, overlay) {
     // see-through parts and parts a clipped view has cut away are skipped (a ray ignores clipping planes)
     const shown = o => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
     const hit = ray.intersectObjects(pickables, false).find(h => h.object.userData.baseOpacity > 0.25 && shown(h.object) && inClip(h.point));
-    return hit ? { part: hit.object.userData.part, name: PART_NAMES[hit.object.userData.part] || hit.object.userData.part } : null;
+    // obj and local: the spot hit, on its part (a drag by hand follows it); note: its slot (0 the middle)
+    return hit ? { part: hit.object.userData.part, name: PART_NAMES[hit.object.userData.part] || hit.object.userData.part,
+      note: hit.object.userData.note, obj: hit.object, local: hit.object.worldToLocal(hit.point.clone()) } : null;
   }
   // where a point of a group is on the picture, in pixels from its top left
   const sv = new THREE.Vector3();

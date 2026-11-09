@@ -717,6 +717,7 @@ export const FACTORY = {"balPunch":1.5,"frontPunch":1.5522,"railShim":0.5587,"ca
 // =====================================================================================================================
 const GRAV = 9810;
 const DEG = Math.PI / 180;
+const HAND_W = 35;   // rad/s: how fast a hand holding a part eases to where it is moved (model.js HAND_W)
 export const DYN = {
   hammerI: 175000,       // [T] g·mm²: head 8 g at 142 mm, shank 2 g, butt 4 g, catcher 1.5 g (Greg's scale: protocol 1.4 D)
   hammerLean: 16.2 * DEG, // [T] how far the hammer's centre of mass leans toward the player at rest, from those masses
@@ -760,6 +761,7 @@ export class Sim {
     this.strapLen = STRAP_LEN;
     this.taut = false; this.checked = false; this.onRail = p.on === 'rail'; this.seated = p.dl <= 1e-6; this.events = [];
     this.strapD = undefined; this.dPeak = 0; this.blocked = false;
+    this.hand = null;
   }
   // held down after a blow: the key at depth d, the hammer where the backcheck holds it, the jack let off
   hold(d, { soft = false } = {}) {
@@ -769,6 +771,12 @@ export class Sim {
       seated: p.dl <= 1e-6 });
   }
   press(target, speed) { this.driver = null; this.dTarget = Math.max(0, Math.min(target, this.dip)); this.keySpeed = speed; }
+  // A hand on one part (the app's Move parts, as model.js's Sim has it), holding it at q and moved by setting hand.q:
+  // 'key' (key travel, mm), 'wippen' (its angle: lifted off the capstan, the key staying where it is), 'jack' (its
+  // angle: the hand trips it as the let-off button does), 'hammer' (its angle) or 'damper' (the lever's angle off the
+  // strings). It eases there (HAND_W) rather than jumping.
+  grab(hold, q) { this.driver = null; this.hand = { hold, q, at: q, v: 0 }; }
+  letGo() { this.hand = null; }
   // follow a measured key: fn(t) gives the key front's depth (mm) t seconds from now
   drive(fn) { this.driver = fn; this.t0 = this.t; }
   setSoft(down) { this.softTarget = down ? 1 : 0; }
@@ -785,8 +793,11 @@ export class Sim {
       const rate = this[tk] > this[k] ? dt / 0.1 : dt / 0.03;
       this[k] += Math.sign(this[tk] - this[k]) * Math.min(Math.abs(this[tk] - this[k]), rate);
     }
+    const h = this.hand;
+    if (h) { h.v += (HAND_W * HAND_W * (h.q - h.at) - 2 * HAND_W * h.v) * dt; h.at += h.v * dt; }
     // the key
-    if (this.driver) this.d = Math.max(0, Math.min(this.dip, this.driver(this.t - this.t0)));
+    if (h?.hold === 'key') this.d = this.dTarget = Math.max(0, Math.min(this.dip, h.at));
+    else if (this.driver) this.d = Math.max(0, Math.min(this.dip, this.driver(this.t - this.t0)));
     else this.d += Math.sign(this.dTarget - this.d) * Math.min(Math.abs(this.dTarget - this.d), this.keySpeed * dt);
     const k = keyAngle(a, this.d), phiCap = wippenOn(capstanTop(a, k));
 
@@ -808,19 +819,21 @@ export class Sim {
     let v = this.v + (tauW - GRAV * DYN.wippenDownT) / DYN.wippenI * dt;
     let phi = this.phi + v * dt;
     if (phi <= phiCap) { phi = phiCap; v = (phiCap - phiPrev) / dt; }   // on the capstan: carried, or resting
+    if (h?.hold === 'wippen') { phi = Math.max(phiCap, h.at); v = (phi - phiPrev) / dt; }   // held, but never below the capstan
     this.phi = phi; this.v = v;
 
     // ---- the jack ----
     const gr = gRail({ ...a, railShim: this.railShim() });
     const x0 = restPlace(a.balPunch, a.capstan, gr), c = contactOn(gr, x0);
-    const pb = jackPsi(a, phi);
+    const handTrip = h?.hold === 'jack' && h.at > jackPsi(a, phi);
+    const pb = handTrip ? h.at : jackPsi(a, phi);                    // a hand trips it as the button does
     let gJack = -Infinity;                                          // where the jack holds the hammer up from
     if (this.jack === 'under') {
       const ch = chain(phi, c), psiFree = psiAtX(phi, this.g, x0);
       if (pb > Math.max(ch.psi, psiFree)) {
         // the button trips it: its top slides toward the player along the cushion
         this.psi = pb;
-        if (escaped(phi, pb, this.g)) { this.jack = 'off'; this.emit('letoff', { dist: stringGap(this.g) }); }
+        if (escaped(phi, pb, this.g)) { this.jack = 'off'; this.emit('letoff', { dist: stringGap(this.g), hand: handTrip }); }
         else gJack = gOnJack(phi, pb);
       } else if (this.g <= ch.g + 1e-6) { this.psi = ch.psi; gJack = ch.g; }   // carrying the butt
       else this.psi = psiFree;                                      // the hammer above it: the jack keeps its place
@@ -843,6 +856,8 @@ export class Sim {
     let acc = (GRAV * (-DYN.hammerMR * Math.sin(lean) - (a.noSpring ? 0 : DYN.springT0 + DYN.springK * this.g)) + tauH) / DYN.hammerI;
     if (Math.abs(this.w) > 1e-6) acc -= Math.sign(this.w) * GRAV * DYN.frictionT * (this.k.frictionT ?? 1) / DYN.hammerI;
     let w = this.w + acc * dt, g = this.g + w * dt;
+    // a hand holding the hammer puts it where it is held; the jack, the backcheck and the rail still stop it
+    if (h?.hold === 'hammer') { g = Math.min(h.at, gString()); w = (g - gPrev) / dt; }
     // the jack carries it (a hammer it meets falling is taken at the jack's own speed: no snap)
     if (g < gJack) { w = Math.max(w, (gJack - gPrev) / dt); g = gJack; }
     // The backcheck: the catcher coming back meets its felt and is held there, the felt taking its speed. It only ever
@@ -879,7 +894,7 @@ export class Sim {
     // ---- the damper: the spoon or the lift rod holds it off; else its spring brings it back to the strings ----
     const dlSpoon = damperAngle(a, phi), dlPedal = this.pedal * DAMPER_PEDAL_LIFT;
     let vd = this.vd - DYN.damperAlpha * (this.k.damperAlpha ?? 1) * dt, dl = this.dl + vd * dt;
-    const floor = Math.max(dlSpoon, dlPedal);
+    const floor = Math.max(dlSpoon, dlPedal, h?.hold === 'damper' ? h.at : 0);
     if (dl < floor) { vd = Math.max(vd, (floor - this.dl) / dt); dl = floor; }
     if (dl <= 0) { dl = 0; vd = 0; if (!this.seated) { this.seated = true; this.emit('seated'); } }
     else if (this.seated && dl > 1e-4) { this.seated = false; this.emit('damperup'); }

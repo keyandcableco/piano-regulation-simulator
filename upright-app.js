@@ -4,7 +4,8 @@
 // this module's, which sit in the same bars so the phone layouts carry over.
 // The upright's model, drawing and content are upright-model.js, scene-upright.js and content-upright.js. It has Learn
 // and the Sandbox; Find the fault, the exam, drills and tools come with C5, C7 and C8.
-import { FACTORY, ADJ, SPEC, DAMAGE, Sim, measure, grade, pose, DAMPER_PEDAL_LIFT } from './upright-model.js';
+import { FACTORY, ADJ, SPEC, DAMAGE, Sim, measure, grade, pose, DAMPER_PEDAL_LIFT, keyAngle, capstanTop, wippenOn, gRail, gString } from './upright-model.js';
+import { hand, UPRIGHT_HOLD, HOLD_NAMES, dragTo } from './hand.js';
 import { createUprightScene } from './scene-upright.js';
 import { STEPS, TESTS, TIPS, TOOLS, SPEC_NAMES, REPAIRS, SCENARIOS, bandText, readingText, callouts, deregulated, fairStart, creditOf } from './content-upright.js';
 import { markView } from './controls.js';
@@ -48,7 +49,7 @@ const VIEW_GROUPS = [
 ];
 const TEST_VIEWS = { head: 'Hammer head' };   // views only a test uses, named on the View button
 const EVENT_TEXT = {
-  letoff: e => `Let off ${e.dist.toFixed(1)} mm from the strings`, strike: e => `Struck at ${e.v.toFixed(1)} m/s`, blocked: () => 'Blocked on the strings',
+  letoff: e => e.hand ? 'Jack tripped by hand' : `Let off ${e.dist.toFixed(1)} mm from the strings`, strike: e => `Struck at ${e.v.toFixed(1)} m/s`, blocked: () => 'Blocked on the strings',
   checked: e => `Checked ${e.dist.toFixed(1)} mm from the strings`, reset: () => 'Jack back under the butt', seated: () => 'Damper back on the strings',
   straptaut: () => 'The strap pulls',
 };
@@ -176,10 +177,11 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   function frame(dtReal) {
     if (override) S.update(override.a, override.p, 0);
     else {
-      if (busy || plan || !idle) {
-        const s0 = state(), n = advance(dtReal * (busy ? testScale : speed));
+      if (busy || plan || !idle || sim.hand) {
+        // a part held by hand moves at the hand's own pace, real speed; let go, it goes on at the chosen speed
+        const s0 = state(), n = advance(dtReal * (busy ? testScale : sim.hand ? 1 : speed));
         // idle only once a frame's steps left everything where it was, the key where it is going
-        idle = n > 0 && !busy && !plan && sim.d === sim.dTarget && state().every((v, i) => Math.abs(v - s0[i]) < 1e-9);
+        idle = n > 0 && !busy && !plan && !sim.hand && sim.d === sim.dTarget && state().every((v, i) => Math.abs(v - s0[i]) < 1e-9);
         if (idle) lagging = false;
       }
       const p = sim.pose(), railShim = sim.railShim();
@@ -199,7 +201,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     const d = override ? override.p.d : sim.d;
     keyState.textContent = d < 0.05 && sim.dTarget < 0.05 ? 'Key at rest' : sim.dTarget > sim.d + 0.01 ? 'Key going down' : sim.dTarget > 0.05 ? 'Key held down' : 'Key coming up';
     keyState.classList.toggle('down', d > 0.05);
-    keyPos.textContent = `${exam.started && !exam.done ? `note ${exam.cur + 1} · ${clockText()} · ` : ''}key ${d.toFixed(2)} mm down${lagging ? ' · slower than chosen' : ''}`;
+    keyPos.textContent = `${exam.started && !exam.done ? `note ${exam.cur + 1} · ${clockText()} · ` : ''}key ${d.toFixed(2)} mm down${lagging && !sim.hand ? ' · slower than chosen' : ''}`;
     if (exam.started && !exam.done && Date.now() >= exam.endAt && !busy) handIn();
     S.setInsetText(`Key front · ${d.toFixed(2)} mm down${d >= sim.dip - 0.01 ? ' (dip)' : ''}`);
     for (const b of keyBtns) b.disabled = busy;
@@ -227,6 +229,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   async function runTest(id) {
     if (busy) return;
     const t = TESTS[id];
+    endGrab();
     busy = true; plan = null; testScale = t.scale ?? 1; closeCard();
     softOn = sustainOn = false; softBtn.classList.remove('on'); susBtn.classList.remove('on');
     sim = new Sim(a); testEvents = []; log.length = 0;
@@ -528,23 +531,72 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   const tip = $('#tip');
   let keyHeld = null, clickAt = null;
   canvas.addEventListener('pointermove', e => {
-    const hit = S.pick(e);
-    canvas.style.cursor = hit?.part === 'key' ? 'pointer' : '';
-    if (hit) { tip.textContent = hit.name; tip.style.transform = `translate(${e.offsetX + 14}px, ${e.offsetY + 10}px)`; tip.hidden = false; } else tip.hidden = true;
+    if (grab) { if (grab.id === e.pointerId) moveGrab(e); return; }
+    const hit = S.pick(e), hold = holdOf(hit);
+    canvas.style.cursor = hold ? 'move' : hit?.part === 'key' ? 'pointer' : '';
+    if (hit) { tip.textContent = hit.name + (hold ? ` · drag to move ${HOLD_NAMES[hold]}` : ''); tip.style.transform = `translate(${e.offsetX + 14}px, ${e.offsetY + 10}px)`; tip.hidden = false; } else tip.hidden = true;
   });
   canvas.addEventListener('pointerleave', () => { tip.hidden = true; });
   canvas.addEventListener('pointerdown', e => {
     const hit = S.pick(e);
+    // Move parts (hand.js): the part is taken hold of once the pointer moves; let go where it was pressed, it was a click
+    const hold = e.button === 0 && e.isPrimary && !grab ? holdOf(hit) : null;
+    if (hold) { S.controls.enabled = false; grab = { id: e.pointerId, x: e.clientX, y: e.clientY, hit, hold, started: false, ox: e.offsetX, oy: e.offsetY }; tip.hidden = true; return; }
     if (hit?.part === 'key' && !busy && e.button === 0) { keyHeld = e.pointerId; S.controls.enabled = false; play('hold'); return; }
     clickAt = e.button !== 0 || !e.isPrimary ? null : { x: e.clientX, y: e.clientY, id: e.pointerId, hit, ox: e.offsetX, oy: e.offsetY };
   });
   canvas.addEventListener('pointerup', e => {
+    if (grab?.id === e.pointerId) { const g = endGrab(); if (!g.started && g.hit.part !== 'key') openCard(g.hit, g.ox, g.oy); return; }
     const c = clickAt; clickAt = null;
     if (!c || c.id !== e.pointerId || Math.hypot(e.clientX - c.x, e.clientY - c.y) > 6) return;
     if (c.hit) openCard(c.hit, c.ox, c.oy); else { closeCard(); S.highlight([]); }
   });
+  // ---------- Move parts: dragging a part moves it by hand (hand.js) ----------
+  // The wippen lifts off its capstan, the key staying where it is; the jack trips toward the player; the hammer lifts
+  // toward the strings; the damper lever swings off the strings. Only the middle note: its neighbors are drawn at rest.
+  let grab = null;   // { id, x, y: where the pointer went down, hit, hold, started, lo, hi } while a part is held
+  const holdOf = hit => hand.on && active && hit && hit.note === 0 && !busy && !override ? UPRIGHT_HOLD[hit.part] ?? null : null;
+  const phiAt = d => wippenOn(capstanTop(sim.a, keyAngle(sim.a, d)));
+  function holdRange(hold) {
+    if (hold === 'key') return [sim.d, 0, sim.dip];
+    if (hold === 'wippen') { const lo = phiAt(sim.d); return [sim.phi, lo, Math.max(lo, phiAt(sim.dip)) + 0.02]; }
+    if (hold === 'jack') return [sim.psi, sim.psi, sim.psi + 0.3];
+    if (hold === 'hammer') return [sim.g, gRail({ ...sim.a, railShim: sim.railShim() }), gString()];
+    return [sim.dl, 0, 0.06];
+  }
+  const FIELD = { wippen: 'phi', jack: 'psi', hammer: 'g', damper: 'dl' };
+  // the note drawn with the held part at q, for dragTo to see where the spot grabbed goes
+  function heldAt(hold, q) {
+    const p = sim.pose();
+    return hold === 'key' ? { ...p, d: q, th: keyAngle(sim.a, q).th } : { ...p, [FIELD[hold]]: q };
+  }
+  function moveGrab(e) {
+    if (!grab.started) {
+      if (Math.hypot(e.clientX - grab.x, e.clientY - grab.y) < 4) return;
+      const [q, lo, hi] = holdRange(grab.hold);
+      Object.assign(grab, { started: true, lo, hi, sim });
+      if (grab.hold === 'key') plan = null;
+      sim.grab(grab.hold, q); idle = false;
+    }
+    if (grab.sim !== sim || !sim.hand) { endGrab(); return; }   // the regulation changed under it: a new Sim
+    const r = canvas.getBoundingClientRect();
+    sim.hand.q = dragTo({ obj: grab.hit.obj, local: grab.hit.local, camera: S.camera, canvas, q: sim.hand.q, lo: grab.lo, hi: grab.hi,
+      x: e.clientX - r.left, y: e.clientY - r.top, pose: q => S.update(a, heldAt(grab.hold, q), 0) });
+    S.update(a, sim.pose(), 0);   // drawn where it really is again
+  }
+  // let go (the key comes back up by itself); returns what was held
+  function endGrab() {
+    const g = grab; grab = null;
+    if (!g) return null;
+    S.controls.enabled = true;
+    if (g.started && g.sim === sim && sim.hand) { sim.letGo(); idle = false; if (g.hold === 'key') sim.press(0, UP); }
+    return g;
+  }
   const letUp = () => { if (!busy) { sim.press(0, UP); idle = false; } };
-  const endHold = e => { if (keyHeld !== null && (e.pointerId === undefined || e.pointerId === keyHeld)) { keyHeld = null; S.controls.enabled = true; letUp(); } };
+  const endHold = e => {
+    if (grab && (e.pointerId === undefined || e.pointerId === grab.id)) endGrab();
+    if (keyHeld !== null && (e.pointerId === undefined || e.pointerId === keyHeld)) { keyHeld = null; S.controls.enabled = true; letUp(); }
+  };
   window.addEventListener('pointerup', endHold); window.addEventListener('pointercancel', endHold); window.addEventListener('blur', endHold);
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   window.addEventListener('keydown', e => {
@@ -565,7 +617,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     active = true; view(viewNow);
     if (!insetSet) { insetSet = true; setInset(document.getElementById('stage').clientWidth >= 700); }
   }
-  function hide() { active = false; closeCard(); tip.hidden = true; plan = null; letUp(); }
+  function hide() { endGrab(); active = false; closeCard(); tip.hidden = true; plan = null; letUp(); }
   function setMode(next) {
     if (busy || next === mode) return;
     if (exam.started && !exam.done && !confirm('Leave the exam? Your progress will be lost.')) return;
@@ -577,6 +629,6 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     else if (mode === 'diagnose') { scenario = null; newCase(); }
     else setRegulation({ ...FACTORY, damage: null }, { keepTested: false });
   }
-  return { S, show, hide, frame, setMode, renderPanel, renderCredits, get mode() { return mode; }, get busy() { return busy; },
+  return { S, show, hide, frame, setMode, renderPanel, renderCredits, dropHand: endGrab, get mode() { return mode; }, get busy() { return busy; },
     get examRunning() { return exam.started && !exam.done; } };
 }
