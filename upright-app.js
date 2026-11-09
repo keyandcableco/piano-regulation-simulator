@@ -165,7 +165,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       if (plan === 'up' && sim.d >= sim.dip - 0.01) { plan = sim.t + 0.012; }
       else if (typeof plan === 'number' && sim.t >= plan) { plan = null; sim.press(0, UP); }
       for (const e of sim.events) {
-        testEvents.push(e);
+        if (!e.hand) testEvents.push(e);   // (a jack tripped by hand isn't a let-off reading)
         if (EVENT_TEXT[e.type]) { log.push(EVENT_TEXT[e.type](e)); if (log.length > 3) log.shift(); }
       }
       sim.events = [];
@@ -229,7 +229,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   async function runTest(id) {
     if (busy) return;
     const t = TESTS[id];
-    endGrab();
+    dropHand();
     busy = true; plan = null; testScale = t.scale ?? 1; closeCard();
     softOn = sustainOn = false; softBtn.classList.remove('on'); susBtn.classList.remove('on');
     sim = new Sim(a); testEvents = []; log.length = 0;
@@ -538,15 +538,18 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   });
   canvas.addEventListener('pointerleave', () => { tip.hidden = true; });
   canvas.addEventListener('pointerdown', e => {
+    if (grab) return;   // a second finger while a part is held does nothing (the view's controls are off till it comes up)
     const hit = S.pick(e);
     // Move parts (hand.js): the part is taken hold of once the pointer moves; let go where it was pressed, it was a click
-    const hold = e.button === 0 && e.isPrimary && !grab ? holdOf(hit) : null;
+    // (Shift or Ctrl still slides the view)
+    const hold = e.button === 0 && e.isPrimary && !e.shiftKey && !e.ctrlKey && !e.metaKey ? holdOf(hit) : null;
     if (hold) { S.controls.enabled = false; grab = { id: e.pointerId, x: e.clientX, y: e.clientY, hit, hold, started: false, ox: e.offsetX, oy: e.offsetY }; tip.hidden = true; return; }
     if (hit?.part === 'key' && !busy && e.button === 0) { keyHeld = e.pointerId; S.controls.enabled = false; play('hold'); return; }
     clickAt = e.button !== 0 || !e.isPrimary ? null : { x: e.clientX, y: e.clientY, id: e.pointerId, hit, ox: e.offsetX, oy: e.offsetY };
   });
   canvas.addEventListener('pointerup', e => {
-    if (grab?.id === e.pointerId) { const g = endGrab(); if (!g.started && g.hit.part !== 'key') openCard(g.hit, g.ox, g.oy); return; }
+    // not moved: a click, which opens the part's card; the key plays, as Play does
+    if (grab?.id === e.pointerId) { const g = endGrab(); if (!g.started && !g.dropped) g.hit.part === 'key' ? play('play') : openCard(g.hit, g.ox, g.oy); return; }
     const c = clickAt; clickAt = null;
     if (!c || c.id !== e.pointerId || Math.hypot(e.clientX - c.x, e.clientY - c.y) > 6) return;
     if (c.hit) openCard(c.hit, c.ox, c.oy); else { closeCard(); S.highlight([]); }
@@ -554,7 +557,9 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   // ---------- Move parts: dragging a part moves it by hand (hand.js) ----------
   // The wippen lifts off its capstan, the key staying where it is; the jack trips toward the player; the hammer lifts
   // toward the strings; the damper lever swings off the strings. Only the middle note: its neighbors are drawn at rest.
-  let grab = null;   // { id, x, y: where the pointer went down, hit, hold, started, lo, hi } while a part is held
+  // { id, x, y: where the pointer went down, hit, hold, started, lo, hi, sim, dropped } from a press on a part till that
+  // pointer comes up (dropped: the part let go of before then)
+  let grab = null;
   const holdOf = hit => hand.on && active && hit && hit.note === 0 && !busy && !override ? UPRIGHT_HOLD[hit.part] ?? null : null;
   const phiAt = d => wippenOn(capstanTop(sim.a, keyAngle(sim.a, d)));
   function holdRange(hold) {
@@ -571,25 +576,31 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     return hold === 'key' ? { ...p, d: q, th: keyAngle(sim.a, q).th } : { ...p, [FIELD[hold]]: q };
   }
   function moveGrab(e) {
+    if (grab.dropped) return;
     if (!grab.started) {
       if (Math.hypot(e.clientX - grab.x, e.clientY - grab.y) < 4) return;
       const [q, lo, hi] = holdRange(grab.hold);
       Object.assign(grab, { started: true, lo, hi, sim });
       if (grab.hold === 'key') plan = null;
+      testEvents = [];   // the callouts read this move's events
       sim.grab(grab.hold, q); idle = false;
     }
-    if (grab.sim !== sim || !sim.hand) { endGrab(); return; }   // the regulation changed under it: a new Sim
+    if (grab.sim !== sim || !sim.hand) { grab.dropped = true; return; }   // the regulation changed under it: a new Sim
     const r = canvas.getBoundingClientRect();
     sim.hand.q = dragTo({ obj: grab.hit.obj, local: grab.hit.local, camera: S.camera, canvas, q: sim.hand.q, lo: grab.lo, hi: grab.hi,
       x: e.clientX - r.left, y: e.clientY - r.top, pose: q => S.update(a, heldAt(grab.hold, q), 0) });
     S.update(a, sim.pose(), 0);   // drawn where it really is again
   }
-  // let go (the key comes back up by itself); returns what was held
+  // let the part go (the key comes back up by itself). The pointer stays the grab's till it comes up, so the view
+  // doesn't start turning under it mid-drag.
+  function letGoOf(g) { if (g.started && g.sim === sim && sim.hand) { sim.letGo(); idle = false; if (g.hold === 'key') sim.press(0, UP); } }
+  function dropHand() { if (grab && !grab.dropped) { grab.dropped = true; letGoOf(grab); } }
+  // the pointer up: let go, and the view turns again; returns what was held
   function endGrab() {
-    const g = grab; grab = null;
+    const g = grab;
     if (!g) return null;
-    S.controls.enabled = true;
-    if (g.started && g.sim === sim && sim.hand) { sim.letGo(); idle = false; if (g.hold === 'key') sim.press(0, UP); }
+    grab = null; S.controls.enabled = true;
+    if (!g.dropped) letGoOf(g);
     return g;
   }
   const letUp = () => { if (!busy) { sim.press(0, UP); idle = false; } };
@@ -617,7 +628,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     active = true; view(viewNow);
     if (!insetSet) { insetSet = true; setInset(document.getElementById('stage').clientWidth >= 700); }
   }
-  function hide() { endGrab(); active = false; closeCard(); tip.hidden = true; plan = null; letUp(); }
+  function hide() { dropHand(); active = false; closeCard(); tip.hidden = true; plan = null; letUp(); }
   function setMode(next) {
     if (busy || next === mode) return;
     if (exam.started && !exam.done && !confirm('Leave the exam? Your progress will be lost.')) return;
@@ -629,6 +640,6 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     else if (mode === 'diagnose') { scenario = null; newCase(); }
     else setRegulation({ ...FACTORY, damage: null }, { keepTested: false });
   }
-  return { S, show, hide, frame, setMode, renderPanel, renderCredits, dropHand: endGrab, get mode() { return mode; }, get busy() { return busy; },
+  return { S, show, hide, frame, setMode, renderPanel, renderCredits, dropHand, get mode() { return mode; }, get busy() { return busy; },
     get examRunning() { return exam.started && !exam.done; } };
 }

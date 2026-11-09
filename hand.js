@@ -40,6 +40,8 @@ function screenAt(obj, local, camera, canvas) {
 // taken from q a little lower (the repetition lever can only be pressed down from where it is, so a step up wouldn't
 // move it). A spot whose whole range moves under 2 px on the screen (its path seen end on) stays where it is.
 export function dragTo({ obj, local, camera, canvas, pose, q, lo, hi, x, y }) {
+  q = Math.max(lo, Math.min(hi, q));
+  if (!(hi - lo > 1e-9)) return q;   // nowhere for it to go
   const e = (hi - lo) * 1e-3;
   for (let i = 0; i < 4; i++) {
     pose(q); const [px, py] = screenAt(obj, local, camera, canvas);

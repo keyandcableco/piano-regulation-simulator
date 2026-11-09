@@ -438,7 +438,7 @@ async function runTest(id) {
   const t = TESTS[id];
   if (busy) return;
   const gen = generation;
-  endGrab();   // a test runs the action itself
+  dropHand();   // a test runs the action itself
   clearPlan(); cue = null; recentWarn.clear();   // a test's own press stays down; its warnings always show
   setPaused(false); $('#framepad').hidden = true;   // a test runs the action itself
   releaseOthers();
@@ -1693,7 +1693,7 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   showCredits = false;
   if (mode === 'drills') { drillsStop?.(); drillsEl = null; }
   if (mode === 'tools') { S.hideTool(); toolSel = null; S.setLabels(labelsOn); }
-  endGrab();
+  dropHand();
   mode = b.dataset.mode; tested = new Set(); verdict = null; S.clearCallouts(); setPaused(false); clearFrames(); closePop();
   $('#framepad').hidden = true;
   if (mode === 'tools') { S.setLabels(false); if (sim.dTarget > 0) sim.press(0, 60); if (TOOLBAG.length) pickTool(TOOLBAG[0].id); }
@@ -1742,6 +1742,7 @@ canvas.addEventListener('pointermove', e => {
 canvas.addEventListener('pointerleave', () => { tip.hidden = true; });
 let keyHeld = null;   // the pointer holding the key down
 canvas.addEventListener('pointerdown', e => {
+  if (grab) return;   // a second finger while a part is held does nothing (the view's controls are off till it comes up)
   const hit = S.pick(e), part = hit?.part;
   // a click on a neighbor works on that note: a view of one note follows it over (so a part clicked in a side view
   // opens its card where you were looking), and a view of all three stays put (re-aiming would fight a drag that starts on a neighbor)
@@ -1749,8 +1750,9 @@ canvas.addEventListener('pointerdown', e => {
     selectNote(hit.note);
     if (focusFor(viewNow) !== null) view(viewNow);
   }
-  // Move parts: the part is taken hold of once the pointer moves; let go where it was pressed, it was a click
-  const hold = e.button === 0 && e.isPrimary && !grab ? holdOf(hit) : null;
+  // Move parts: the part is taken hold of once the pointer moves; let go where it was pressed, it was a click (Shift or
+  // Ctrl still slides the view)
+  const hold = e.button === 0 && e.isPrimary && !e.shiftKey && !e.ctrlKey && !e.metaKey ? holdOf(hit) : null;
   if (hold) { S.controls.enabled = false; grab = { id: e.pointerId, x: e.clientX, y: e.clientY, hit, hold, slot: cur, started: false }; tip.hidden = true; return; }
   if (part === 'key' && !busy) { keyHeld = e.pointerId; S.controls.enabled = false; setLoop(false); clearPlan(); cue = null; releaseOthers(); sim.press(sim.dip, 250); pausedNote(); }
   else clickAt = clickAt || e.button !== 0 || !e.isPrimary ? null   // a second finger, or a right or middle button, turns the view
@@ -1761,8 +1763,9 @@ let clickAt = null;
 canvas.addEventListener('pointerup', e => {
   if (grab?.id === e.pointerId) {
     const g = endGrab();
-    // not moved: a click, which opens the part's card as it does without Move parts (the key's tests sit on its rails)
-    if (!g.started && g.hit.part !== 'key' && mode !== 'tools' && mode !== 'drills') openPop(g.hit);
+    // not moved: a click, which opens the part's card as it does without Move parts; the key (whose tests sit on its
+    // rails) plays, as Play does
+    if (!g.started && !g.dropped) { if (g.hit.part === 'key') $('#k-play').click(); else if (mode !== 'tools' && mode !== 'drills') openPop(g.hit); }
     return;
   }
   const c = clickAt; clickAt = null;
@@ -1788,13 +1791,18 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 // ---------- Move parts: dragging a part moves it by hand (hand.js) ----------
 // What a drag takes hold of here and how far it goes. The wippen is held by the key it sits on (the Sim's 'key'),
 // so lifting it presses the key; the jack trips up to its stop felt and on; the repetition lever only presses down.
-let grab = null;   // { id, x, y: where the pointer went down, hit, hold, slot, started, lo, hi } while a part is held
+// grab: { id, x, y: where the pointer went down, hit, hold, slot, started, lo, hi, dropped } from a press on a part
+// till that pointer comes up (dropped: the part let go of before then, by a test, a reset or a mode change)
+let grab = null;
+// the knuckle riding on the repetition lever (let off, or pressed down onto it) goes up and down with it; one above it
+// (on the jack, or held in the backcheck) only stops it rising
+const onLever = s => knuckleBottom(s.g)[1] <= s.L.hornTop + 0.02;
 const holdOf = hit => hand.on && hit && !busy && !cue?.run && mode !== 'tools' && mode !== 'drills' &&
   !sim.stackOff && sim.keyShown == null ? GRAND_HOLD[hit.part] ?? null : null;
 function holdRange(s, hold) {
   if (hold === 'key' || hold === 'wippen') return [s.d, 0, s.dip];
   if (hold === 'jack') return [s.psi, s.L.psiRest, Math.max(s.L.psiRest + 0.2, s.psi + 0.1)];
-  if (hold === 'rep') { const top = linkage(s.a, s.d).hornTop, q = Math.min(top, knuckleBottom(s.g)[1]); return [q, top - 3, top]; }
+  if (hold === 'rep') { const top = linkage(s.a, s.d).hornTop, kb = Math.min(top, knuckleBottom(s.g)[1]); return [kb, top - 3, onLever(s) ? top : Math.max(top - 3, kb)]; }
   if (hold === 'hammer') return [s.g, gRail(s.a), gStringNow()];
   return [s.yd, 0, s.a.damperStop];
 }
@@ -1802,11 +1810,12 @@ function holdRange(s, hold) {
 function heldAt(s, hold, q) {
   if (hold === 'key' || hold === 'wippen') return { ...s, keyShown: null, d: q, L: linkage(s.a, q) };
   if (hold === 'jack') return { ...s, psi: q };
-  if (hold === 'rep') return { ...s, L: { ...s.L, hornTop: q } };
+  if (hold === 'rep') return { ...s, L: { ...s.L, hornTop: q }, g: onLever(s) ? solveG(q) : s.g };
   if (hold === 'hammer') return { ...s, g: q };
   return { ...s, yd: q, ulShown: null };
 }
 function moveGrab(e) {
+  if (grab.dropped) return;
   const s = NOTES[grab.slot].sim;
   if (!grab.started) {
     if (Math.hypot(e.clientX - grab.x, e.clientY - grab.y) < 4) return;
@@ -1816,25 +1825,32 @@ function moveGrab(e) {
     if (grab.hold === 'key' || grab.hold === 'wippen') clearPlan();
     s.grab(grab.hold === 'wippen' ? 'key' : grab.hold, q);
   }
-  if (!s.hand) { endGrab(); return; }   // a reset took it out of the hand
+  if (!s.hand) { grab.dropped = true; return; }   // a reset or a new regulation took it out of the hand
+  if (grab.hold === 'rep') grab.hi = holdRange(s, 'rep')[2];   // as high as the knuckle lets it go now
   const r = canvas.getBoundingClientRect();
   s.hand.q = dragTo({ obj: grab.hit.obj, local: grab.hit.local, camera: S.camera, canvas, q: s.hand.q, lo: grab.lo, hi: grab.hi,
     x: e.clientX - r.left, y: e.clientY - r.top, pose: q => S.update(grab.slot, heldAt(s, grab.hold, q), s.a, null, null, false) });
   S.update(grab.slot, s, s.a, null, null, false);   // drawn where it really is again
 }
-// let go (the key comes back up by itself); returns what was held
-function endGrab() {
-  const g = grab; grab = null;
-  if (!g) return null;
-  S.controls.enabled = true;
+// let the part go (the key comes back up by itself). The pointer stays the grab's till it comes up, so the view doesn't
+// start turning under it mid-drag.
+function letGoOf(g) {
   const s = NOTES[g.slot]?.sim;
   if (g.started && s?.hand) { s.letGo(); if (g.hold === 'key' || g.hold === 'wippen') s.press(0, KEY.upSpeed); }
+}
+function dropHand() { if (grab && !grab.dropped) { grab.dropped = true; letGoOf(grab); } }
+// the pointer up: let go, and the view turns again; returns what was held
+function endGrab() {
+  const g = grab;
+  if (!g) return null;
+  grab = null; S.controls.enabled = true;
+  if (!g.dropped) letGoOf(g);
   return g;
 }
 const handBtn = $('#nav-hand');
 function setHand(on) {
   hand.on = on; handBtn.classList.toggle('on', on); handBtn.setAttribute('aria-pressed', String(on));
-  if (!on) { endGrab(); U?.dropHand(); }
+  if (!on) { dropHand(); U?.dropHand(); }
 }
 handBtn.onclick = () => {
   setHand(!hand.on);
@@ -2003,7 +2019,7 @@ async function setAction(kind) {
     setLoop(false); clearPlan(); cue = null; setPaused(false); releaseOthers(); sim.press(0, 60); closePop(); S.highlight(null); tip.hidden = true;
     $('#framepad').hidden = true;
   }
-  closeMenu(); endGrab(); U?.dropHand();
+  closeMenu(); dropHand(); U?.dropHand();
   action = kind; showCredits = false;
   $('#app').classList.toggle('upright', kind === 'upright');
   for (const b of document.querySelectorAll('#action-switch button')) b.classList.toggle('on', b.dataset.action === kind);
