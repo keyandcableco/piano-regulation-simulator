@@ -161,6 +161,18 @@ export function createUprightScene(canvas, overlay) {
   const wire = (pts, r, color, part, parent, z = 0, opts = {}) => mesh(wireGeo(pts, r, z), color, part, parent, { metal: true, ...opts });
   // a cloth tape through side-view points: thick across the side view, wide across the keyboard
   const tape = (pts, thick, width, z, color, part, parent, z1 = z) => mesh(tapeGeo(pts, thick, width, z, z1), color, part, parent);
+  // the bridle strap's end tab: its last 4 mm and 1.5 mm past its end, a little thicker and wider than the tape
+  function strapTabGeo(pts, len = 4, over = 1.5) {
+    const out = [pts.at(-1)];
+    for (let i = pts.length - 1, left = len; i > 0 && left > 0; i--) {
+      const a = pts[i], b = pts[i - 1], d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      out.unshift(d >= left ? [a[0] + (b[0] - a[0]) * left / d, a[1] + (b[1] - a[1]) * left / d] : b);
+      left -= d;
+    }
+    const p = out.at(-2), q = out.at(-1), d = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
+    out.push([q[0] + (q[0] - p[0]) * over / d, q[1] + (q[1] - p[1]) * over / d]);
+    return tapeGeo(out, STRAP_T + 0.5, WIDTH.strap + 0.6, BASS * BRIDLE_Z);
+  }
   // a coil spring along a side-view axis from a to b, coil radius R, wire radius r
   const coil = (a, b, R, r, turns, part, parent, z = 0) => mesh(coilGeo(a, b, R, r, turns, z), COLORS.steel, part, parent, { metal: true });
   // a turned part about +y, from [radius, height] points listed bottom to top
@@ -324,8 +336,8 @@ export function createUprightScene(canvas, overlay) {
 
     // the bridle strap, catcher to bridle wire, draped over the let-off screw's eye (C2 lays it out each frame)
     n.strap = tape(TRACE.strap, STRAP_T, WIDTH.strap, BASS * STRAP_Z0, COLORS.tape, 'strap', root, BASS * BRIDLE_Z);
-    // its end: a leather tab with a hole, slipped over the wire's hook (red on the filmed model [S15])
-    n.strapEnd = cyl(2.2, 1.2, 'z', [...TRACE.strap.at(-1), BASS * BRIDLE_Z], COLORS.redfelt, 'strap', root);
+    // its end: a leather tab with a hole, slipped over the wire's hook (red on the filmed model [S15]), flat like the tape
+    n.strapEnd = mesh(strapTabGeo(TRACE.strap), COLORS.redfelt, 'strap', root);
 
     // let-off: the regulating screw down through the rail, the button on its end, the eye on top
     {
@@ -412,7 +424,7 @@ export function createUprightScene(canvas, overlay) {
     const hang = broken ? [f, [f[0] + 0.5, f[1] - 9], [f[0] + 1.2, f[1] - 18]] : strap;
     reshape(n.strap, tapeGeo(hang, STRAP_T, WIDTH.strap, BASS * STRAP_Z0, broken ? BASS * STRAP_Z0 : BASS * BRIDLE_Z));
     n.strapEnd.visible = !broken;
-    n.strapEnd.position.set(k[0], k[1], BASS * BRIDLE_Z);
+    if (!broken) reshape(n.strapEnd, strapTabGeo(strap));
   }
 
   // ---------- part labels (on the middle note) ----------
