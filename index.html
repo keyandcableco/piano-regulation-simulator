@@ -248,9 +248,17 @@ button.test { text-align: left; }
 .knob-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .knob-head > :last-child { text-align: right; font-variant-numeric: tabular-nums; }
 .knob-btns { display: flex; gap: 4px; margin: 6px 0 4px; }
-.nudge { min-width: 56px; display: flex; flex-direction: column; align-items: center; padding: 3px 8px; line-height: 1.2; touch-action: manipulation; }
+/* a label too long for a narrow button (the part card, a phone) wraps inside it rather than running into the next one */
+.nudge { min-width: 56px; display: flex; flex-direction: column; align-items: center; padding: 3px 8px; line-height: 1.2; text-align: center; touch-action: manipulation; }
 .nudge .sym { font-weight: 700; font-size: 15px; }
-.nudge .step { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.nudge .step { font-size: 11px; color: var(--muted); text-wrap: balance; }
+/* a sideways move: "toward the bass" over the left pair, "toward the treble" over the right */
+/* (pairs aligned at the bottom, should one caption wrap at a large text size) */
+.knob-btns:has(> .nudge-side) { gap: 10px; align-items: flex-end; }
+.nudge-side { display: flex; flex-direction: column; gap: 2px; }
+.nudge-side .cap { font-size: 11px; color: var(--muted); text-align: center; }
+.nudge-pair { display: flex; gap: 4px; }
+.nudge-pair .nudge { min-width: 50px; }
 .sets { display: flex; flex-wrap: wrap; gap: 2px 10px; margin: 4px 0; }
 .chip.ok .dot { background: var(--ok); }
 .chip.bad { color: var(--bad); }
@@ -304,7 +312,7 @@ a { color: var(--accent); }
   #app { grid-template-columns: 1fr; grid-template-rows: minmax(0, 9fr) minmax(0, 11fr); height: 100vh; height: 100dvh; }
   aside { border-left: 0; border-top: 1px solid var(--line); }
   .tabs { display: grid; grid-template-columns: repeat(3, 1fr); }
-  .nudge { flex: 1; }
+  .nudge, .nudge-side { flex: 1; }
   #keypos { display: none; }
   #toasts { top: 52px; font-size: 13px; width: calc(100% - 32px); }
   #keystatus .sep { display: none; }

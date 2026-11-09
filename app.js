@@ -506,16 +506,19 @@ function knobReadings(id) {
 }
 function knobButtons(id) {
   const d = ADJ.find(x => x.id === id);
-  const btn = (sym, delta, step) => el('button', { class: 'nudge', title: `${sym} ${step}`, 'data-anchor': `${id}${sym}`, onclick: () => { S.highlight(d.part, cur); setAdj(id, adj[id] + delta); } },
+  // (a sideways button's own words leave out its way, so it is named in full for a screen reader)
+  const btn = (sym, delta, step, to = '') => el('button', { class: 'nudge', title: `${sym} ${step}${to}`, 'aria-label': to ? `${sym} ${step}${to}` : false, 'data-anchor': `${id}${sym}`, onclick: () => { S.highlight(d.part, cur); setAdj(id, adj[id] + delta); } },
     el('span', { class: 'sym' }, sym), el('span', { class: 'step' }, step));
   const coarse = d.steps[d.steps.length - 1], fine = d.steps[0];
   const two = d.steps.length > 1;
   return el('div', { class: 'knob-btns' },
     // a shim goes under one side or the other: the choice of side is the adjustment
     d.sides ? d.sides.map((s, i) => btn(`${s[0].toUpperCase()}${s.slice(1)} side`, i ? -fine : +fine, `${i ? 'right' : 'left'} from the keys · add ${d.stepLabel[0]}`)) :
-    // a sideways move names the way it goes: the bass is on the left from the keys
-    d.dirs ? [two ? btn('◀◀', +coarse, `${d.stepLabel[1]} toward the bass`) : null, btn('◀', +fine, `${d.stepLabel[0]} toward the bass`),
-      btn('▶', -fine, `${d.stepLabel[0]} toward the treble`), two ? btn('▶▶', -coarse, `${d.stepLabel[1]} toward the treble`) : null] : [
+    // a sideways move names the way it goes, once over each side's pair: the bass is on the left from the keys
+    d.dirs ? [['bass', +1], ['treble', -1]].map(([to, s]) => {
+      const pair = [two ? btn(s > 0 ? '◀◀' : '▶▶', s * coarse, d.stepLabel[1], ` toward the ${to}`) : null, btn(s > 0 ? '◀' : '▶', s * fine, d.stepLabel[0], ` toward the ${to}`)];
+      return el('div', { class: 'nudge-side' }, el('span', { class: 'cap' }, `toward the ${to}`), el('div', { class: 'nudge-pair' }, s > 0 ? pair : pair.reverse()));
+    }) : [
       two ? btn('−−', -coarse, d.stepLabel[1]) : null,
       btn('−', -fine, d.stepLabel[0]),
       btn('+', +fine, d.stepLabel[0]),
