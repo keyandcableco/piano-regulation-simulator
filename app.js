@@ -1080,7 +1080,8 @@ const rnd = (lo, hi) => lo + Math.random() * (hi - lo), pm = x => rnd(-x, x);
 function deregulated() {
   const a = { ...FACTORY };
   a.balPunch += pm(0.4); a.jackScrew += pm(1.2); a.repStop += rnd(-0.12, 0.3); a.capstan += pm(1.2);
-  a.restRail += Math.random() < 0.5 ? rnd(-4, -2) : rnd(0.5, 2); a.frontPunch += pm(0.6);
+  // (the level shank rests lower, so a low rail has less room before it is in the wippen: not below the knob's range)
+  a.restRail = Math.max(ADJ.find(d => d.id === 'restRail').min, a.restRail + (Math.random() < 0.5 ? rnd(-4, -2) : rnd(0.5, 2))); a.frontPunch += pm(0.6);
   // rough let-off stays on the early side so dip can be set without blocking
   a.letoff += rnd(-1.0, 0.25);
   a.drop += pm(2.0); a.repSpring += rnd(-0.15, 0.25); a.backcheck += pm(2.3);   // short of missing or scraping

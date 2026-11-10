@@ -754,7 +754,7 @@ export function createScene(canvas, overlay) {
     angle: { t: [320, 110, 0], p: [-60, 270, 520] },
     escapement: { t: [330, 115, 0], p: [330, 121, 250] },
     keyfront: { t: [10, 55, 0], p: [-190, 125, 110] },
-    hammer: { t: [425, 168, 0], p: [425, 171, 330] },
+    hammer: { t: [425, 162, 0], p: [425, 165, 330] },
     backcheck: { t: [445, 125, 0], p: [452, 128, 330] },
     // the rest rail under the shank, close enough to see the gap (1/8 in is about 20 px on a desktop)
     rails: { t: [G.restRailX, 112, 0], p: [G.restRailX, 116, 225] },
