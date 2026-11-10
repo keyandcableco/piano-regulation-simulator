@@ -15,7 +15,23 @@ The hammer action's layout is measured: every center, contact and lever comes fr
 Center friction is in grams on a gram gauge at a stated distance from the pin: Hirschkorn's measured torques for a healthy action, checked against Renner USA's flange bushing cloth manual and Igrec's *Pianos Inside Out*. The hammer flange, wippen flange, jack and repetition lever centers can each go tight or loose (the hammer's bushing can also wear and wobble, and the damper underlever's center go tight); each is found by the test a technician would use, and eased, repinned or rebushed.
 - **Tools**: 3D models of real regulating tools from the supply houses, with what each one adjusts and how to use it. Sizes the catalogs list are exact; the rest are estimated from catalog photos and say so.
 
-The targets are generic textbook numbers, not one maker's specs. They live in `SPEC` in `model.js`.
+The targets are generic textbook numbers, not one maker's specs. They live in `SPEC` in `model.js`. A band a source prints (checking 1/2 to 5/8 in, damper lift at a third to half of the hammer's travel, the damper stop rail and pedal lift from Steinway's and Kawai's manuals) passes at both its edges at every skill level; the sim's own tolerances narrow at Exam level. The panel prints each band under its target.
+
+The page also has an **upright** action (Learn, Find the fault, Sandbox, Exam and a drill), switched at the top of the panel. It lives in its own files: `upright-model.js`, `scene-upright.js`, `upright-app.js`, `content-upright.js`.
+
+## What this model doesn't do
+
+The page says this too ("What this model doesn't do", at the foot of the panel). A picture on a screen can teach what each adjustment does, what it moves and the order of the work. It can't teach hands or ears, and it leaves these out:
+
+- **No feel.** The key and its punchings are rigid and the key moves at a set speed, not under a finger's weight: no touchweight, no let-off bump, no punching that squashes under pressure.
+- **No sound.** Blocking, buzzing, bobbling and ringing strings are told in words. No voicing, no hammer-to-string mating.
+- **One natural key.** No sharp, so nothing on sharp height or dip, nor the damper and pedal settings the makers check on a sharp. The three-note model is three naturals.
+- **One note's geometry.** No taper from bass to treble (let-off, springs, damper play), no bass dampers with springs.
+- **Generic targets.** On a real piano the maker's figures govern; Steinway's or Kawai's own regulation would fail some checks here.
+- **Every click is exact and instant.** The time a job takes here says nothing about the bench.
+- **No assembly, bedding, key squaring or spacing, hammer filing.** Named in Learn so the order reads complete, not done.
+- **Grand:** the dampers and lift tray are drawn to suit, not measured; no una corda, sostenuto or pedal trapwork; parts are rigid (the knuckle doesn't settle into the repetition lever, the backcheck doesn't give, felts don't compress under a blow); the repetition spring is graded by its net lift, not by eye; wear amounts are the sim's own estimates.
+- **Upright:** built on a filmed one-note action model, with Renner's catalog, Steinway's vertical guide, Bill Spurlock's writing and Jim Ellis's high-speed clips; the key and rail dimensions are stand-ins; no pedal linkage; no tool models yet.
 
 ## Running it locally
 
