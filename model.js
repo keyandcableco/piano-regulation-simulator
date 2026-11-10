@@ -1729,3 +1729,83 @@ export function repeatCeiling(a, opts = {}) {
 // (slowPress): they read 1.584 and 1.600 mm now, both in spec, where a fresh factory() gives 95.6686 and 140.2323 for
 // 1.5875 each. Kept so the time-stepped action (Sim), fitted to slow-motion video on these values, is the same to the last digit.
 export const FACTORY = {"balPunch":1.5,"jackScrew":-0.5732,"repStop":-0.4591,"capstan":13.8078,"restRail":110.7759,"frontPunch":2.299,"letoff":95.6693,"drop":140.2303,"repSpring":1.3553,"backcheck":0.5226,"damperGap":3.5071,"damperStop":5.8495,"pedalLift":4.012,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0,"wippenSpace":0,"wippenTravel":0,"backcheckSpace":0,"backcheckSquare":0,"damperCenter":0,"damperLevel":0};
+
+// ---------- maker spec sets (GS-09, WCI-14) ----------
+// The set graded against: the generic textbook set above (the default, unchanged), or one maker's own figures laid over
+// it. A maker's printed range is a band (lo, hi: its edges pass at every level); a single printed figure keeps the
+// generic reading's tolerance, which is the sim's own. Where a maker prints no figure for a reading, the generic band
+// stands and specSource() says so. Sources (read from the makers' own service literature; only the figures are kept
+// here): Steinway & Sons' technical reference guide, grand regulation chapter (New York: models S to B) and its
+// Hamburg factory preparation checklist; Kawai's grand piano regulation manual (middle and treble figures).
+// This action is still the measured Boston, note 52: a maker's figures on it show the trade-offs, not that maker's piano.
+// reg: the same geometry regulated to the set (solved offline: tests/spec-set-regulate.mjs), swapped into FACTORY while
+// the set is chosen. aim: where in a printed range that regulation was aimed, when the middle of every range can't be
+// had at once on this geometry. fit: what the set showed about the model.
+const OWN = 'the tolerance is the sim\'s own';
+export const SPEC_SETS = {
+  generic: { name: 'Generic textbook', maker: null, source: 'generic textbook figures, not one maker\'s', over: {} },
+  steinwayNY: { name: 'Steinway (New York)', maker: 'Steinway', source: 'Steinway & Sons technical reference guide, grand regulation',
+    over: {
+      blow: { target: 1.75 * IN, tol: IN / 32, src: `Steinway: 1 3/4 in, models S to B (${OWN})` },
+      letoff: { target: IN * 3 / 64, lo: IN / 32, hi: IN / 16, src: 'Steinway: no less than 1/32 in, no more than 1/16 in' },
+      drop: { target: IN * 3 / 64, lo: IN / 32, hi: IN / 16, src: 'Steinway: no more than 1/16 in below let-off (the 1/32 in floor is the sim\'s own)' },
+      dip: { target: 0.400 * IN, lo: 0.390 * IN, hi: 0.420 * IN, src: 'Steinway: .400 in, within .390 to .420 in' },
+      aftertouch: { target: IN * 7 / 128, lo: IN * 3 / 64, hi: IN / 16, src: 'Steinway: 3/64 to 1/16 in' },
+      check: { target: IN / 2, tol: IN / 16, src: `Steinway: 1/2 in (${OWN})` },
+      damperStop: { target: IN / 16, tol: IN / 64, src: `Steinway: about 1/16 in in the treble (${OWN})` },
+    },
+    // regulated to the printed figures; the aftertouch that leaves is outside Steinway's own range (fit)
+    reg: { frontPunch: 1.6973, letoff: 95.7413, drop: 140.3796, repSpring: 1.3407, backcheck: 0.8493, damperStop: 6.3014, pedalLift: 4.4639 },
+    unmet: ['aftertouch'],
+    fit: 'This action is the measured Boston, and it cannot meet this set: at Steinway\'s blow, let-off and .400 in dip it leaves about 2.1 mm (5/64 in) of aftertouch where Steinway expects 3/64 to 1/16 in, and with all three at the far edge of their ranges still 1.62 mm. Aftertouch stays out of this set here; the model is not bent to fit. A Steinway gets there with a lower action ratio (about 4.9 to this action\'s 5.4).' },
+  hamburg: { name: 'Steinway (Hamburg)', maker: 'Hamburg', source: 'Steinway & Sons Hamburg factory preparation checklist',
+    over: {
+      blow: { target: 46, lo: 45, hi: 47, src: 'Hamburg: 45 to 47 mm' },
+      letoff: { target: 1, tol: IN / 64, src: `Hamburg: 1 mm from the steel strings (${OWN})` },
+      drop: { target: 2, tol: IN / 64, src: `Hamburg: 2 mm after let-off (${OWN})` },
+      check: { target: 15, tol: IN / 16, src: `Hamburg: approximately 15 mm (${OWN})` },
+      damperStop: { target: 1, tol: IN / 64, src: `Hamburg: approximately 1 mm (${OWN})` },
+    },
+    aim: { blow: 45.5, dip: 9.75 },
+    reg: { jackScrew: -0.4972, repStop: -0.4426, capstan: 13.7176, restRail: 109.9693, frontPunch: 2.0858, letoff: 95.7773, drop: 140.2445, repSpring: 1.3457,
+      backcheck: 0.2178, damperGap: 3.5622, damperStop: 5.3821, pedalLift: 4.1321 },
+    fit: 'Hamburg\'s checklist prints no dip or aftertouch figure, so those two are graded on the generic bands. At the middle of Hamburg\'s blow (46 mm) with the generic 3/8 in dip this action leaves 1.14 mm of aftertouch, under the generic band; the regulated key here is set to 45.5 mm blow and 9.75 mm dip, inside both bands, which leaves 1.46.' },
+  kawai: { name: 'Kawai', maker: 'Kawai', source: 'Kawai grand piano regulation manual',
+    over: {
+      blow: { target: 46, tol: IN / 32, src: `Kawai: 46 mm (${OWN})` },
+      restGap: { target: 5, tol: IN / 16, src: `Kawai: rest rail 5 mm below the shanks (${OWN})` },
+      letoff: { target: 1.25, lo: 1, hi: 1.5, src: 'Kawai: 1.0 to 1.5 mm, middle and treble' },
+      drop: { target: 1.25, lo: 1, hi: 1.5, src: 'Kawai: the same as the let-off (1.0 to 1.5 mm)' },
+      dip: { target: 10.1, tol: IN / 64, src: `Kawai: 10.1 mm dip block (${OWN})` },
+      check: { target: 15, tol: IN / 16, src: `Kawai: 15 mm (${OWN})` },
+      damperStop: { target: 1.5, lo: 1, hi: 2, src: 'Kawai: 1 to 2 mm is permissible' },
+    },
+    reg: { jackScrew: -0.4605, repStop: -0.4347, capstan: 13.6749, restRail: 107.7608, frontPunch: 1.7542, letoff: 95.7311, drop: 140.3574, repSpring: 1.3329,
+      backcheck: 0.1087, damperGap: 3.5882, damperStop: 6.1123, pedalLift: 4.3623 },
+    fit: 'This action meets Kawai\'s middle-and-treble figures at every level, with 1.77 mm of aftertouch (Kawai prints no aftertouch figure: graded on the generic band). Kawai\'s key height (66 to 68 mm from the keybed) and its bass let-off and drop are not modelled.' },
+};
+const GENERIC_SPEC = { ...SPEC }, GENERIC_FACTORY = { ...FACTORY };
+let specSetNow = 'generic';
+export const specSet = () => specSetNow;
+// Choose the set: SPEC's entries and FACTORY's values are swapped in place, so everything that grades or deals a
+// regulated key follows without knowing about sets.
+export function setSpecSet(id) {
+  if (!Object.hasOwn(SPEC_SETS, id)) id = 'generic';
+  specSetNow = id;
+  for (const k of Object.keys(GENERIC_SPEC)) {
+    const o = SPEC_SETS[id].over[k], base = { ...GENERIC_SPEC[k] };
+    if (o) { if ('lo' in o) delete base.tol; else { delete base.lo; delete base.hi; } }
+    SPEC[k] = o ? { ...base, ...o } : GENERIC_SPEC[k];
+  }
+  Object.assign(FACTORY, GENERIC_FACTORY, SPEC_SETS[id].reg || {});
+  return id;
+}
+// Whose figure a reading is graded against under the chosen set: { text, fallback } (fallback: the maker prints none,
+// so the generic band stands). Under the generic set, only the bands a source prints have one.
+export function specSource(id) {
+  const set = SPEC_SETS[specSetNow], s = GENERIC_SPEC[id];
+  if (set.over[id]) return { text: set.over[id].src, fallback: false };
+  if (!set.maker) return s.src ? { text: s.src, fallback: false } : null;
+  if (s.target === undefined && s.lo === undefined) return null;   // a part's own spec (center friction), not a regulation figure
+  return { text: `generic${s.src ? ` (${s.src})` : ' textbook figure'}: ${set.maker} prints none for this`, fallback: true };
+}

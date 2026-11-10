@@ -8,6 +8,7 @@ import { examMark, PASS, OP_NEEDS } from './examscore.js';
 import { TOOLBAG } from './toolbag.js';
 import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F, touch, dipAt, repeatRun } from './model.js';
 import { initControls, markView, closeMenu } from './controls.js';
+import { SPEC_SETS, specSet, setSpecSet, specSource } from './model.js';
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -763,6 +764,30 @@ function reading(id, mm = m) {
 // in or out of spec, said with a mark as well as a colour (red and green alone don't reach everyone)
 const mark = ok => el('span', { class: 'mark ' + (ok === null ? 'none' : ok ? 'ok' : 'bad'), title: ok === null ? 'not measured' : ok ? 'in spec' : 'out of spec',
   'aria-label': ok === null ? 'not measured' : ok ? 'in spec' : 'out of spec', role: 'img' }, ok === null ? '○' : ok ? '✓' : '✗');
+// Under a maker's spec set (model.js SPEC_SETS), whose figure each band is: the maker's, or the generic band where the
+// maker prints none. The part card, which is narrow, says only which; the generic set is shown as it always was.
+function specSrc(id, short) {
+  if (specSet() === 'generic') return null;
+  const src = specSource(id);
+  if (!src) return null;
+  return el('span', { class: 'band src' + (src.fallback ? ' fallback' : ''), title: src.text }, short ? (src.fallback ? 'generic' : SPEC_SETS[specSet()].maker) : src.text);
+}
+// The spec set's row under the Grand / Upright switch: the choice, and what the set showed about this action
+function showSpecSet() {
+  const set = SPEC_SETS[specSet()];
+  $('#specset').value = specSet();
+  $('#specset-note').hidden = !set.maker;
+  $('#specset-sum').textContent = set.unmet ? 'About this set: this action cannot meet it' : 'About this set';
+  $('#specset-about').textContent = set.maker ? `Graded against ${set.source}; a reading the maker prints no figure for keeps the generic band, and says so. ${set.fit}` : '';
+  $('#specfoot').textContent = set.maker ? `Targets are ${set.name}'s figures, laid on a measured Boston action.` : 'Targets are generic textbook numbers, not one maker\'s specs.';
+}
+function pickSpecSet(id) {
+  if (busy || (exam.started && !exam.done)) { showSpecSet(); toast(busy ? 'Wait for the test to finish' : 'Finish the exam first: it is graded against the set it started with', 'warn'); return; }
+  setSpecSet(id);
+  try { localStorage.setItem('regsim-specset', specSet()); } catch {}
+  hint = false; verdict = null;   // given against the other set's bands
+  showSpecSet(); refresh();
+}
 function measureTable(ids, { head = true, short = false } = {}) {
   return el('table', { class: 'specs' + (head ? '' : ' bare') },
     head ? el('thead', {}, el('tr', {}, el('th', {}, 'Check'), el('th', {}, 'Target, passes'), el('th', {}, 'Now'))) : null,
@@ -770,7 +795,7 @@ function measureTable(ids, { head = true, short = false } = {}) {
       const show = revealed(id), r = reading(id), bandTxt = mode === 'exam' && (id === 'keyHeight') ? '' : specBand(id);
       return el('tr', { class: show ? (r.ok ? 'ok' : 'bad') : '' },
         el('td', {}, mark(show ? r.ok : null), short ? SHORT[id] || SPEC[id].name : SPEC[id].name),
-        el('td', { class: 'muted' }, specTarget(id), bandTxt ? el('span', { class: 'band' }, bandTxt) : null),
+        el('td', { class: 'muted' }, specTarget(id), bandTxt ? el('span', { class: 'band' }, bandTxt) : null, specSrc(id, short)),
         el('td', {}, show ? r.txt : el('span', { class: 'muted' }, 'not measured')));
     })));
 }
@@ -974,6 +999,7 @@ function renderLearn(p) {
     el('h2', {}, st.title),
     el('p', {}, st.what), el('p', { class: 'muted' }, st.how),
     st.note ? el('p', { class: 'note' }, st.note) : null,
+    specSet() === 'generic' ? null : el('p', { class: 'muted small', id: 'learn-set' }, `${SPEC_SETS[specSet()].name} is chosen: the table grades that set's figures, and names whose each one is. The step's text gives the generic textbook figures.`),
     el('div', { class: 'row' }, (st.tests || [st.test]).map(testButton)),
     measureTable(stepSpecs(st)),
     el('div', { class: 'knobs' }, st.knobs.map(knobRow)),
@@ -1022,7 +1048,7 @@ const LIMITS = {
     ['No sound.', 'Blocking, buzzing, bobbling and ringing strings are told in words, not heard. Nothing here trains the ear, and voicing and hammer-to-string mating are not modelled.'],
     ['One natural key.', 'No sharp: nothing on sharp height, sharp dip, or the damper and pedal settings the makers check on a sharp. The three-note model is three naturals.'],
     ['One note\'s geometry.', 'One place in the scale. No taper from bass to treble (let-off, springs, damper play), no bass dampers with springs.'],
-    ['Generic targets.', 'Textbook numbers, not one maker\'s specs. On a real piano the maker\'s figures govern, and Steinway\'s or Kawai\'s own regulation would fail some checks here.'],
+    ['Generic targets, or a maker\'s figures on a Boston.', 'The targets are textbook numbers unless you choose a maker\'s set (Specs graded against, at the top of the panel): Steinway New York, Steinway Hamburg or Kawai, from their service literature. On a real piano the maker\'s figures govern. The action underneath is still one measured Boston, so a maker\'s set shows the trade-offs, not that maker\'s piano: Steinway\'s set cannot be met on it, and says so.'],
     ['Every click is exact and instant.', 'No stripped screws, no bent wire springing back, no paper that is nearly right. The time a job takes here says nothing about the bench.'],
     ['No assembly, bedding, key squaring or spacing, hammer filing.', 'They are named in Learn so the order reads complete, but they are not done here.'],
   ],
@@ -1979,6 +2005,11 @@ $('#units').onclick = () => { units = units === 'in' ? 'mm' : 'in'; refresh(); }
 $('#level').value = Object.keys(LEVELS).find(k => LEVELS[k] === LEVEL);
 // a hint or a check was given at the old level's tolerances
 $('#level').onchange = e => { LEVEL = LEVELS[e.target.value]; hint = false; verdict = null; try { localStorage.setItem('regsim-level', e.target.value); } catch {} e.target.blur(); refresh(); };
+// the spec set graded against, remembered like the level (the keys already on the bench are kept and graded again)
+$('#specset').replaceChildren(...Object.entries(SPEC_SETS).map(([id, s]) => el('option', { value: id }, s.name)));
+$('#specset').onchange = e => { pickSpecSet(e.target.value); e.target.blur(); };
+try { const v = localStorage.getItem('regsim-specset'); if (v && Object.hasOwn(SPEC_SETS, v)) setSpecSet(v); } catch {}
+showSpecSet();
 $('#credits').onclick = e => { e.preventDefault(); showCredits = true; showLimits = false; refresh(); $('aside').scrollTop = 0; };
 $('#limits').onclick = e => { e.preventDefault(); showLimits = true; showCredits = false; refresh(); $('aside').scrollTop = 0; };
 window.addEventListener('keydown', e => {

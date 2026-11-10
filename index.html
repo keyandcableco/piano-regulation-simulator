@@ -313,6 +313,11 @@ tr.bad td:last-child { color: var(--bad); }
 .mark { display: inline-block; width: 1.1em; margin-right: 4px; font-weight: 700; text-align: center; color: var(--muted); }
 .mark.ok { color: var(--ok); } .mark.bad { color: var(--bad); } .mark.none { font-weight: 400; opacity: .6; }
 .specs .band { display: block; font-size: 12px; font-variant-numeric: tabular-nums; }
+/* whose figure a band is, under a maker's spec set; the generic band standing in where the maker prints none */
+.specs .band.src { font-style: italic; } .specs .band.src.fallback { opacity: .8; }
+#specset-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 13px; }
+#specset-row select { font-size: 13px; }
+#specset-note { flex-basis: 100%; } #specset-note summary { cursor: pointer; }
 .steps { display: flex; gap: 3px; flex-wrap: wrap; margin-bottom: 6px; }
 .pip { width: 28px; height: 26px; padding: 0; font-size: 12px; }
 .pip.ok { border-color: var(--ok); color: var(--ok); }
@@ -579,6 +584,11 @@ a { color: var(--accent); }
       <button id="units" title="Switch units">inches</button>
     </header>
     <div id="action-switch" title="Which piano's action to work on"><button data-action="grand" class="on">Grand piano</button><button data-action="upright">Upright piano</button></div>
+    <div id="specset-row" data-grand title="Whose regulation figures the readings are graded against">
+      <label for="specset" class="muted">Specs graded against</label>
+      <select id="specset"><option value="generic">Generic textbook</option></select>
+      <details id="specset-note" class="muted small" hidden><summary id="specset-sum"></summary><span id="specset-about"></span></details>
+    </div>
     <div class="tabs">
       <button class="tab" data-mode="learn">Learn</button>
       <button class="tab" data-mode="diagnose">Find the fault</button>
@@ -588,7 +598,7 @@ a { color: var(--accent); }
       <button class="tab" data-mode="tools">Tools</button>
     </div>
     <div id="mode"><p class="muted">Loading the action… If nothing appears, this simulator needs a current browser: Chrome, Edge, Firefox, or Safari 16.4 or newer.</p></div>
-    <p class="muted small foot">Targets are generic textbook numbers, not one maker's specs. Hover a part to name it, and click it to test or adjust it; press and hold on the key to strike it. Drag to turn the view, Shift-drag (or right-drag) to slide it, and roll the wheel to zoom, or use the buttons at the right of the picture. With ✋&nbsp;Move parts on, drag a part to move it by hand.</p>
+    <p class="muted small foot"><span id="specfoot">Targets are generic textbook numbers, not one maker's specs.</span> Hover a part to name it, and click it to test or adjust it; press and hold on the key to strike it. Drag to turn the view, Shift-drag (or right-drag) to slide it, and roll the wheel to zoom, or use the buttons at the right of the picture. With ✋&nbsp;Move parts on, drag a part to move it by hand.</p>
     <p class="muted small"><a href="#" id="limits">What this model doesn't do</a> · <a href="#" id="credits">From the bench: tips, tools and credits</a></p>
     <p class="muted small">Made by <a href="https://keyandcable.com/">The Key &amp; Cable Company</a>. Spotted something a real action wouldn't do? <a href="https://keyandcable.com/feedback.html">Tell me</a>. Found it useful? <a href="https://keyandcable.com/thanks.html" target="_blank" rel="noopener">Say thanks</a>.</p>
     <div id="actionbar" class="actionbar"></div>
