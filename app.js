@@ -1685,7 +1685,10 @@ const FRONT_VIEWS = new Set(['jackfront', 'checkfront', 'checktop', 'hammerline'
 function updateCallouts() {
   if (sim.stackOff || sim.keyShown != null) { S.clearCallouts(); return; }   // the key and stack apart (key drop, wippen tilt): nothing to measure
   const nz = NOTE_Z[cur], z = 9 + nz, L = sim.L, g = hammerOverride ?? sim.g;
-  const atRest = sim.d < 0.01;
+  // up and still: a key let go comes back with a bounce, down into the back rail cloth and up off it with the hammer
+  // riding along, and passes through rest at every bounce. Read off the key's place alone, the lines measured at rest
+  // blinked on and off with each one; the key is still only once the bounce has died out (or it never moved).
+  const atRest = Math.abs(sim.d) < 0.01 && Math.abs(sim.v) < 1e-6;
   const show = id => revealed(id);
   // traveling: only a line straight up from where the head rests, like the lines on a traveling stick; a hammer
   // that travels true rises along it, one that doesn't drifts off it
