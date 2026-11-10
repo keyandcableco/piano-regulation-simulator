@@ -1486,7 +1486,10 @@ export class Sim {
             this.emit('softcheck', { dist: G.stringY - crownY(g) });
           } else {
             st.checked = true; st.give = gTake - g;
-            this.emit('checked', { dist: G.stringY - crownY(g) });
+            // dist: where the backcheck holds it once the key is resting on its punching (under a blow the punching
+            // is squashed at this moment and the backcheck with the key's end a little higher: now)
+            const gDip = forced && this.d > this.dip ? gFromTail(linkage(a, this.dip, true).bcCatchY) + CHECK_GIVE / STRIKE_R - st.give : g;
+            this.emit('checked', { dist: G.stringY - crownY(gDip), now: G.stringY - crownY(g) });
           }
         }
       }
