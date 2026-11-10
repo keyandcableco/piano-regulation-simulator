@@ -242,8 +242,10 @@ const TESTS = {
         await waitReal(0.8);
       }
       jackOverride = null; hammerOverride = null;
-      if (m.onRail) say('The hammer sits on the rest rail, so tripping the jack moves nothing: lower the rail, then trip it again', 'warn');
-      else if (m.winkOnRail) say('The hammer came down on the rest rail, not the repetition lever: lower the rail and trip it again', 'warn');
+      // (said only where the grade says it: a lever so low that the hammer drops all the way to the rail is the lever's fault)
+      const why = gradeL('wink', m).note;
+      if (/rest rail/.test(why)) say(m.onRail ? 'The hammer sits on the rest rail, so tripping the jack moves nothing: lower the rail, then trip it again'
+        : 'The hammer came down on the rest rail, not the repetition lever: lower the rail and trip it again', 'warn');
     } },
   blowGauge: { label: 'Blow distance gauge', specs: ['blow'], view: 'hammer', run: async () => { await releaseKey(); } },
   restRail: { label: 'Look at the rest rail', specs: ['restGap'], view: 'rails', run: async () => { await releaseKey(); } },
