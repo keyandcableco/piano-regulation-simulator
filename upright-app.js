@@ -8,8 +8,9 @@ import { FACTORY, ADJ, DAMAGE, Sim, measure, grade, pose, evenTol, DAMPER_PEDAL_
 import { hand, UPRIGHT_HOLD, HOLD_NAMES, dragTo } from './hand.js';
 import { createUprightScene } from './scene-upright.js';
 import { STEPS, TESTS, TIPS, TOOLS, SPEC_NAMES, REPAIRS, SCENARIOS, bandText, readingText, callouts, deregulated, fairStart, creditOf, advise, alsoText } from './content-upright.js';
-import { markView } from './controls.js';
+import { markView, compact, panelTo } from './controls.js';
 import { examMark, OP_NEEDS } from './examscore.js';
+import { diffAdj } from './bench.js';
 
 const DT = 0.0001;          // s: the Sim's step (its tests' and fit's)
 // At most this many steps a screen frame. Each costs about 0.2 ms of computing, so 120 is about 24 ms: real speed
@@ -121,7 +122,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     Object.assign(a, b); m = measure(a);
     verdict = null;   // a check of the work belongs to the work it checked
     sim = new Sim(a); sim.setSoft(softOn); sim.setPedal(sustainOn); sim.soft = softOn ? 1 : 0; sim.pedal = sustainOn ? 1 : 0;
-    if (!keepTested) tested = new Set();
+    if (!keepTested) { tested = new Set(); dealt++; }   // a fresh key: a new piece of work for the bench bar
     testEvents = []; plan = null; idle = false; log.length = 0; lastEvent.textContent = '';
     refresh(); renderCard();
   }
@@ -138,6 +139,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   const revealed = id => level().live || mode === 'sandbox' || tested.has(id) || (mode === 'diagnose' && (gaveUp || verdict?.ok));
   // Find the fault: the customer's case, the last check of the work, and whether the answer was shown
   let scenario = null, verdict = null, gaveUp = false, lastCase = null;
+  let dealt = 0;   // keys dealt (setRegulation with keepTested off): the bench bar's undo list and "before" start afresh with each
 
   // ---------- the key and pedals ----------
   function play(kind) {
@@ -281,13 +283,14 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       })) : null);
   }
   const testButton = id => el('button', { class: 'test', disabled: busy ? '' : false, 'data-anchor': `u-test:${id}`, onclick: () => runTest(id) }, '▶ ', TESTS[id].label);
-  function benchTips(key) {
+  function benchTips(key, open = true) {
     const tips = TIPS[key];
     if (!tips?.length) return null;
-    return el('details', { class: 'bench', open: '' }, el('summary', {}, 'From the bench'), el('ul', {}, tips.map(t =>
+    return el('details', { class: 'bench', open: open ? '' : false }, el('summary', {}, 'From the bench'), el('ul', {}, tips.map(t =>
       el('li', {}, t.text, ' ', el('span', { class: 'credit' }, '— ', t.url ? el('a', { href: t.url, target: '_blank', rel: 'noopener' }, creditOf(t)) : creditOf(t))))));
   }
   const GRADED = STEPS.filter(s => !s.info);
+  let whyOpen = false;   // Learn on a phone: the step's reading matter, folded under its test
   const stepDone = st => specsOf(st).every(id => tested.has(id) && gradeL(id).ok);
   function goStep(i) {
     if (busy) return;
@@ -296,13 +299,19 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     S.highlight(stepParts());
     if (st && !st.info) view(TESTS[st.test].view);
     refresh();
+    if (compact() && mode === 'learn') panelTo('#benchbar');   // a phone: the step at the top of the panel's half screen
   }
   function renderLearn(p) {
     const st = STEPS[stepIdx], done = stepIdx >= STEPS.length;
-    put(p, el('div', { class: 'steps' }, STEPS.map((s, i) =>
+    // on a phone, as the grand's Learn (GT-22): the steps one list, the test and reading first, Back and Next at the bottom edge
+    const phone = compact();
+    put(p, phone ? el('select', { class: 'stepsel', 'aria-label': 'Step', disabled: busy ? '' : false, onchange: e => goStep(+e.target.value) },
+        STEPS.map((s, i) => el('option', { value: i, selected: i === stepIdx ? '' : false }, `${i + 1}. ${s.title}${!s.info && stepDone(s) ? ' ✓' : ''}`)),
+        el('option', { value: STEPS.length, selected: done ? '' : false }, '✓ Final check'))
+      : el('div', { class: 'steps' }, STEPS.map((s, i) =>
       el('button', { class: 'pip' + (s.info ? ' info' : '') + (i === stepIdx ? ' cur' : '') + (!s.info && stepDone(s) ? ' ok' : ''), title: s.title, onclick: () => goStep(i) }, String(i + 1))),
       el('button', { class: 'pip' + (done ? ' cur' : ''), title: 'Final check', onclick: () => goStep(STEPS.length) }, '✓')),
-      done ? null : el('p', { class: 'muted small' }, 'This key starts out of regulation on purpose: every adjustment is knocked a little off. Work through the steps to put it right; ✓ re-checks everything at the end.'));
+      done || phone ? null : el('p', { class: 'muted small' }, 'This key starts out of regulation on purpose: every adjustment is knocked a little off. Work through the steps to put it right; ✓ re-checks everything at the end.'));
     if (done) {
       GRADED.flatMap(specsOf).forEach(id => tested.add(id));
       const bad = GRADED.filter(s => !stepDone(s));
@@ -319,12 +328,25 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       const adv = advise(m, level().tolK), to = adv && GRADED.find(g => specsOf(g).includes(adv.spec));
       return adv ? [`: ${adv.text}`, to && to !== s ? [' (', el('button', { class: 'linkish', onclick: () => goStep(STEPS.indexOf(to)) }, to.title), ')'] : null] : null;
     }
-    const nav = ok => el('div', { class: 'row' },
-      el('button', { disabled: stepIdx === 0 ? '' : false, onclick: () => goStep(stepIdx - 1) }, '← Back'),
-      el('button', { class: ok ? 'primary' : '', onclick: () => goStep(stepIdx + 1) }, ok ? 'Next step →' : 'Skip →'));
+    const navBtns = ok => [el('button', { disabled: stepIdx === 0 ? '' : false, onclick: () => goStep(stepIdx - 1) }, '← Back'),
+      el('button', { class: ok ? 'primary' : '', onclick: () => goStep(stepIdx + 1) }, ok ? 'Next step →' : 'Skip →')];
+    const nav = ok => { if (!phone) return el('div', { class: 'row' }, navBtns(ok)); put($('#actionbar'), el('span', { class: 'muted small grow' }, `Step ${stepIdx + 1} of ${STEPS.length}`), navBtns(ok)); return null; };
     const head = el('div', { class: 'muted small' }, `Step ${stepIdx + 1} of ${STEPS.length}${st.info ? ' · not in the sim' : ''}`);
-    if (st.info) { put(p, head, el('h2', {}, st.title), el('p', {}, st.what), el('p', { class: 'muted' }, st.how), st.note ? el('p', { class: 'note' }, st.note) : null, benchTips(st.id), nav(true)); return; }
+    if (st.info) { put(p, phone ? null : [head, el('h2', {}, st.title)], el('p', {}, st.what), el('p', { class: 'muted' }, st.how), st.note ? el('p', { class: 'note' }, st.note) : null, benchTips(st.id), nav(true)); return; }
     const earlier = STEPS.slice(0, stepIdx).filter(s => !s.info).flatMap(specsOf);
+    if (phone) {
+      const tests = el('div', { class: 'row' }, (st.tests ?? [st.test]).map(testButton)), table = readingsTable(specsOf(st));
+      put(p, tests.children.length > 2 ? [table, tests] : [tests, table],
+        st.spec === 'aftertouch' && specsOf(st).every(id => tested.has(id)) && !stepDone(st) ? el('p', { class: 'note', 'data-advice': '' }, 'What to move', backTo(st)) : null,
+        el('details', { class: 'fold', open: whyOpen ? '' : false, ontoggle: e => { whyOpen = e.target.open; } }, el('summary', {}, 'What to look for, and how to set it'),
+          el('div', { class: 'fold-body' }, stepIdx ? null : el('p', { class: 'muted small' }, 'This key starts out of regulation on purpose: every adjustment is knocked a little off. Work through the steps to put it right; the last entry in the list re-checks everything.'),
+            el('p', {}, st.what), el('p', { class: 'muted' }, st.how), st.note ? el('p', { class: 'note' }, st.note) : null)),
+        el('div', { class: 'knobs' }, st.knobs.map(k => knobRow(k))),
+        st.repairs ? repairButtons(specsOf(st)) : null,
+        benchTips(st.id ?? st.spec, false), nav(stepDone(st)),
+        earlier.length ? el('details', {}, el('summary', {}, 'Earlier steps'), readingsTable(earlier)) : null);
+      return;
+    }
     put(p, head, el('h2', {}, st.title), el('p', {}, st.what), el('p', { class: 'muted' }, st.how), st.note ? el('p', { class: 'note' }, st.note) : null,
       el('div', { class: 'row' }, (st.tests ?? [st.test]).map(testButton)),
       readingsTable(specsOf(st)),
@@ -375,8 +397,9 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     put(p, el('h2', {}, 'A customer says:'), el('p', { class: 'note' }, `“${scenario.complaint}”`),
       el('p', { class: 'muted small' }, `Find out what's wrong and put it right: run the tests that would show it, then adjust or repair. ${knobs ? '' : 'Click a part on the action to adjust it. '}Check your work when you think it's done.`),
       verdict ? el('div', { class: 'verdict ' + (verdict.ok ? 'ok' : 'bad') },
-        verdict.ok ? el('p', {}, el('b', {}, 'Fixed. '), scenario.cause, '.', also ? ` ${also}.` : '') : el('p', {}, 'Still out: ', verdict.bad.map(id => SPEC_NAMES[id]).join(', '), '.')) : null,
-      gaveUp ? el('div', { class: 'verdict bad' }, el('p', {}, el('b', {}, 'What was wrong: '), scenario.cause, '. ', also ? `${also}. ` : '', el('b', {}, 'The fix: '), scenario.fix, '.')) : null,
+        verdict.ok ? el('p', {}, el('b', {}, 'Fixed. '), scenario.cause, scenario.custom ? '' : '.', also ? ` ${also}.` : '') : el('p', {}, 'Still out: ', verdict.bad.map(id => SPEC_NAMES[id]).join(', '), '.')) : null,
+      // (a fault a teacher set up comes with one note, in the teacher's own words)
+      gaveUp ? el('div', { class: 'verdict bad' }, el('p', {}, el('b', {}, 'What was wrong: '), scenario.cause, scenario.custom ? null : ['. ', also ? `${also}. ` : '', el('b', {}, 'The fix: '), scenario.fix, '.'])) : null,
       AREAS.map(ar => el('details', { class: 'fold', open: '' }, el('summary', {}, ar.name),
         el('div', { class: 'row' }, ar.tests.map(testButton)), readingsTable(ar.specs),
         knobs ? el('div', { class: 'knobs' }, ar.knobs.map(k => knobRow(k))) : null, repairButtons(ar.specs))));
@@ -681,6 +704,44 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     else if (mode === 'diagnose') { scenario = null; newCase(); }
     else setRegulation({ ...FACTORY, damage: null }, { keepTested: false });
   }
-  return { S, show, hide, frame, setMode, renderPanel, renderCredits, dropHand, get mode() { return mode; }, get busy() { return busy; },
+  // ---------- the bench bar (bench-ui.js): this action's undo and redo, before and after, save and load, print ----------
+  // One note's regulation. Not in the exam, whose three notes share a rail: there it only prints.
+  const BENCH_RULES = { factory: FACTORY, limits: Object.fromEntries(ADJ.map(d => [d.id, [d.min, d.max]])), enums: { damage: Object.keys(DAMAGE) } };
+  const tidy = b => Object.fromEntries(Object.entries(b).filter(([k, v]) => v != null && (k in BENCH_RULES.limits || k === 'damage')).sort(([x], [y]) => (x < y ? -1 : 1)));
+  const benchRows = mm => ALL_SPECS.map(id => { const r = grade(id, mm, level().tolK); return { id, name: SPEC_NAMES[id], txt: `${readingText(id, mm)}${r.note ? ` · ${r.note}` : ''}`, ok: r.ok, shown: revealed(id) }; });
+  const bench = {
+    name: 'upright', rules: BENCH_RULES,
+    can: () => ({ edit: mode === 'learn' || mode === 'sandbox' || (mode === 'diagnose' && !!scenario), print: mode !== 'drills' && (mode !== 'exam' || !!exam.started) }),
+    context: () => `${mode}|${dealt}`,
+    snap: () => ({ notes: [tidy(a)] }),
+    restore: st => { if (busy) return false; setRegulation({ damage: null, ...st.notes[0] }, { replace: true }); },
+    notes: st => st.notes,
+    fault: () => (mode === 'diagnose' && scenario ? { c: scenario.complaint, w: scenario.custom ? scenario.cause : `${scenario.cause}. ${alsoText(scenario) ? `${alsoText(scenario)}. ` : ''}The fix: ${scenario.fix}.` } : null),
+    draft: st => {
+      const parts = Object.entries(diffAdj(st.notes[0], BENCH_RULES)).map(([k, v]) => typeof v === 'string' ? DAMAGE[v].name.toLowerCase()
+        : `${ADJ.find(x => x.id === k).name.toLowerCase()} ${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(2)} mm from factory`);
+      return parts.length ? `Set up with: ${parts.join('; ')}.` : 'Nothing is out: this action is at its factory regulation.';
+    },
+    open: st => {
+      if (busy || (exam.started && !exam.done)) return false;
+      if (exam.started) leaveExam();
+      closeCard(); S.highlight([]);
+      if (st.k === 'fault') { mode = 'diagnose'; scenario = { id: 'custom', custom: true, complaint: st.c, cause: st.w || 'No note was left with it.', fix: '', also: [] }; lastCase = null; gaveUp = false; }
+      else mode = 'sandbox';
+      setRegulation({ damage: null, ...st.notes[0] }, { keepTested: false, replace: true });
+    },
+    readings: st => benchRows(measure(st.notes[0])),
+    record: () => {
+      const meta = [{ learn: 'Learn', diagnose: 'Find the fault', sandbox: 'Sandbox', exam: 'Exam practice' }[mode], `${level().name} level`];
+      if (mode === 'exam' && exam.done) return { title: 'Upright action regulation: exam practice', meta, tables: [], copy: document.getElementById('mode') };
+      if (mode === 'exam') meta.push(`note ${exam.cur + 1} of 3`);
+      const rows = benchRows(m), seen = rows.filter(r => r.shown);
+      meta.push(`${seen.filter(r => r.ok).length} of ${seen.length} measured readings in spec${seen.length < rows.length ? `, ${rows.length - seen.length} not measured` : ''}`);
+      if (mode === 'diagnose' && scenario) meta.push(`the customer said: “${scenario.complaint}”`);
+      return { title: 'Upright action regulation record', meta, tables: [{ head: ['Check', 'Target', 'Reading', 'In spec'],
+        rows: rows.map(r => [r.name, bandText(r.id), r.shown ? { txt: r.txt, ok: r.ok } : { txt: 'not measured', ok: null }, !r.shown ? '' : r.ok ? 'pass' : 'OUT']) }] };
+    },
+  };
+  return { S, bench, show, hide, frame, setMode, renderPanel, renderCredits, dropHand, get mode() { return mode; }, get busy() { return busy; },
     get examRunning() { return exam.started && !exam.done; } };
 }

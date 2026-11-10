@@ -193,6 +193,10 @@ export const SPEC = {
   // Steinway: below the stop rail and slightly below where the sharps lift (the sim has no sharp: read against this
   // natural). So level with the key's lift passes, and a hair under; how far under is the sim's own (0.8 mm).
   pedalLift:    { name: 'Pedal lift against the key\'s lift', target: -0.25, lo: -0.8, hi: 0, unit: 'mm', damper: true, src: 'Kawai: the same as the keys; Steinway: slightly below, and below the stop rail' },
+  // on the pedal, every damper should leave the strings together (Steinway: "check for individual fast or slow dampers
+  // by operating the damper pedal"; Spurlock winks the pedal to find the early ones). Read as head lift: how far this
+  // damper is ahead of (+) or behind the line of underlevers when the tray meets it. The band is the sim's own.
+  pedalStart:   { name: 'Damper starts with the others on the pedal', target: 0, tol: 0.5, unit: 'mm', damper: true, noExam: true },
   damperFall:   { name: 'Damper falls freely', target: 0, tol: 0.15, unit: '', damper: true },
   // Igrec: the head vertical and centered to its strings, both ends of its felt seated with equal force; bands are the sim's own
   damperSeat:   { name: 'Damper head centered on its unison, seated flat', target: 0, tol: 0.5, tolLevel: 0.2, unit: 'mm', damper: true },
@@ -765,6 +769,21 @@ export function measureRatio(a) {
 // ---------- dampers ----------
 // head lift the key gives at this key position (mm above the strings)
 export const damperKeyLift = (a, L) => Math.max(0, L.keyEndRise - a.damperGap) * G.dmpRatio;
+// The pedal's lift tray works on the line of underlevers, not on each damper by itself. An underlever's place on its
+// wire (damperGap) sets where the key end meets it and, by the same amount, where the tray does: one set lower on its
+// wire is met sooner by both and lifted further, one set higher later and less. Told as lift at the head, the tray's arm
+// drops out: the offset is the gap's difference from the line times the wire's ratio, whatever the tray's arm is. The
+// line is where a regulated note's underlever sits (FACTORY.damperGap), over a key at its regulated height.
+// The tray starts below the line: Steinway's manual sets "approximately 1/8 in lost motion between the underlever tray
+// and the line of underlevers". Taken here where the key end lifts the underlever (the drawn tray is a stand-in), and
+// not adjustable: the pedal's first travel takes it up and no damper moves.
+export const TRAY_FREE = IN / 8 * G.dmpRatio;                                   // mm at the head
+export const underleverOff = a => (FACTORY.damperGap - a.damperGap) * G.dmpRatio;   // + set low: met early, lifted further
+// the tray's lift of a damper on the line with the pedal p of the way down (below 0: still taking up its free play)
+export const trayLift = (a, p) => p * (a.pedalLift + TRAY_FREE) - TRAY_FREE;
+export const pedalHeadLift = (a, p) => Math.max(0, trayLift(a, p) + underleverOff(a));
+// how far down the pedal is when the tray has a damper on the line up by `lift` (a wink of the pedal: a little over 0)
+export const pedalFor = (a, lift) => Math.max(0, Math.min(1, (lift + TRAY_FREE) / (a.pedalLift + TRAY_FREE)));
 const damperFallTime = (a, h) => Math.sqrt(2 * Math.max(0, h) / (G.dmpGravity * (1 - Math.min(0.95, a.damperDrag))));
 export function measureDampers(a) {
   a = eff(a);
@@ -780,12 +799,14 @@ export function measureDampers(a) {
     for (let d = 0; d <= d0 + 1e-9; d += Math.max(0.02, d0 / 60)) g = staticHammer(a, linkage(a, d), st, g).g;
     timing = (crownY(g) - crownY(g0)) / (G.stringY - crownY(g0));
   }
-  const pedalH = Math.min(a.pedalLift, a.damperStop);
+  // (the pedal's lift of this damper: an underlever off the line is lifted that much more or less, as the key lifts it)
+  const off = underleverOff(a), pedalH = Math.min(pedalHeadLift(a, 1), a.damperStop);
   return {
     damperTiming: timing,
     damperStop: a.damperStop - keyLiftBottom,
-    pedalLift: a.pedalLift - keyLiftBottom,
-    pedalIntoStop: a.pedalLift >= a.damperStop,   // the makers stop the pedal's lift below the rail
+    pedalLift: a.pedalLift + off - keyLiftBottom,
+    pedalIntoStop: a.pedalLift + off >= a.damperStop,   // the makers stop the pedal's lift below the rail
+    pedalStart: off, trayHolds: pedalHeadLift(a, 0),      // (trayHolds: set so low that the tray at rest keeps the head up)
     damperFall: a.damperDrag,
     damperSeat: a.damperCenter, damperLevel: a.damperLevel,
     fallMs: 1000 * damperFallTime(a, pedalH),
@@ -833,6 +854,8 @@ export function grade(id, m, k = 1) {
   if (id === 'damperStop' && v <= 0.05) return { ok: false, v, note: 'dampers hit the stop rail before the key bottoms' };
   if (id === 'pedalLift' && m.pedalIntoStop) return { ok: false, v, note: 'the pedal drives the dampers into the stop rail' };
   if (id === 'pedalLift') return { ok: inBand(v, b), v, note: q2(v) > q2(b[1]) ? 'the pedal lifts the dampers higher than the keys do' : q2(v) < q2(b[0]) ? 'the pedal lifts the dampers too little' : '' };
+  if (id === 'pedalStart') return m.trayHolds > 0.005 ? { ok: false, v, note: 'the lift tray holds this damper off the strings with the pedal up' }
+    : { ok: inBand(v, b), v, note: q2(v) > q2(b[1]) ? 'leaves the strings before the others' : q2(v) < q2(b[0]) ? 'leaves the strings after the others' : '' };
   if (id === 'hammerSquare' && m.damage === 'splitShank') return { ok: false, v, note: 'the head wobbles from blow to blow' };
   if (id === 'hammerSound') return m.hammerSound ? { ok: false, v, note: DAMAGE[m.damage].signs } : { ok: true, v, note: 'solid and quiet' };
   // a wire dragging in its guide bushing or a tight underlever center: the pedal test can't tell which
@@ -1100,7 +1123,7 @@ export class Sim {
     this.jackRock = this.wippenRock = this.hammerRock = this.ulShown = null;
     this.hand = null;
     this.t = 0; this.pedal = this.pedal ?? 0; this.pedalTarget = this.pedalTarget ?? 0;
-    this.yd = Math.min(this.pedal * this.a.pedalLift, this.a.damperStop); this.vd = 0;
+    this.yd = Math.min(pedalHeadLift(this.a, this.pedal), this.a.damperStop); this.vd = 0;
     this.up = this.yd > 0.05; this.hitStop = false; this.liftedAt = this.up ? 0 : null;
     this.x0 = feltSquash(FELT_BACK, Math.max(0, -(this.keyLoads().F - (this.onJack ? HAMMER_WT * this.gam : 0))) / FELT_BACK.r);
   }
@@ -1180,17 +1203,18 @@ export class Sim {
     if (xb > 0) F += feltG(FELT_BACK, xb) * Math.max(0, 1 - FELT_BACK.D * this.v * FELT_BACK.r / 1000) * FELT_BACK.r;
     return { F, fr, m };
   }
-  setPedal(down) { this.pedalTarget = down ? 1 : 0; }
+  // the pedal all the way down, or (to, over) part of the way and slowly: a wink of the pedal, to see which dampers start first
+  setPedal(down, { to = 1, over = 0.1 } = {}) { this.pedalTarget = down ? to : 0; this.pedalOver = over; }
   // damper head: pushed up by the key's underlever or the pedal's lift tray, capped by the stop rail,
   // and otherwise falling under its weight, slowed by any drag in its guide bushing
   stepDamper(dt) {
     const a = this.a;
     this.t += dt;
     // the foot presses the pedal over about a tenth of a second; let go, the tray drops away faster than the dampers fall
-    const rate = this.pedalTarget > this.pedal ? dt / 0.1 : dt / 0.02;
+    const rate = this.pedalTarget > this.pedal ? dt / (this.pedalOver ?? 0.1) : dt / 0.02;
     this.pedal += Math.sign(this.pedalTarget - this.pedal) * Math.min(Math.abs(this.pedalTarget - this.pedal), rate);
     const keyLift = damperKeyLift(a, this.L);
-    const push = Math.max(keyLift, this.pedal * a.pedalLift, this.hand?.hold === 'damper' ? Math.min(this.hand.at, a.damperStop) : 0);
+    const push = Math.max(keyLift, pedalHeadLift(a, this.pedal), this.hand?.hold === 'damper' ? Math.min(this.hand.at, a.damperStop) : 0);
     // the key's end has the damper when it is what holds the head up (not the pedal's tray, not a head thrown clear by a
     // hard blow); picking it up on the way down, the key gives it some of its speed
     const onKey = keyLift > 0 && keyLift >= push - 1e-9 && keyLift >= this.yd - 1e-6;
@@ -1589,7 +1613,7 @@ export class Sim {
     const a = this.a;
     return this.d === 0 && Math.abs(this.v) < 1e-9 && Math.abs(this.w) < 1e-9 && this.dTarget === 0 && !this.hand && !this.finger && !this.lid && !this.lifting && !this.stuck
       && !this.force && !this.st.escaped && !this.st.checked && !this.st.catching && !this.wedge0 && this.psiNow === this.psi
-      && this.vd === 0 && this.pedal === this.pedalTarget && this.yd === Math.min(this.pedal * a.pedalLift, a.damperStop) && !this.events.length;
+      && this.vd === 0 && this.pedal === this.pedalTarget && this.yd === Math.min(pedalHeadLift(a, this.pedal), a.damperStop) && !this.events.length;
   }
   idle(dt) { this.t += dt; }
 }

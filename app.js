@@ -6,10 +6,12 @@ import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
 import { examMark, PASS, OP_NEEDS } from './examscore.js';
 import { TOOLBAG } from './toolbag.js';
-import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F, touch, dipAt, repeatRun } from './model.js';
-import { initControls, markView, closeMenu } from './controls.js';
+import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F, touch, dipAt, repeatRun, pedalFor } from './model.js';
+import { initControls, markView, closeMenu, compact, onCompact, panelTo } from './controls.js';
 import { SPEC_SETS, specSet, setSpecSet, specSource } from './model.js';
 import { GAUGES, graduation, parseReading, judgeReading } from './gauge.js';
+import { mountBench } from './bench-ui.js';
+import { diffAdj } from './bench.js';
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -97,6 +99,8 @@ let simTime = 0;
 const waits = [];
 const waitSim = s => new Promise(r => waits.push({ at: simTime + s, r }));
 let busy = 0;
+let bench = null;   // the bench bar (bench-ui.js), mounted below once the action is up
+const benchEpoch = { learn: 0, diagnose: 0, sandbox: 0 };   // keys dealt, by mode: a new one is a new piece of work
 let forcedScale = null; // tests run at their own speed
 // How hard the finger plays (the Touch menu): Play, Strike & hold, Loop, Space and a press on the key all strike with
 // it. A blow is a finger's force on the key front (model.js BLOWS), not a key moved at a set speed.
@@ -214,10 +218,10 @@ const STEPS = [
     what: 'With the key held firmly down, the damper head should still have a little play before the underlever reaches the stop rail: about 1/16" on this note. Steinway gives about 1/16" in the treble and 3/32" in the bass; Kawai allows 1 to 2 mm.',
     how: 'Raise or lower the rail. It keeps dampers from flying up on hard staccato and bobbling on the way down. It is not the pedal\'s stop: the pedal has its own, set lower.',
     note: 'The makers check this holding a sharp down, since the sharps lift their dampers a little higher. The sim has no sharp, so it reads this natural. Simplified here: the damper falls by its own weight. Many bass dampers also have springs.' },
-  { spec: 'pedalLift', title: 'Damper pedal lift', knobs: ['pedalLift'], test: 'pedalTest',
-    what: 'The pedal should lift every damper as high as the keys lift them, or a hair less, and never up to the stop rail. Kawai: the same height with the pedal as with the keys. Steinway: to a point below the stop rail, slightly below where the sharp keys lift.',
-    how: 'Set the pedal\'s stop (or the rod length) so the lift tray takes the dampers to the key\'s lift or just under it. Too little and the dampers don\'t clear the strings cleanly; too much and the pedal drives the dampers into the stop rail with a thump.',
-    note: 'The makers set this against the sharps\' lift; the sim reads it against this natural, and passes level with the key down to 1/32" under. On a real piano also leave a little free play in the pedal and rod before the tray moves. Not modelled yet.' },
+  { spec: 'pedalLift', also: ['pedalStart'], title: 'Damper pedal lift', knobs: ['pedalLift', 'damperGap'], test: 'pedalTest', tests: ['pedalTest', 'pedalWink'],
+    what: 'The pedal should lift every damper as high as the keys lift them, or a hair less, and never up to the stop rail. Kawai: the same height with the pedal as with the keys. Steinway: to a point below the stop rail, slightly below where the sharp keys lift. And the dampers should all leave the strings together: barely wink the pedal and watch for one that starts before or after the rest.',
+    how: 'Set the pedal\'s stop (or the rod length) so the lift tray takes the dampers to the key\'s lift or just under it. Too little and the dampers don\'t clear the strings cleanly; too much and the pedal drives the dampers into the stop rail with a thump. A damper that starts early or late on the pedal has its underlever off the line of the others: move the underlever on its wire, the same set screw that times it at the key.',
+    note: 'The makers set this against the sharps\' lift; the sim reads it against this natural, and passes level with the key down to 1/32" under. The tray starts 1/8" below the line of underlevers (Steinway\'s figure for its lost motion), so the first of the pedal\'s travel moves no damper; that free play is fixed here, not something to regulate. One place on the wire sets both when the key lifts a damper and when the tray does, so recheck the lift timing after moving it. How close "together" must be has no published figure: the band is the sim\'s own.' },
   { spec: 'damperFall', also: ['damperSeat', 'underCenter'], title: 'Damper wires: fall freely, seat flat', knobs: ['damperDrag', 'damperCenter', 'damperLevel'], centers: ['under'], test: 'pedalTest', tests: ['pedalTest', 'damperSight', 'ulDrop'],
     what: 'Let the pedal go: every damper should drop and land at once. One that hangs or lands late leaves the note ringing. Each head should sit centered on its unison, both ends of its felt on the strings with equal force.',
     how: 'A late damper usually has a wire that isn\'t running straight through its guide rail bushing: bend the wire so it passes without binding, or ease a tight bushing. If the wire runs free, loosen its set screw and let the underlever drop on its own: it should fall from its own weight, or its center is tight. Bend the top of the wire (bends 3 and 4, in Igrec\'s numbering) to center the head, and bend it as seen from the side to seat both ends.',
@@ -289,6 +293,26 @@ const TESTS = {
       const ms = slots.map((slot, i) => landed.has(slot) ? Math.round(1000 * (landed.get(slot) - t0[slot])) : null);
       toast(slots.length > 1 ? `Dampers landed after ${ms.map((v, i) => `note ${i + 1}: ${v ?? '—'} ms`).join(', ')}` : `Damper landed after ${ms[0] ?? '—'} ms`);
       landed = null;
+    } },
+  // Spurlock: barely wink the pedal and the early lifters show. The tray is eased up until a damper on the line of
+  // underlevers is just off its strings, and held: one set low on its wire is already well up, one set high hasn't moved
+  pedalWink: { label: 'Wink the pedal: do the dampers start together?', specs: ['pedalStart'], view: 'dampers', damper: true, noExam: true,
+    run: async () => {
+      await releaseKey(); setPedal(false); await waitSim(0.1);
+      if (multi()) view('damperrow');
+      const slots = multi() ? EXAM_ORDER : [cur];
+      NOTES.forEach(n => n.sim.setPedal(true, { to: pedalFor(n.sim.a, 0.5), over: 0.6 }));
+      pedalDown = true; $('#k-pedal').classList.add('on');
+      await waitSim(0.6); await waitReal(1.2);
+      const how = slots.map(s => { const r = gradeL('pedalStart', NOTES[s].m); return r.ok ? 'with the line' : NOTES[s].m.trayHolds > 0.005 ? 'held up by the tray even with the pedal up' : r.v > 0 ? 'early' : 'late'; });
+      const bad = how.some(h => h !== 'with the line');
+      say(slots.length > 1 ? `A wink of the pedal: ${how.map((h, i) => `note ${i + 1} starts ${h}`).join(', ')}`
+        : how[0] === 'with the line' ? 'A wink of the pedal, and this damper stirs with the line of the others'
+        : how[0] === 'early' ? 'A wink of the pedal, and this damper is already well up: it leaves the strings before the others'
+        : how[0] === 'late' ? 'A wink of the pedal lifts the line of dampers, and this one is still on its strings: it starts late'
+        : 'This damper is off its strings before the pedal moves: its underlever sits on the lift tray', bad ? 'warn' : '');
+      await waitReal(0.8);
+      setPedal(false); await waitSim(0.25);
     } },
   dipBlock: { label: 'Dip block at the key front', specs: ['dip'], view: 'keyfront',
     run: async () => { if (gaugeMode) return gaugeDip(); await releaseKey(); sim.press(sim.dip, 12); await waitSim(1.4); await waitReal(1.2); await releaseKey(); } },
@@ -744,14 +768,14 @@ const KNOB_FOR = {
   hammerTravel: ['hammerTravel'], hammerSpace: ['hammerSpacing'], hammerSquare: ['hammerSquare'],
   jackScrew: ['jackPos'], wippenSpace: ['wippenSpacing'], wippenTravel: ['wippenSpacing'], repStop: ['wink'], letoff: ['letoff'], drop: ['drop'], repSpring: ['spring'],
   backcheck: ['check'], backcheckSpace: ['backcheckAlign'], backcheckSquare: ['backcheckAlign'],
-  damperGap: ['damperTiming'], damperStop: ['damperStop'], pedalLift: ['pedalLift'],
+  damperGap: ['damperTiming', 'pedalStart'], damperStop: ['damperStop'], pedalLift: ['pedalLift'],
   damperDrag: ['damperFall'], damperCenter: ['damperSeat'], damperLevel: ['damperSeat'],
 };
 const SHORT = {
   keyBushings: 'Key bushings', keyHeight: 'Key height', dip: 'Dip', aftertouch: 'Aftertouch', blow: 'Blow', lostMotion: 'Lost motion', restGap: 'Rail gap',
   hammerTravel: 'Travel', hammerSpacing: 'Spacing', hammerSquare: 'Square', hammerSound: 'Solid on its center', jackPos: 'Jack position', wippenSpacing: 'Jack centered',
   wink: 'Wink', letoff: 'Let-off', drop: 'Drop', spring: 'Spring', check: 'Checking', backcheckAlign: 'Centered, square',
-  damperTiming: 'Lift timing', damperStop: 'Stop rail', pedalLift: 'Pedal lift', damperFall: 'Fall', damperSeat: 'Seat',
+  damperTiming: 'Lift timing', damperStop: 'Stop rail', pedalLift: 'Pedal lift', pedalStart: 'Starts on the pedal', damperFall: 'Fall', damperSeat: 'Seat',
   hammerCenter: 'Hammer center', wippenCenter: 'Wippen center', jackCenter: 'Jack center', repCenter: 'Rep lever center', underCenter: 'Underlever center',
 };
 // an unmeasured reading names its test, which may sit in another part of the action (aftertouch: the slow press)
@@ -844,6 +868,7 @@ function specTarget(id) {
   if (id === 'spring') return 'rises, no pop';
   if (id === 'pedalLift') return 'the key\'s lift, or a hair under';
   if (id === 'damperTiming') return 'a third to half';
+  if (id === 'pedalStart') return 'together';
   if (id === 'hammerSquare') return 'square';
   if (id === 'hammerSound') return 'solid, quiet';
   if (id === 'hammerSpacing') return 'centered';
@@ -863,6 +888,7 @@ function reading(id, mm = m) {
   let txt;
   if (id === 'spring') txt = r.note;
   else if (id === 'damperTiming' && r.v != null) txt = `at ${Math.round(r.v * 100)}% of hammer travel`;
+  else if (id === 'pedalStart') txt = mm.trayHolds > 0.005 ? r.note : Math.abs(r.v) < 0.05 ? 'with the line' : `${fmtGraded(id, Math.abs(r.v))} ${r.v > 0 ? 'early' : 'late'}` + (r.note ? ` · ${r.note}` : '');
   else if (id === 'hammerSquare') txt = r.note ? r.note : Math.abs(r.v) < 0.25 ? 'square' : `${Math.abs(r.v).toFixed(1)}° out of square`;
   else if (id === 'hammerSound') txt = r.note;
   else if (id === 'hammerSpacing') txt = side(r.v, id);
@@ -951,7 +977,7 @@ const SCENARIOS = [
   { complaint: 'Notes ring on after I let go, and the sustain pedal leaves a little smear.', faults: { damperDrag: +0.5 }, answer: 'A damper wire binding in its guide rail bushing: that damper falls late.' },
   { complaint: 'This note keeps ringing faintly after I let the key up, even without the pedal.', faults: { damperLevel: +0.6 }, answer: 'The damper head isn\'t seated: its back end sits up off the strings, so a string goes on ringing. Bend the wire, as seen from the side, until both ends sit with equal force.' },
   { complaint: 'One string of this note rings on after I let go.', faults: { damperCenter: +2.0 }, answer: 'The damper head sits off center on its unison, so its felt doesn\'t cover one string properly. Bend the top of the wire to center it.' },
-  { complaint: 'The key feels heavier right at the top of the stroke than the ones next to it.', faults: { damperGap: -1.5 }, answer: 'The damper lifts too early: the key picks up the underlever before the hammer is a third of the way up. Lifting earlier also lifts it further, which eats the stop rail clearance and leaves the pedal short of the key lift: they come right once the timing is fixed. Weigh the key off and read the trace: with the pedal up, the damper\'s weight (the thin line, about 11 g at the key) comes in at 2 mm of key travel where its neighbors\' comes in past 3.5.' },
+  { complaint: 'The key feels heavier right at the top of the stroke than the ones next to it.', faults: { damperGap: -1.5 }, answer: 'The damper lifts too early: the key picks up the underlever before the hammer is a third of the way up. Lifting earlier also lifts it further, which eats the stop rail clearance; and the underlever sits low on its wire, so on the pedal this damper leaves the strings before its neighbors (wink the pedal). Both come right once the underlever is moved back. Weigh the key off and read the trace: with the pedal up, the damper\'s weight (the thin line, about 11 g at the key) comes in at 2 mm of key travel where its neighbors\' comes in past 3.5.' },
   { complaint: 'There\'s a thump when I put the sustain pedal down.', faults: { pedalLift: +2 }, answer: 'Pedal lift too high: it drives the dampers into the stop rail (put the pedal down and the sim says so). The pedal should lift them no higher than the keys do, and stop short of the rail.' },
   { complaint: 'This note sounds thinner than its neighbors, and there\'s a little click. The hammer looks a bit crooked.', faults: { damage: 'splitShank' }, alone: true,
     answer: 'A split hammer shank, not yet broken: it flexes on the blow (less power), clicks, and the head wobbles. Burning or traveling won\'t hold; replace the shank, then travel, space and square the new one.' },
@@ -993,6 +1019,7 @@ const SCENARIOS = [
 ];
 function newScenario() {
   store(); cur = 0; ({ adj, sim, m, tested } = NOTES[0]);   // the customer's key is the middle one
+  benchEpoch.diagnose++;
   const pool = [...SCENARIOS].sort(() => Math.random() - 0.5);
   const s = pool[0];
   scenario = { ...s, faults: { ...s.faults } };
@@ -1063,6 +1090,7 @@ function deregulated() {
   return a;
 }
 function messUp() {
+  benchEpoch.learn++;
   adj = deregulated();
   // in Learn, one key in three also has a key bushing to ease or rebush, and one in four a center to ease, repin or rebush
   if (mode === 'learn' && Math.random() < 1 / 3) { const k = Object.keys(BUSHINGS); adj.bushing = k[Math.floor(Math.random() * k.length)]; }
@@ -1096,6 +1124,7 @@ function holdPressed(redraw) {
 }
 function refresh() { holdPressed(redraw); }
 function redraw() {
+  bench?.sync();
   if (action === 'upright') {
     for (const b of document.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.mode === U.mode);
     const p = $('#mode');
@@ -1133,12 +1162,18 @@ const stepDone = s => stepSpecs(s).every(id => tested.has(id) && gradeL(id, m).o
 function renderLearn(p) {
   const st = STEPS[stepIdx];
   const done = stepIdx >= STEPS.length;
-  put(p, el('div', { class: 'steps' }, STEPS.map((s, i) =>
+  // On a phone (GT-22) the panel is half the screen: the steps are one list to pick from, not three rows of buttons; the
+  // test and its reading come first with the reading matter folded under them; Back and Next stay at the bottom edge.
+  const phone = compact();
+  put(p, phone ? el('select', { class: 'stepsel', 'aria-label': 'Step', onchange: e => { stepIdx = +e.target.value; focusStep(); refresh(); panelTo('#benchbar'); } },
+      STEPS.map((s, i) => el('option', { value: i, selected: i === stepIdx ? '' : false }, `${i + 1}. ${s.title}${!s.info && stepDone(s) ? ' ✓' : ''}`)),
+      el('option', { value: STEPS.length, selected: done ? '' : false }, '✓ Final check'))
+    : el('div', { class: 'steps' }, STEPS.map((s, i) =>
     el('button', { class: 'pip' + (s.info ? ' info' : '') + (i === stepIdx ? ' cur' : '') + (!s.info && stepDone(s) ? ' ok' : ''), title: s.title,
       onclick: () => { stepIdx = i; focusStep(); refresh(); } }, String(i + 1))),
     el('button', { class: 'pip' + (done ? ' cur' : ''), title: 'Final check', onclick: () => { stepIdx = STEPS.length; refresh(); } }, '✓')),
     // the key arrives knocked out of regulation (messUp), and nothing else on the page would say so
-    done ? null : el('p', { class: 'muted small' }, 'This key starts out of regulation on purpose: every setting, hammer alignment included, is knocked a little off. Work through the steps to put it right; ✓ re-checks everything at the end. The key is kept while you look at another tab. ',
+    done || phone ? null : el('p', { class: 'muted small' }, 'This key starts out of regulation on purpose: every setting, hammer alignment included, is knocked a little off. Work through the steps to put it right; ✓ re-checks everything at the end. The key is kept while you look at another tab. ',
       el('button', { class: 'linkish', onclick: newLearnKey }, 'Start over with a new key')));
   if (done) {
     GRADED.flatMap(stepSpecs).forEach(id => tested.add(id));
@@ -1150,15 +1185,33 @@ function renderLearn(p) {
       el('div', { class: 'row' }, el('button', { onclick: () => { stepIdx = 0; tested = new Set(); messUp(); focusStep(); } }, 'Start over with a new key')));
     return;
   }
-  const nav = (okToGo) => el('div', { class: 'row' },
-    el('button', { disabled: stepIdx === 0 ? '' : false, onclick: () => { stepIdx--; focusStep(); refresh(); } }, '← Back'),
-    el('button', { class: okToGo ? 'primary' : '', onclick: () => { stepIdx++; focusStep(); refresh(); } }, okToGo ? 'Next step →' : 'Skip →'));
+  const go = by => { stepIdx += by; focusStep(); refresh(); if (phone) panelTo('#benchbar'); };
+  const navBtns = okToGo => [el('button', { disabled: stepIdx === 0 ? '' : false, onclick: () => go(-1) }, '← Back'),
+    el('button', { class: okToGo ? 'primary' : '', onclick: () => go(+1) }, okToGo ? 'Next step →' : 'Skip →')];
+  // (on a phone they are the panel's bottom bar, always in reach)
+  const nav = okToGo => { if (!phone) return el('div', { class: 'row' }, navBtns(okToGo)); put($('#actionbar'), el('span', { class: 'muted small grow' }, `Step ${stepIdx + 1} of ${STEPS.length}`), navBtns(okToGo)); return null; };
   const head = el('div', { class: 'muted small' }, `Step ${stepIdx + 1} of ${STEPS.length}${st.info ? ' · not in the sim' : ''}`);
   if (st.info) {
-    put(p, head, el('h2', {}, st.title), el('p', {}, st.what), el('p', { class: 'muted' }, st.how), benchTips(st.id), nav(true));
+    put(p, phone ? null : [head, el('h2', {}, st.title)], el('p', {}, st.what), el('p', { class: 'muted' }, st.how), benchTips(st.id, !phone), nav(true));
     return;
   }
   const earlier = STEPS.slice(0, stepIdx).filter(s => !s.info).flatMap(stepSpecs);
+  if (phone) {
+    // (the step's title is in the list above; a step with a handful of tests shows its readings before them)
+    const tests = el('div', { class: 'row' }, (st.tests || [st.test]).map(testButton)), table = measureTable(stepSpecs(st));
+    put(p, tests.children.length > 2 ? [table, tests] : [tests, table],
+      fold('why', 'What to look for, and how to set it',
+        stepIdx ? null : el('p', { class: 'muted small' }, 'This key starts out of regulation on purpose: every setting, hammer alignment included, is knocked a little off. Work through the steps to put it right; the last entry in the list re-checks everything. ',
+          el('button', { class: 'linkish', onclick: newLearnKey }, 'Start over with a new key')),
+        el('p', {}, st.what), el('p', { class: 'muted' }, st.how), st.note ? el('p', { class: 'note' }, st.note) : null),
+      el('div', { class: 'knobs' }, st.knobs.map(knobRow)),
+      st.bushings ? bushingRepairs() : null,
+      st.centers ? centerRepairs(st.centers) : null,
+      benchTips(st.id ?? st.spec, false),
+      nav(stepDone(st)),
+      earlier.length ? el('details', {}, el('summary', {}, 'Earlier steps'), measureTable(earlier)) : null);
+    return;
+  }
   put(p, head,
     el('h2', {}, st.title),
     el('p', {}, st.what), el('p', { class: 'muted' }, st.how),
@@ -1181,10 +1234,10 @@ function tipLine(t) {
   return el('li', {}, t.text, ' ', el('span', { class: 'credit' }, '— ', t.url ? el('a', { href: t.url, target: '_blank', rel: 'noopener' }, label) : label),
     t.sim ? el('div', { class: 'muted small simgrades' }, t.sim) : null);
 }
-function benchTips(key) {
+function benchTips(key, open = true) {
   const tips = TIPS[key];
   if (!tips?.length) return null;
-  return el('details', { class: 'bench', open: '' }, el('summary', {}, 'From the bench'), el('ul', {}, tips.map(tipLine)));
+  return el('details', { class: 'bench', open: open ? '' : false }, el('summary', {}, 'From the bench'), el('ul', {}, tips.map(tipLine)));
 }
 function renderCredits(p) {
   const all = Object.values(TIPS).flat();
@@ -1218,7 +1271,7 @@ const LIMITS = {
   ],
   grand: [
     ['Measured, with stand-ins.', 'The hammer action is one measured Boston GP-178 note (Hirschkorn, 2004). The dampers and their lift tray are drawn to suit, not measured.'],
-    ['No una corda or sostenuto, and no pedal trapwork.', 'The damper pedal lifts the tray by itself: no pitman, no free play to regulate.'],
+    ['No una corda or sostenuto, and no pedal trapwork.', 'The damper pedal lifts the tray by itself: no pitman, and the tray\'s 1/8" of free play under the line of underlevers is fixed, not something to regulate. Where the tray meets an underlever follows from the lever\'s place on its wire; the tray itself is drawn to suit.'],
     ['Feel is a number and a picture, not a feel.', 'The key has weight and is pushed by a finger\'s force: the weigh-off test gives downweight and upweight in grams, the trace under it shows the bump at let-off, and the key comes back up by its own weight and springs. You read all that; you don\'t feel it. The finger forces behind pp, mf, ff and staccato are the sim\'s own, picked to give hammer speeds in the range Askenfelt and Jansson measured; a real finger\'s push rises through the stroke. The weights and friction are one measured Boston key\'s (Hirschkorn); sliding friction at the capstan and knuckle is left out, and the key has no leads to move.'],
     ['Some parts give, most are rigid.', 'The front punching and the back rail cloth squash as Hirschkorn measured them, so dip depends on how hard the key is pressed and the hammer comes home with a bounce. How far a played key bounces back off its front punching is tuned, not measured: his felt alone throws a bare key back at about 0.6 of its speed, and a figure of the sim\'s own stands in for the hand behind the finger that holds it down. The knuckle does not settle into the repetition lever or the jack, the key does not bend, and the backcheck\'s give is a fitted figure: a key with a little too little aftertouch still plays cleanly here, where Igrec warns below about 0.8 mm. The fingertip check of jack against lever, and "as high as it goes without scraping" for the backcheck, don\'t come out as they do on a bench.'],
     ['A key with lost motion still sits up on its back rail.', 'By its measured weights this key is front-heavy without the hammer on it, so with the hammer down on the rest rail its front would hang low until the jack met the knuckle. The sim keeps it up, with free play at the top, as the lost-motion reading has it. Not checked on a bench.'],
@@ -1330,7 +1383,7 @@ const AREAS = [
   { id: 'jack', name: 'Jack and repetition lever', tests: ['sightJack', 'sightJackFront', 'wink', 'slowPress', 'easeUp', 'repeat'],
     knobs: ['jackScrew', 'wippenSpace', 'wippenTravel', 'repStop', 'letoff', 'drop', 'repSpring'] },
   { id: 'backcheck', name: 'Backcheck', tests: ['strikeHold', 'sightBackcheck'], knobs: ['backcheck', 'backcheckSpace', 'backcheckSquare'] },
-  { id: 'dampers', name: 'Dampers and pedal', tests: ['damperSlow', 'pedalTest', 'damperSight'],
+  { id: 'dampers', name: 'Dampers and pedal', tests: ['damperSlow', 'pedalTest', 'pedalWink', 'damperSight'],
     knobs: ['damperGap', 'damperStop', 'pedalLift', 'damperDrag', 'damperCenter', 'damperLevel'] },
   { id: 'centers', name: 'Action centers', tests: ['swingHammer', 'wobbleHammer', 'wippenTilt', 'tenderPlay', 'jackFall', 'repGauge', 'ulDrop'],
     knobs: [], repairs: () => centerRepairs(Object.keys(CENTERS)) },
@@ -1382,8 +1435,8 @@ const PART_TESTS = {
   letoff: ['slowPress'], regrail: ['slowPress'], drop: ['slowPress'], dropfelt: ['slowPress', 'repGauge'],
   wippen: ['sightJackFront', 'wippenTilt'], wflange: ['sightJackFront'], wcenter: ['wippenTilt', 'tenderPlay'], wippenrail: ['sightJackFront'],
   backcheck: ['strikeHold', 'sightBackcheck'],
-  damper: ['damperSight', 'damperSlow', 'pedalTest'], damperfelt: ['damperSight'], damperwire: ['damperSight', 'pedalTest'], guiderail: ['pedalTest'],
-  underlever: ['damperSlow', 'ulDrop'], ulflange: ['damperSlow'], ucenter: ['ulDrop', 'damperSlow'], damperstop: ['damperSlow'], lifttray: ['pedalTest'],
+  damper: ['damperSight', 'damperSlow', 'pedalTest', 'pedalWink'], damperfelt: ['damperSight'], damperwire: ['damperSight', 'pedalTest'], guiderail: ['pedalTest'],
+  underlever: ['damperSlow', 'ulDrop'], ulflange: ['damperSlow'], ucenter: ['ulDrop', 'damperSlow'], damperstop: ['damperSlow'], lifttray: ['pedalTest', 'pedalWink'],
 };
 // the center pins: their cards carry that center's repairs
 const CENTER_PART = { hcenter: 'hammer', wcenter: 'wippen', jcenter: 'jack', rcenter: 'rep', ucenter: 'under' };
@@ -1602,6 +1655,7 @@ function damperCompare() {
   const cell = (id, txt) => s => { const ok = gradeL(id, NOTES[s].m).ok; return el('td', { class: ok ? 'okc' : 'badc' }, mark(ok), txt(NOTES[s].m)); };
   const rows = [
     ['Starts lifting (share of hammer travel)', 'damperTiming', mm => mm.damperTiming == null ? 'never' : `${Math.round(100 * mm.damperTiming)}%`],
+    ['Starts on the pedal', 'pedalStart', mm => Math.abs(mm.pedalStart) < 0.05 ? 'with the line' : `${fmt(Math.abs(mm.pedalStart))} ${mm.pedalStart > 0 ? 'early' : 'late'}`],
     ['Lands after the pedal', 'damperFall', mm => `${Math.round(mm.fallMs)} ms`]];
   return el('table', { class: 'specs score' },
     el('thead', {}, el('tr', {}, el('th', {}, 'Dampers'), EXAM_ORDER.map((s, i) => el('th', {}, `Note ${i + 1}`)))),
@@ -1853,7 +1907,7 @@ function handleEvents() {
     if (e.type === 'damperbounce') say('The damper bobbled on the strings', 'warn');
     // the pedal taking the dampers up into the stop rail (a regulated pedal stops short of it); a hard blow that
     // throws a damper up to the rail is what the rail is there for, and is only noted
-    if (e.type === 'damperstop') sim.pedalTarget > 0 && sim.a.pedalLift >= sim.a.damperStop ? say('Thump: the pedal drove the dampers into the stop rail', 'warn')
+    if (e.type === 'damperstop') sim.pedalTarget > 0 && m.pedalIntoStop ? say('Thump: the pedal drove the dampers into the stop rail', 'warn')
       : say('The damper flew up to its stop rail');
     if (e.type === 'bobble') say(e.lever ? 'The hammer floated up off the repetition lever and struck again (bobble)'
       : 'The hammer bounced off the jack and struck again (bobble)', 'warn');
@@ -2156,6 +2210,7 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   if (mode === 'learn') {
     if (k) { ({ stepIdx } = k); adj = k.adj; applyAdj(); tested = k.tested; store(); refresh(); } else { stepIdx = 0; messUp(); }
     focusStep();
+    if (compact()) panelTo('.tabs');   // a phone: the step, not the header, in the half screen the panel has
   }
   else if (mode === 'diagnose') {
     scenario = null; adj = { ...FACTORY };
@@ -2393,6 +2448,93 @@ const stageColor = () => getComputedStyle(document.documentElement).getPropertyV
 function applyTheme() { S.setBackground(stageColor()); U?.S.setBackground(stageColor()); }
 mq.addEventListener('change', applyTheme);
 
+// ---------- the bench bar: undo and redo, before and after, save and load, print (bench-ui.js, bench.js) ----------
+// The grand's side of it. A piece of work (this Learn key, this customer, this exam) has a key: a new one starts the
+// undo list afresh, and "before" is how the action stood when that work was first seen. benchEpoch counts the keys dealt.
+const BENCH_RULES = { factory: FACTORY, limits: { ...Object.fromEntries(ADJ.map(d => [d.id, [d.min, d.max]])), wear: [0, 1] },
+  enums: { damage: Object.keys(DAMAGE), bushing: Object.keys(BUSHINGS), center: Object.keys(CENTER_FAULTS) } };
+// (a part mended reads null, one never broken isn't there: the same regulation)
+const tidyAdj = a => Object.fromEntries(Object.entries(a).filter(([, v]) => v != null).sort(([x], [y]) => (x < y ? -1 : 1)));
+const benchIds = () => (mode === 'exam' ? examSpecs() : Object.keys(SPEC));
+const shownIn = (id, n) => mode === 'sandbox' || level().live || n.tested.has(id) || (mode === 'exam' ? !!exam.done : mode === 'diagnose' && (gaveUp || (!!verdict && !verdict.bad.length)));
+// a state's readings, measured once (and the model's wear put back to the key in hand: measuring sets it)
+const benchMeasured = new Map();
+function benchMeasure(a) {
+  const k = JSON.stringify(a);
+  if (!benchMeasured.has(k)) { if (benchMeasured.size > 12) benchMeasured.clear(); benchMeasured.set(k, measure(a)); eff(adj); }
+  return benchMeasured.get(k);
+}
+const grandBench = {
+  name: 'grand', rules: BENCH_RULES,
+  can: () => {
+    const work = mode === 'learn' || mode === 'sandbox' || (mode === 'diagnose' && !!scenario) || (mode === 'exam' && exam.started && !exam.done);
+    return { edit: work && !showCredits && !showLimits, print: (work || (mode === 'exam' && !!exam.done)) && !showCredits && !showLimits };
+  },
+  context: () => `${mode}|${benchEpoch[mode] ?? ''}|${mode === 'exam' ? exam.t0 ?? '' : ''}|${multi()}`,
+  snap: () => { store(); return { notes: NOTES.map(n => tidyAdj(n.adj)) }; },
+  // (the readings already measured stay measured: they are read again from the action as it now stands)
+  restore: st => {
+    if (busy) return false;
+    NOTES.forEach((n, i) => { if (i !== cur) { n.adj = { ...st.notes[i] }; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); } });
+    adj = { ...st.notes[cur] }; unsolve(); applyAdj();
+  },
+  notes: st => (multi() ? st.notes : [st.notes[cur]]),
+  fault: () => (mode === 'diagnose' && scenario ? { c: scenario.complaint, w: scenario.answer + (scenario.second ? ` Also: ${scenario.second.answer}` : '') } : null),
+  draft: st => {
+    const parts = Object.entries(diffAdj(st.notes[cur], BENCH_RULES)).map(([k, v]) => {
+      if (typeof v === 'string') return (damageLabel(v) || BUSHINGS[v]?.name || CENTER_FAULTS[v]?.name || v).toLowerCase();
+      if (k === 'wear') return `felt and cloth wear, about ${Math.round(v * 10)} years of playing`;
+      const d = ADJ.find(x => x.id === k);
+      return `${d.name.toLowerCase()} ${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}${d.unit === 'mm' ? ' mm' : d.unit} from factory`;
+    });
+    return parts.length ? `Set up with: ${parts.join('; ')}.` : 'Nothing is out: this action is at its factory regulation.';
+  },
+  open: st => {
+    if (busy || (mode === 'exam' && exam.started && !exam.done)) return false;
+    const tab = name => $(`.tab[data-mode=${name}]`).click();
+    showCredits = showLimits = false;
+    if (st.k === 'fault') {
+      // through the tab's own way back to a customer kept while another tab was open
+      if (mode === 'diagnose') tab('sandbox');
+      kept.diagnose = { adj: { ...st.notes[0] }, tested: new Set(), scenario: { complaint: st.c, answer: st.w || 'No note was left with it.', faults: {}, alone: true, custom: true },
+        testsUsed: 0, verdict: null, checks: 0, gaveUp: false, hint: false };
+      benchEpoch.diagnose++;
+      tab('diagnose');
+    } else {
+      if (mode !== 'sandbox') tab('sandbox');
+      setThreeKeys(st.notes.length === 3);
+      if (st.notes.length === 3) for (const i of [1, 2]) putNote(NOTES[i], { ...st.notes[i] });
+      benchEpoch.sandbox++;   // (counted here, so the work's "before" is the regulation loaded, whole)
+      adj = { ...st.notes[0] }; applyAdj();
+    }
+    $('aside').scrollTop = 0;
+  },
+  readings: st => { const mm = benchMeasure(st.notes[cur]); return benchIds().map(id => ({ name: SHORT[id] || SPEC[id].name, ...reading(id, mm), shown: revealed(id) })); },
+  record: () => {
+    store();
+    const meta = [{ learn: 'Learn', diagnose: 'Find the fault', sandbox: 'Sandbox', exam: 'Exam practice' }[mode], `${level().name} level`];
+    if (mode === 'exam' && exam.done) return { title: 'Grand action regulation: exam practice', meta, tables: [], copy: $('#mode') };
+    const slots = multi() ? EXAM_ORDER : [cur], one = slots.length === 1;
+    const cell = (id, n) => (shownIn(id, n) ? reading(id, n.m) : { txt: 'not measured', ok: null });
+    const rows = benchIds().map(id => { const cells = slots.map(sl => cell(id, NOTES[sl]));
+      return [SPEC[id].name, [specTarget(id), mode === 'exam' && id === 'keyHeight' ? '' : specBand(id)].filter(Boolean).join('; passes '), ...cells,
+        ...(one ? [cells[0].ok === null ? '' : cells[0].ok ? 'pass' : 'OUT'] : [])]; });
+    const cells = rows.flatMap(r => r.slice(2, 2 + slots.length)), seen = cells.filter(c => c.ok !== null);
+    meta.push(`${seen.filter(c => c.ok).length} of ${seen.length} measured readings in spec${seen.length < cells.length ? `, ${cells.length - seen.length} not measured` : ''}`);
+    if (mode === 'diagnose' && scenario) meta.push(`the customer said: “${scenario.complaint}”`);
+    return { title: 'Grand action regulation record', meta, tables: [{ head: ['Check', 'Target; passes', ...(one ? ['Reading', 'In spec'] : slots.map((sl, i) => `Note ${i + 1}`))], rows }] };
+  },
+};
+bench = mountBench({ el, toast, refresh, adapter: () => (action === 'upright' ? U?.bench : mode === 'drills' || mode === 'tools' ? null : grandBench) });
+// a link followed here, or pasted into the address of the page already open: its code names the action it is for
+function openCode(code) {
+  const to = bench.actionOf(code);
+  return Promise.resolve(to === action ? null : setAction(to)).then(() => {
+    if (action === to && bench.load(code) && action === 'grand') history.replaceState(null, '', location.pathname + location.search);
+  });
+}
+window.addEventListener('hashchange', () => { const code = bench.fromAddress(); if (code) openCode(code); });
+
 // ---------- loop ----------
 // one frame of the action: every note moved on by dtSim of action time, and the panel told what happened.
 // Returns what the note being worked on did in it.
@@ -2477,6 +2619,7 @@ function frame(now) {
 // the key's buttons in the bar, its menu and the frame buttons (not the menus' own buttons, nor the speeds)
 const keyButtons = [...document.querySelectorAll('button[id^="k-"]')];
 initControls();
+onCompact(() => refresh());   // Learn is laid out differently on a phone-sized window
 applyTheme();
 adj = { ...FACTORY }; applyAdj(); view('angle');
 // the exam clock keeps time even while the tab is in the background
@@ -2521,5 +2664,6 @@ for (const b of document.querySelectorAll('#action-switch button')) b.onclick = 
   let start = 'grand';
   try { start = localStorage.getItem('regsim-action') || 'grand'; } catch {}
   if (location.hash === '#upright') start = 'upright';
-  if (start === 'upright') setAction('upright');
+  const code = bench.fromAddress();
+  if (code) openCode(code); else if (start === 'upright') setAction('upright');
 }
