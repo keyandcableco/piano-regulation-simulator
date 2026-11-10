@@ -633,13 +633,37 @@ export function createUprightScene(canvas, overlay) {
   function clearCallouts(keep = []) {
     for (const [id, c] of callouts) { if (keep.includes(id)) continue; scene.remove(c.line); c.line.geometry.dispose(); c.el.remove(); callouts.delete(id); }
   }
+  // A label whose box falls on the key-front inset hides (its line is under the inset's picture, and the inset box is
+  // see-through). Labels that would land on one another (the hammer's lines to the string all run along the same
+  // stretch) keep last frame's row while it's free, else take the nearest free row below, or above when the inset or the
+  // picture's edge is in the way, in the order they appeared, so they don't swap rows while the hammer moves; one with
+  // no free row hides.
   function placeCallouts() {
-    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const w = canvas.clientWidth, h = canvas.clientHeight, on = [], placed = [];
+    const ins = insetBox.hidden ? null : insetAt;
+    // the label's box is right of and a little above its point (the .callout margins: 6px across, 10px up)
+    const onInset = (c, y) => ins && c.x + 6 < ins.x + ins.w && ins.x < c.x + 6 + c.w && y - 10 < ins.top + ins.h && ins.top < y - 10 + c.h;
+    const across = (c, o) => c.x < o.x + o.w && o.x < c.x + c.w;
+    const clash = (c, y) => onInset(c, y) || placed.some(o => across(c, o) && y < o.y + o.h + 2 && o.y < y + c.h + 2);
     for (const c of callouts.values()) {
       const cut = !inClip(cv.set(...c.mid));   // its line is cut away in a clipped view: hide the label too
       cv.project(camera);
-      c.el.style.transform = `translate(${(cv.x * 0.5 + 0.5) * w}px, ${(-cv.y * 0.5 + 0.5) * h}px)`;
-      c.el.style.display = cv.z < 1 && !cut ? '' : 'none';
+      c.x = (cv.x * 0.5 + 0.5) * w; c.y = (-cv.y * 0.5 + 0.5) * h;
+      const show = cv.z < 1 && !cut;
+      c.el.style.display = show ? '' : 'none';
+      if (show) on.push(c);
+    }
+    for (const c of on) { c.w = c.el.offsetWidth; c.h = c.el.offsetHeight; }   // read after the writes: one layout
+    for (const c of on) {
+      const y0 = c.y;
+      if (onInset(c, y0)) { c.el.style.display = 'none'; c.dy = 0; continue; }
+      // the rows just under and over the labels in its way (not ones off to the side, which would carry it off its line)
+      const rows = placed.filter(o => across(c, o)).flatMap(o => [o.y + o.h + 2, o.y - c.h - 2]).filter(y => y >= 10 && y - 10 + c.h <= h);
+      const last = c.dy ? [y0 + c.dy].filter(y => y >= 10 && y - 10 + c.h <= h && rows.some(r => Math.abs(r - y) < 3)) : [];
+      const y = [y0, ...last, ...rows.filter(y => y >= y0).sort((p, q) => p - q), ...rows.filter(y => y < y0).sort((p, q) => q - p)].find(y => !clash(c, y));
+      if (y === undefined) { c.el.style.display = 'none'; c.dy = 0; continue; }
+      c.dy = y - y0; c.y = y; placed.push(c);
+      c.el.style.transform = `translate(${c.x}px, ${c.y}px)`;
     }
   }
   function render() {
