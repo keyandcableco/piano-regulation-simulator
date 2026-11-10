@@ -72,8 +72,8 @@ test('Kawai\'s and Hamburg\'s sets: the regulated key passes everything at every
     s.blow('mf'); for (let i = 0; i < 90; i++) { if (i === 50) s.release(); s.events.length = 0; s.step(0.01); strikes += s.events.filter(e => e.type === 'strike').length; }
     assert.equal(strikes, 1, `${set}: one strike at mf`);
   });
-  under('kawai', () => { const m = measure(FACTORY); assert.ok(Math.abs(m.blow - 46) < 0.01 && Math.abs(m.dip - 10.1) < 0.01 && Math.abs(m.restGap - 5) < 0.01); assert.match(SPEC_SETS.kawai.fit, /1\.77 mm/); assert.ok(Math.abs(m.aftertouch - 1.77) < 0.02); });
-  under('hamburg', () => { const m = measure(FACTORY); assert.ok(Math.abs(m.blow - 45.5) < 0.01 && Math.abs(m.dip - 9.75) < 0.01 && Math.abs(m.drop - 2) < 0.01); assert.match(SPEC_SETS.hamburg.fit, /leaves 1\.46/); assert.ok(Math.abs(m.aftertouch - 1.46) < 0.02); });
+  under('kawai', () => { const m = measure(FACTORY); assert.ok(Math.abs(m.blow - 46) < 0.01 && Math.abs(m.dip - 10.1) < 0.01 && Math.abs(m.restGap - 5) < 0.01); assert.match(SPEC_SETS.kawai.fit, /1\.83 mm/); assert.ok(Math.abs(m.aftertouch - 1.83) < 0.02); });
+  under('hamburg', () => { const m = measure(FACTORY); assert.ok(Math.abs(m.blow - 45.5) < 0.01 && Math.abs(m.dip - 9.75) < 0.01 && Math.abs(m.drop - 2) < 0.01); assert.match(SPEC_SETS.hamburg.fit, /leaves 1\.52/); assert.ok(Math.abs(m.aftertouch - 1.52) < 0.02); });
 });
 
 test('Steinway\'s set: this action cannot meet it, and the set says so rather than the model being bent', { timeout: 300000 }, () => under('steinwayNY', () => {
@@ -81,8 +81,8 @@ test('Steinway\'s set: this action cannot meet it, and the set says so rather th
   const m = measure(FACTORY);
   for (const k of LEVELS) assert.deepEqual(fails(m, k), ['aftertouch'], `level ${k}`);
   assert.deepEqual(SPEC_SETS.steinwayNY.unmet, ['aftertouch']);
-  assert.ok(Math.abs(m.blow - 1.75 * IN) < 0.01 && Math.abs(m.dip - 0.4 * IN) < 0.01 && Math.abs(m.aftertouch - 2.09) < 0.02, `aftertouch ${m.aftertouch}`);
-  assert.match(SPEC_SETS.steinwayNY.fit, /cannot meet this set/); assert.match(SPEC_SETS.steinwayNY.fit, /about 2\.1 mm/); assert.match(SPEC_SETS.steinwayNY.fit, /still 1\.62 mm/);
+  assert.ok(Math.abs(m.blow - 1.75 * IN) < 0.01 && Math.abs(m.dip - 0.4 * IN) < 0.01 && Math.abs(m.aftertouch - 2.16) < 0.02, `aftertouch ${m.aftertouch}`);
+  assert.match(SPEC_SETS.steinwayNY.fit, /cannot meet this set/); assert.match(SPEC_SETS.steinwayNY.fit, /about 2\.2 mm/); assert.match(SPEC_SETS.steinwayNY.fit, /still 1\.69 mm/);
   // with blow at its long edge, let-off at its close edge and dip at its shallow edge (everything that shortens
   // aftertouch), it is still over Steinway's 1/16 in
   const a = { ...FACTORY }, bis = (id, f, target, lo, hi) => { for (let i = 0; i < 22; i++) { a[id] = (lo + hi) / 2; if (f() < target) lo = a[id]; else hi = a[id]; } };
@@ -91,7 +91,7 @@ test('Steinway\'s set: this action cannot meet it, and the set says so rather th
   bis('letoff', () => -(measure(a).letoff ?? 0), -(band('letoff')[0] + 0.005), 94, 98);
   const e = measure(a);
   assert.ok(grade('blow', e).ok && grade('dip', e).ok && grade('letoff', e).ok, `at the edges: blow ${e.blow}, dip ${e.dip}, let-off ${e.letoff}`);
-  assert.ok(!grade('aftertouch', e).ok && e.aftertouch > IN / 16 && e.aftertouch < 1.68, `aftertouch at the edges ${e.aftertouch}`);
+  assert.ok(!grade('aftertouch', e).ok && e.aftertouch > IN / 16 && e.aftertouch < 1.75, `aftertouch at the edges ${e.aftertouch}`);
   // the action's ratio is the reason: about 5.4 hammer to key up to let-off, where Steinway's figures imply about 4.9
   const implied = (1.75 * IN - IN * 3 / 64) / (0.4 * IN - IN * 7 / 128);
   assert.ok(Math.abs(implied - 4.93) < 0.05 && Math.abs((m.blow - m.letoff) / (m.dip - m.aftertouch) - 5.36) < 0.08);

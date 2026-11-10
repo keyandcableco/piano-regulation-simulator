@@ -189,7 +189,7 @@ const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if
     check(/within one graduation \(a 64th\), a good read/.test(res), `drop called 0.2 mm over, typed in mm: ${res}`);
     await goOn();
     g = await asked('aftertouch');
-    check(Math.abs(g.truth - 1.53) < 0.03, `aftertouch: the key is at the bottom, the rule's zero on the let-off line (truth ${g.truth.toFixed(2)} mm kept back)`);
+    check(Math.abs(g.truth - 1.60) < 0.03, `aftertouch: the key is at the bottom, the rule's zero on the let-off line (truth ${g.truth.toFixed(2)} mm kept back)`);
     await shot('aftertouch-in');
     res = await call('1/8');
     check(/You called 1\/8" \(3\.1\d mm\).*over, about 4 graduations/.test(res), `aftertouch called 1/8 in: ${res}`);

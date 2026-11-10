@@ -87,10 +87,10 @@ test('capstan low: about half a millimetre of lost motion', () => {
   within(measure(at({ capstan: -0.6 })).lostMotion, 0.35, 0.65, 'lost motion');
 });
 
-test('jack too far back: pp about a tenth weaker, about 3 g more downweight, the same upweight', () => {
-  says('about a tenth weaker than its neighbors'); says('about 3 g more to go down while lifting the same weight back');
+test('jack too far back: pp about a twentieth weaker, about 3 g more downweight, the same upweight', () => {
+  says('about a twentieth weaker than its neighbors'); says('about 3 g more to go down while lifting the same weight back');
   const a = at({ jackScrew: -1.4 }), t = touch(a);
-  within(1 - blow(a, 'pp').v / pp0, 0.06, 0.15, 'pp weaker by');
+  within(1 - blow(a, 'pp').v / pp0, 0.03, 0.08, 'pp weaker by');
   within(t.down - T0.down, 2, 4.5, 'downweight more by');
   within(Math.abs(t.up - T0.up), 0, 1, 'upweight moved by');
 });

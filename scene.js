@@ -38,10 +38,16 @@ const PART_NAMES = {
 export const BASS = -1;
 // note slots: 0 is the middle (the one normal modes use), 1 toward the bass, 2 toward the treble
 export const NOTE_Z = [0, 23.5 * BASS, -23.5 * BASS];
-const UL_PIVOT = [604, 66];        // underlever centre pin
-const UL_FELT = [-135, -6];        // lift felt, over the key's end
-const UL_WIRE = [-98, 5];          // where the damper wire meets the underlever: its top flange sits here
-const UL_FLANGE_H = 10;            // the top flange: a block on the underlever, the wire held in it by a set screw
+// The underlever's pin, lift felt and wire clamp are the model's (G.ulPivot, G.ulFelt, G.ulWire: the lift ratio comes
+// from them). Its own frame runs along the line from the pin to the lift felt's face; the wood lies above that line.
+const UL_PIVOT = G.ulPivot;        // underlever centre pin
+const UL_FELT = G.ulFelt;          // lift felt's face, over the key's end
+const UL_TOP = 10;                 // the top of the underlever's wood
+const UL_WIRE = [G.ulWire[0], UL_TOP];   // where the damper wire meets the underlever: its top flange sits here
+const UL_FLANGE_H = 2 * (G.ulWire[1] - UL_TOP);   // the top flange: a block on the underlever, the wire held in the middle of it by a set screw
+const UL_STOP = [UL_WIRE[0] + 9, UL_TOP + UL_FLANGE_H];   // where the stop rail's felt meets the top flange, behind the wire
+const UL_TRAY = [-30, 3];          // where the lift tray's top meets the underlever's underside
+const STOP_X = [510, 520], TRAY_X = [518, 542];   // the stop rail (a board on edge) and the lift tray, front to back
 // The damper wire (Igrec, Pianos Inside Out, fig. 327): up from the top flange, jogged sideways between bends 1 and 2 to
 // line up with its guide rail bushing, up through the rail beside the unison, then over the strings between bends 3 and 4
 // and up into the head between its two felts. Heights of the bends are from the head's seat on the strings.
@@ -160,11 +166,11 @@ const H_FELT_FOOT = 7.5;             // the felt is scaled about its foot as it 
 const BC_BLOCK = [[190.11, 22], [218.41, 22], [218.41, 34.8], [196.31, 34.8], [195.94, 31], [194.86, 27.67], [193.67, 25.71], [192.23, 24.37], [190.11, 23.7]];
 const BC_PIVOT = [210.11, 39.8];     // the bend in the wire: bending the backcheck turns the head about it
 const BC_ARM = G.bcHead[1] - BC_PIVOT[1];   // catch point above the bend: bending the wire sideways moves the head over this arm
-const BC_HEAD_C = [223, 74];         // the head's middle: it twists about here when squared
-const BC_WIRE_TOP = [220.56, 63.61];
-const BC_WOOD = [[212.56, 60.56], [217.18, 71.1], [219.2, 70.21], [226.23, 86.24], [228.41, 85.5], [228.92, 78.94], [229.83, 78.76], [223.47, 59.05], [220.95, 57.54]];
-const BC_FELT = [[212.56, 60.56], [212.92, 61.39], [217.18, 71.1], [219.2, 70.21], [226.23, 86.24], [228.41, 85.5], [228.54, 83.83], [228.95, 84.5], [229.07, 84.92], [229.08, 85.36], [228.98, 85.79], [228.76, 86.18], [228.46, 86.5], [228.03, 86.76], [226.49, 87.43], [225.68, 87.67], [224.9, 87.68], [224.14, 87.5], [223.46, 87.12], [222.89, 86.58], [222.46, 85.86], [211.55, 61.01]];
-const BC_LEATHER = [[229.78, 84.13], [229.97, 84.78], [229.98, 85.46], [229.82, 86.12], [229.49, 86.72], [229.02, 87.21], [228.44, 87.56], [226.8, 88.28], [225.82, 88.57], [224.8, 88.59], [223.81, 88.34], [222.92, 87.85], [222.18, 87.15], [221.66, 86.28], [210.73, 61.37], [211.55, 61.01], [222.46, 85.86], [222.89, 86.58], [223.46, 87.12], [224.14, 87.5], [224.9, 87.68], [225.68, 87.67], [226.49, 87.43], [228.03, 86.76], [228.46, 86.5], [228.76, 86.18], [228.98, 85.79], [229.08, 85.36], [229.07, 84.92], [228.95, 84.5], [228.54, 83.83], [228.92, 78.94], [229.83, 78.76], [229.43, 83.55]];
+const BC_HEAD_C = [220.22, 65.95];         // the head's middle: it twists about here when squared
+const BC_WIRE_TOP = [217.15, 55.73];
+const BC_WOOD = [[208.98, 53.17], [214.24, 63.41], [216.2, 62.4], [224.19, 77.97], [226.32, 77.1], [226.43, 70.52], [227.33, 70.29], [219.78, 51], [217.17, 49.65]];
+const BC_FELT = [[208.98, 53.17], [209.39, 53.98], [214.24, 63.41], [216.2, 62.4], [224.19, 77.97], [226.32, 77.1], [226.35, 75.43], [226.8, 76.07], [226.95, 76.48], [226.98, 76.92], [226.91, 77.36], [226.71, 77.76], [226.43, 78.1], [226.02, 78.38], [224.52, 79.14], [223.73, 79.43], [222.95, 79.49], [222.18, 79.36], [221.48, 79.02], [220.88, 78.52], [220.41, 77.82], [208, 53.68]];
+const BC_LEATHER = [[227.61, 75.65], [227.84, 76.29], [227.89, 76.97], [227.77, 77.63], [227.47, 78.25], [227.04, 78.77], [226.48, 79.16], [224.88, 79.97], [223.92, 80.32], [222.91, 80.41], [221.9, 80.22], [220.99, 79.78], [220.2, 79.13], [219.63, 78.29], [207.2, 54.09], [208, 53.68], [220.41, 77.82], [220.88, 78.52], [221.48, 79.02], [222.18, 79.36], [222.95, 79.49], [223.73, 79.43], [224.52, 79.14], [226.02, 78.38], [226.43, 78.1], [226.71, 77.76], [226.91, 77.36], [226.98, 76.92], [226.95, 76.48], [226.8, 76.07], [226.35, 75.43], [226.43, 70.52], [227.33, 70.29], [227.22, 75.09]];
 
 function shapeFrom(pts) {
   const s = new THREE.Shape();
@@ -281,13 +287,15 @@ export function createScene(canvas, overlay) {
   }
   // damper rails, shared by every note: the guide rail the wires pass through, the underlever
   // flange rail, the stop rail over the underlevers and the pedal's lift tray under them
-  ext(rect(482, 148, 530, 156), 80, 0, COLORS.rail, 'guiderail', fixed);
-  ext(rect(592, 34, 626, 58), 80, 0, COLORS.rail, 'ulrail', fixed);
+  ext(rect(482, G.stringY - 52.1, 530, G.stringY - 44.1), 80, 0, COLORS.rail, 'guiderail', fixed);
+  ext(rect(UL_PIVOT[0] - 12, UL_PIVOT[1] - 32, UL_PIVOT[0] + 22, UL_PIVOT[1] - 8), 80, 0, COLORS.rail, 'ulrail', fixed);
+  // the stop rail: a board on edge behind the damper wires, felt on its bottom edge, just over the top flanges
+  // (Steinway's technical reference guide, damper chapter; D. Conte, RPT)
   const dStopRail = new THREE.Group(); fixed.add(dStopRail);
-  ext(rect(522, 0, 556, 10), 80, 0, COLORS.rail, 'damperstop', dStopRail);
-  ext(rect(522, 0, 556, 2), 80, 0, COLORS.felt, 'damperstop', dStopRail);
+  ext(rect(STOP_X[0], 0, STOP_X[1], 34), 80, 0, COLORS.rail, 'damperstop', dStopRail);
+  ext(rect(STOP_X[0], 0, STOP_X[1], 3), 80, 0, COLORS.felt, 'damperstop', dStopRail);
   const liftTray = new THREE.Group(); fixed.add(liftTray);
-  ext(rect(562, -10, 588, 0), 80, 0, COLORS.dark, 'lifttray', liftTray);
+  ext(rect(TRAY_X[0], -10, TRAY_X[1], 0), 80, 0, COLORS.dark, 'lifttray', liftTray);
   const straightedge = new THREE.Group(); fixed.add(straightedge);
   ext(rect(-6, NEIGHBOR_H, 30, NEIGHBOR_H + 3), 90, 0, COLORS.steel, 'straightedge', straightedge, { metal: true, noPick: true });
   straightedge.visible = false;
@@ -471,7 +479,8 @@ export function createScene(canvas, overlay) {
         mat(COLORS.wood));
       cone.position.x = BUTT_END + BUTT_CONE / 2; hammer.add(cone); register(cone, 'shank', {});
       // the tongue: from just past the roll's centre, up through the roll and 1.8 mm into the groove
-      ext(rect(kx - t / 2, ky - G.coreEnd, kx + t / 2, rollTop + 1.8), 8.4, 0, COLORS.core, 'knucklecore', hammer);
+      const core = new THREE.Group(); core.position.set(kx, ky, 0); core.rotation.z = G.coreLean; hammer.add(core);
+      ext(rect(-t / 2, -G.coreEnd, t / 2, R + 1.8), 8.4, 0, COLORS.core, 'knucklecore', core);
       // felt and buckskin hang from the roll's top, so wear (the knuckle packing down) flattens only its bottom
       n.knuckle = new THREE.Group(); n.knuckle.position.set(kx, rollTop, 0); hammer.add(n.knuckle);
       const ring = (r0, r1) => {
@@ -492,9 +501,9 @@ export function createScene(canvas, overlay) {
     // damper: underlever pivoting on its flange behind the keys, lift felt over the key's end, the top flange holding the
     // wire, the wire up through the guide rail, and the head with its two felts sitting on the unison
     const ul = n.ul = new THREE.Group(); ul.position.set(...UL_PIVOT, 0); root.add(ul);
-    ext(rect(-142, -2, 6, 5), 9, 0, COLORS.wood, 'underlever', ul);
-    ext(rect(-142, -6, -128, -2), 10, 0, COLORS.redfelt, 'underlever', ul);
-    ext(rect(UL_WIRE[0] - 4, UL_WIRE[1], UL_WIRE[0] + 4, UL_WIRE[1] + UL_FLANGE_H), 7, 0, COLORS.wood, 'ulflange', ul);
+    ext(shapeFrom([[UL_FELT[0] - 7, 3], [-12, 3], [-8, -5], [7, -5], [7, UL_TOP], [UL_FELT[0] - 7, UL_TOP]]), 9, 0, COLORS.wood, 'underlever', ul);
+    ext(rect(UL_FELT[0] - 7, UL_FELT[1], UL_FELT[0] + 7, 3), 10, 0, COLORS.redfelt, 'underlever', ul);
+    ext(rect(UL_WIRE[0] - 4, UL_WIRE[1], UL_WIRE[0] + 16, UL_WIRE[1] + UL_FLANGE_H), 7, 0, COLORS.wood, 'ulflange', ul);
     cyl(1.3, 2.4, 'z', [UL_WIRE[0], UL_WIRE[1] + UL_FLANGE_H / 2, 4.5], COLORS.brass, 'ulflange', ul, { metal: true });   // its set screw
     // the wire in five straight runs, flange to bend 1 to 4 to the head, laid out each frame
     n.wire = Array.from({ length: 5 }, () => cyl(1, 1, 'y', [0, 0, 0], COLORS.steel, 'damperwire', root, { metal: true }));
@@ -718,8 +727,8 @@ export function createScene(canvas, overlay) {
     [N0.bc, [12, 40, 7], 'Backcheck'], [restRail, [G.restRailX, -8, 41], 'Rest rail'], [fixed, [294, 140, 41], 'Hammer flange rail'],
     [fixed, [293, 118, 41], 'Regulating rail'], [N0.root, [560, G.stringY + 3, 0], 'Strings'], [fixed, [G.W[0] - 12, G.W[1] - 10, 41], 'Wippen rail'],
     [N0.wippen, [-48, 31, 5], 'Support'], [N0.jack, [20, 30, 6], 'Jack button'], [N0.wippen, [-62, -22, 7], 'Heel'],
-    [N0.dHead, [0, DH_SEAT + 13, 6], 'Damper'], [N0.ul, [-60, 5, 6], 'Underlever'], [fixed, [506, 156, 41], 'Damper guide rail'],
-    [dStopRail, [539, 10, 41], 'Damper stop rail'], [liftTray, [575, -10, 41], 'Lift tray']
+    [N0.dHead, [0, DH_SEAT + 13, 6], 'Damper'], [N0.ul, [-72, UL_TOP, 6], 'Underlever'], [fixed, [506, G.stringY - 44.1, 41], 'Damper guide rail'],
+    [dStopRail, [(STOP_X[0] + STOP_X[1]) / 2, 34, 41], 'Damper stop rail'], [liftTray, [(TRAY_X[0] + TRAY_X[1]) / 2, -10, 41], 'Lift tray']
   ].map(([obj, p, text]) => {
     const e = document.createElement('div'); e.className = 'plabel'; e.textContent = text; e.hidden = true; overlay.appendChild(e);
     return { obj, p: new THREE.Vector3(...p), e };
@@ -754,20 +763,20 @@ export function createScene(canvas, overlay) {
     // the wink test: the jack being tripped and, in the same picture, the hammer head that dips
     wink: { t: [398, 138, 0], p: [398, 142, 335] },
     // looking down the keys from the player's side at the hammer tops: sight the hammer line
-    hammerline: { t: [460, 162, 0], p: [280, 245, 0] },
-    dampers: { t: [540, 130, 0], p: [540, 140, 420] },
+    hammerline: { t: [460, 154, 0], p: [280, 237, 0] },
+    dampers: { t: [522, 124, 0], p: [522, 134, 420] },
     // straight along the action from the front, through a slice cut out of it: the jack under the knuckle,
     // and the checked hammer's tail on its backcheck; then the backcheck from above, the hammer cut away
     jackfront: { t: [339, 122, 0], p: [205, 127, 0], clip: { x: [329, 350] } },
-    checkfront: { t: [455, 124, 0], p: [325, 128, 0], clip: { x: [446, 470] } },
-    checktop: { t: [456, 114, 0], p: [438, 240, 0.1], clip: { y: 121 } },
+    checkfront: { t: [455, 116, 0], p: [325, 120, 0], clip: { x: [446, 470] } },
+    checktop: { t: [456, 106, 0], p: [438, 232, 0.1], clip: { y: 113 } },
     // the damper heads on their strings, from above the hammers
-    damperline: { t: [506, 203, 0], p: [420, 285, 0] },
+    damperline: { t: [506, G.stringY + 3, 0], p: [420, G.stringY + 85, 0] },
     // three dampers side by side from the treble end, low enough to see each head lift off its strings
-    damperrow: { t: [506, 198, 0], p: [385, 250, 165] },
+    damperrow: { t: [506, G.stringY - 2, 0], p: [385, G.stringY + 50, 165] },
     // traveling: straight along the action from the keys, through a slice round the hammer head, so the head rises
     // toward its unison (the three strings end-on) with nothing in front of it
-    travel: { t: [455, 172, 0], p: [333, 174, 0], clip: { x: [436, 474] } },   // about 140 to 205 high: a low rail's head too
+    travel: { t: [455, 164, 0], p: [333, 166, 0], clip: { x: [436, 474] } },   // about 132 to 197 high: a low rail's head too
     // down onto the key fronts and their neighbors: the gaps show the key's side play
     keytop: { t: [30, 26, 0], p: [-50, 250, 0] },
   };
@@ -971,13 +980,13 @@ export function createScene(canvas, overlay) {
       [DH_X, hy + WIRE_B4, hz], [DH_X, hy + DH_SEAT + 3, hz]];
     n.wire.forEach((m, i) => rodTo(m, wp[i], wp[i + 1]));
     if (drawShared) {
-      // the stop rail sits where the underlever's top would be with the damper lifted damperStop;
+      // the stop rail's felt sits where the top flange's top would be with the damper lifted damperStop;
       // the lift tray's top comes up to the line of underlevers (a regulated note's, FACTORY.damperGap) after its free
       // play, and touches this underlever's underside sooner or later as it sits below or above that line
       const feltRest = keyTop + (a.damperGap ?? 3.5);
       const ulY = (th, lx, ly) => UL_PIVOT[1] + lx * Math.sin(th) + ly * Math.cos(th);
-      dStopRail.position.y = ulY(solveUl(feltRest + (a.damperStop ?? 7) / G.dmpRatio), 539 - UL_PIVOT[0], 5);
-      liftTray.position.y = ulY(solveUl(keyTop + FACTORY.damperGap + trayLift(a, sim.pedal ?? 0) / G.dmpRatio), 575 - UL_PIVOT[0], -2) - 0.3;
+      dStopRail.position.y = ulY(solveUl(feltRest + (a.damperStop ?? 7) / G.dmpRatio), ...UL_STOP);
+      liftTray.position.y = ulY(solveUl(keyTop + FACTORY.damperGap + trayLift(a, sim.pedal ?? 0) / G.dmpRatio), ...UL_TRAY) - 0.3;
     }
   }
   // jack-local shift of the jack button along its screw that puts its felt on the stop face at jack angle psi

@@ -19,7 +19,7 @@ export const G = {
   keyThick: 22, keyFrontLocal: -235, keyBackLocal: 235, keyTopCap: 2.5,
   capstanLocal: 117.6, capDomeR: 9.7,   // capstan, behind the balance point, with a shallow domed top
   backcheckLocal: 210.11,           // backcheck wire, near the key end; its head leans back under the hammer's strike line
-  bcHead: [221.17, 85.18],          // key-local: where the backcheck's buckskin catches the tail (key down)
+  bcHead: [219.08, 77.22],          // key-local: where the backcheck's buckskin catches the tail (key down)
   // wippen (pivot at its rear, its flange screwed to the wippen rail); wippen-local, body level at phi = 0
   W: [416.0, 82.3], heelC: [-59.5, 3.0], heelR: 25.3,   // heel cushion: an arc that rolls on the capstan
   jackPivotW: [-98.9, -3.5], repPivotW: [-48.3, 27.5],
@@ -36,16 +36,24 @@ export const G = {
   // 0.7 mm more aftertouch through before the jack jams. No source gives that clearance.
   windowFelt: [[-43.3, 12.6], [-42.8, 19.0]],
   // hammer (local to the shank centre pin, +x along the shank): the knuckle, the crown's arc, the tail.
-  // At factory the shank rests 15.35° head-down, not the Boston's measured 16.42° (research/wippen/spec.md §1): the factory
-  // solve sets the capstan for the textbook 1¾ in blow (44.45 mm), not his 47.0, so the head rests 2.5 mm higher. Set to a
-  // 47.0 blow, this geometry rests at 16.42°.
-  H: [323.3, 146.1], knuckleC: [16.96, -9.08], knuckleR: 4.4,
+  // The shank is level at the strike (the hammer's centreline square to the string), as the makers lay a grand out, and at
+  // factory rests 18.79° head-down for the textbook 1¾ in blow (44.45 mm). Two figures here are not Hirschkorn's:
+  // - the string (stringY, below) is 8.2 mm lower than his contact 12. His "string" was a metal bar on a cut-down test rig
+  //   (thesis §3.1), so its height is the rig's, and against it the shank passed level and struck 3.6° head-up.
+  // - the knuckle and its core are turned 3.44° about the center pin from where he measured them ([16.96, -9.08], the
+  //   core square to the shank): 1.1 mm, which leaves them where they were over the wippen with the shank resting that
+  //   much lower (coreLean). With his knuckle on the lower-resting shank, the jack lined up to the core (jackPos) slips
+  //   out from under the knuckle 35 mm short of the string.
+  // No source gives the Boston's real string height or its shank's attitude at the strike (D. Conte, RPT, 2026-11-10: not
+  // every grand is laid out level, but 3.6° is more than he would expect).
+  H: [323.3, 146.1], knuckleC: [17.47, -8.05], knuckleR: 4.4,
+  coreLean: 3.44 * Math.PI / 180,   // the core's lean from square to the shank (above)
   coreT: 1.2, coreEnd: 1.2,         // the knuckle's wood core: a thin tongue through the roll's middle, ending this far past its centre (Greg's photo)
   crownC: [132.13, 35.6], crownR: 10.2,  // felt top 45.8 above the shank, 140 out from the centre pin
   tail: [133.26, -21.1],            // the point on the tail's scored back face that the backcheck catches
   shankRest: [110.0, -3.14],        // underside of the shank where it meets the rest rail
   // strings and rails
-  stringY: 200.1,
+  stringY: 191.9,
   letoffX: 293.0, dropX: 319.3, restRailX: 427.1,
   // repetition spring: force at the horn, in units of the hammer's weight there
   repK: 0.076,                      // per mm of extra compression (Hirschkorn's measured spring: 6.6 g/mm at the horn, 88 g of hammer)
@@ -60,10 +68,22 @@ export const G = {
   jackMu: 0.177,                    // sliding friction of the knuckle on the jack top (Hirschkorn Table A.8, contact 7)
   // damper: the key's back end lifts the underlever, the wire carries the head off the strings
   dmpContactLocal: 231,             // where the key end meets the underlever's lift felt
-  dmpRatio: 98 / 135,               // head lift per mm of underlever lift at the key: the wire sits nearer the flange than the lift felt
+  // The underlever, placed by Steinway's rules for setting the underlever frame (technical reference guide, damper
+  // chapter; New York Steinway's rules, used here on a Boston for want of its own): the flange center pin 2 1/4 in above
+  // the keybed at the bass end and about 3/16 in higher at the treble (59.9 at note 52), and the key-end felt's contact,
+  // midway through the damper's stroke, on the straight line from that pin to the key's balance point.
+  ulPivot: [560, 59.9],             // underlever flange center pin
+  ulFelt: [-94, 0],                 // underlever-local (its x axis is that line): the lift felt's face, over the key's end
+  ulWire: [-52, 15],                // where the top flange clamps the damper wire, straight under the head
   dmpGravity: 5000,                 // head falling under its own weight, mm/s^2
   dmpBounceV: 350,                  // a head landing faster than this (mm/s) bobbles on the strings
 };
+// head lift per mm of underlever lift at the key end, from where the wire and the lift felt sit on the underlever (taken
+// midway through the stroke, the underlever lying along the line to the balance point): 0.57
+{
+  const th = Math.atan2(G.ulPivot[1] - (G.balRailY + 1.5), G.ulPivot[0] - G.balX), c = Math.cos(th), s = Math.sin(th);
+  G.dmpRatio = (G.ulWire[0] * c - G.ulWire[1] * s) / (G.ulFelt[0] * c - G.ulFelt[1] * s);
+}
 
 // Traveling paper: one strip of thin paper (about 0.001 in, the sim's own figure) under one side of a flange about 11 mm
 // wide. Under the hammer flange it tilts the swing about 0.1 mm at the string (TRAVEL_RISE below); behind the wippen
@@ -360,9 +380,11 @@ export const JACK_SPRING = 430;  // the jack spring, about constant: 0.0042 N·m
 const JACK_WT = 52;              // the jack's own weight about its pin, the arm level: 2.65 g, 19.5 mm out
 const WIPPEN_WT = 1040;          // the wippen with its jack and lever about the flange pin, level: 600 + 248 + 188 mm·g
 const WIPPEN_TURN = 0.0082;      // rad the wippen turns per mm of key travel (factory linkage): mm·g at its pin → g at the key front
-// The damper's weights about the underlever pin are the sim's own estimates, from the drawn parts (scene.js) in maple and
-// steel: no published figure. The whole damper (head, wire, underlever) about 1500 mm·g; the underlever alone 470.
-const DAMPER_WT = 1500, UL_WT = 470;
+// The damper's weights about the underlever pin are the sim's own estimates: no published figure. The whole damper
+// (head, wire, underlever) about 1045 mm·g, which is 11 g at the key's end (DMP_KEY, below); the underlever alone 327.
+// (Both were 1500 and 470 on the longer underlever drawn before 2026-11-10, and were scaled with its lift arm, 94 mm
+// for 135, so the key carries the same damper as before.)
+const DAMPER_WT = 1045, UL_WT = 327;
 // Faults (spec §8.2, §8.3): tight cloth (swollen, gummed) is eased; a loose pin in sound cloth is repinned a half size up;
 // a bushing that wobbles with its friction right has worn cloth and is rebushed. No source gives side play in mm for an
 // action center (Renner: "watch the pin"), so play is the sim's own, in mm at the part a test watches (the crown, the
@@ -482,7 +504,8 @@ export const hamPt = (g, p) => add(G.H, rot(p, g));
 // Brown's sight: the back face of the knuckle's tongue, followed down along its lean to height y, where the back of
 // the jack should meet it
 export function coreBack(g, y) {
-  const x = G.knuckleC[0] + G.coreT / 2, p = hamPt(g, [x, G.knuckleC[1]]), q = hamPt(g, [x, G.knuckleC[1] - 1]);
+  const c = Math.cos(G.coreLean), s = Math.sin(G.coreLean), x = G.knuckleC[0] + c * G.coreT / 2, y0 = G.knuckleC[1] + s * G.coreT / 2;
+  const p = hamPt(g, [x, y0]), q = hamPt(g, [x + s, y0 - c]);
   return p[0] + (y - p[1]) * (q[0] - p[0]) / (q[1] - p[1]);
 }
 export const knuckleBottom = g => { const c = hamPt(g, G.knuckleC); return [c[0], c[1] - (G.knuckleR + WEAR.knuckle * wearNow)]; };
@@ -886,7 +909,7 @@ export function cancelled(first, both, ks = [1]) {
 // ---------- factory regulation (solve every knob to its spec) ----------
 const bis = (a, id, f, target, lo, hi) => { a[id] = solve(x => { a[id] = x; return f(); }, target, lo, hi, 30); };
 export function factory() {
-  const a = { balPunch: 1.5, jackScrew: 0, repStop: 0, capstan: 13.5, restRail: 110, frontPunch: 2.5,
+  const a = { balPunch: 1.5, jackScrew: 0, repStop: 0, capstan: 13.5, restRail: 101, frontPunch: 2.5,
               letoff: 94, drop: 140, repSpring: 0.8, backcheck: 0, damperGap: 4, damperStop: 8, pedalLift: 8, damperDrag: 0.05,
               hammerTravel: 0, hammerSpace: 0, hammerSquare: 0, wippenSpace: 0, wippenTravel: 0, backcheckSpace: 0, backcheckSquare: 0, damperCenter: 0, damperLevel: 0 };
   for (let pass = 0; pass < 5; pass++) {
@@ -946,10 +969,10 @@ const N2G = 1e6 / GRAV;   // newtons to grams of force
 const feltG = (f, xmm) => { const x = xmm / 1000; return x <= 0 ? 0 : (f.a * x * x * x + f.b * x * x + f.c * x) * N2G; };
 const feltSquash = (f, grams) => grams <= 0 ? 0 : solve(x => feltG(f, x), grams, 0, 3);   // mm
 // The damper as the key end feels it: its weight about the underlever pin (DAMPER_WT, the sim's own estimate) taken at
-// the lift felt, 135 mm out where the wire is 98 (G.dmpRatio), and the mass that goes with the head's own fall
-// (G.dmpGravity, the sim's own too). Stand-ins, like every damper figure here: no published weight.
-const DMP_LIFT_ARM = 135, DMP_KEY = DAMPER_WT / DMP_LIFT_ARM;                                   // 11 g at the key's back end
-const DMP_M = DAMPER_WT / (DMP_LIFT_ARM * G.dmpRatio) * GRAV / G.dmpGravity * G.dmpRatio ** 2;   // about 16 g there
+// the lift felt, 94 mm out where the wire is 52 (G.ulFelt, G.ulWire, G.dmpRatio), and the mass that goes with the head's
+// own fall (G.dmpGravity, the sim's own too). Stand-ins, like every damper figure here: no published weight.
+const DMP_LIFT_ARM = -G.ulFelt[0], DMP_KEY = DAMPER_WT / DMP_LIFT_ARM;                          // 11 g at the key's back end
+const DMP_M = DAMPER_WT / (DMP_LIFT_ARM * G.dmpRatio) * GRAV / G.dmpGravity * G.dmpRatio ** 2;   // about 12 g there
 // The finger. A blow is a steady push until the key is down, easing then to the weight of a resting hand; the forces
 // are the sim's own, picked so the factory key's hammer speeds land where Askenfelt and Jansson measured them (KTH,
 // "From touch to string vibrations": a mezzo forte key reaches 0.3-0.5 m/s, forte seldom over 1 m/s and its hammer
@@ -1748,11 +1771,9 @@ export function repeatCeiling(a, opts = {}) {
   return best;
 }
 
-// Factory regulation solved offline with factory() (node), so the page loads fast.
-// The let-off button and drop screw stand where they were solved before the slow press closed in on the let-off instant
-// (slowPress): they read 1.584 and 1.600 mm now, both in spec, where a fresh factory() gives 95.6686 and 140.2323 for
-// 1.5875 each. Kept so the time-stepped action (Sim), fitted to slow-motion video on these values, is the same to the last digit.
-export const FACTORY = {"balPunch":1.5,"jackScrew":-0.5732,"repStop":-0.4591,"capstan":13.8078,"restRail":110.7759,"frontPunch":2.299,"letoff":95.6693,"drop":140.2303,"repSpring":1.3553,"backcheck":0.5226,"damperGap":3.5071,"damperStop":5.8495,"pedalLift":4.012,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0,"wippenSpace":0,"wippenTravel":0,"backcheckSpace":0,"backcheckSquare":0,"damperCenter":0,"damperLevel":0};
+// Factory regulation solved offline with factory() (node), so the page loads fast. Solved again on 2026-11-10 for the
+// level shank and the shorter underlever: this line is factory()'s output to four places.
+export const FACTORY = {"balPunch":1.5,"jackScrew":-0.5704,"repStop":-0.4583,"capstan":13.8059,"restRail":104.5261,"frontPunch":2.299,"letoff":95.6037,"drop":140.1825,"repSpring":1.354,"backcheck":0.5158,"damperGap":3.4985,"damperStop":4.9279,"pedalLift":3.0904,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0,"wippenSpace":0,"wippenTravel":0,"backcheckSpace":0,"backcheckSquare":0,"damperCenter":0,"damperLevel":0};
 
 // ---------- maker spec sets (GS-09, WCI-14) ----------
 // The set graded against: the generic textbook set above (the default, unchanged), or one maker's own figures laid over
@@ -1779,9 +1800,9 @@ export const SPEC_SETS = {
       damperStop: { target: IN / 16, tol: IN / 64, src: `Steinway: about 1/16 in in the treble (${OWN})` },
     },
     // regulated to the printed figures; the aftertouch that leaves is outside Steinway's own range (fit)
-    reg: { frontPunch: 1.6973, letoff: 95.7413, drop: 140.3796, repSpring: 1.3407, backcheck: 0.8493, damperStop: 6.3014, pedalLift: 4.4639 },
+    reg: { frontPunch: 1.6973, letoff: 95.676, drop: 140.3269, repSpring: 1.3392, backcheck: 0.8308, damperStop: 5.2815, pedalLift: 3.444 },
     unmet: ['aftertouch'],
-    fit: 'This action is the measured Boston, and it cannot meet this set: at Steinway\'s blow, let-off and .400 in dip it leaves about 2.1 mm (5/64 in) of aftertouch where Steinway expects 3/64 to 1/16 in, and with all three at the far edge of their ranges still 1.62 mm. Aftertouch stays out of this set here; the model is not bent to fit. A Steinway gets there with a lower action ratio (about 4.9 to this action\'s 5.4).' },
+    fit: 'This action is the measured Boston, and it cannot meet this set: at Steinway\'s blow, let-off and .400 in dip it leaves about 2.2 mm (over 5/64 in) of aftertouch where Steinway expects 3/64 to 1/16 in, and with all three at the far edge of their ranges still 1.69 mm. Aftertouch stays out of this set here; the model is not bent to fit. A Steinway gets there with a lower action ratio (about 4.9 to this action\'s 5.4).' },
   hamburg: { name: 'Steinway (Hamburg)', maker: 'Hamburg', source: 'Steinway & Sons Hamburg factory preparation checklist',
     over: {
       blow: { target: 46, lo: 45, hi: 47, src: 'Hamburg: 45 to 47 mm' },
@@ -1791,9 +1812,9 @@ export const SPEC_SETS = {
       damperStop: { target: 1, tol: IN / 64, src: `Hamburg: approximately 1 mm (${OWN})` },
     },
     aim: { blow: 45.5, dip: 9.75 },
-    reg: { jackScrew: -0.4972, repStop: -0.4426, capstan: 13.7176, restRail: 109.9693, frontPunch: 2.0858, letoff: 95.7773, drop: 140.2445, repSpring: 1.3457,
-      backcheck: 0.2178, damperGap: 3.5622, damperStop: 5.3821, pedalLift: 4.1321 },
-    fit: 'Hamburg\'s checklist prints no dip or aftertouch figure, so those two are graded on the generic bands. At the middle of Hamburg\'s blow (46 mm) with the generic 3/8 in dip this action leaves 1.14 mm of aftertouch, under the generic band; the regulated key here is set to 45.5 mm blow and 9.75 mm dip, inside both bands, which leaves 1.46.' },
+    reg: { jackScrew: -0.4942, repStop: -0.4418, capstan: 13.7155, restRail: 103.7341, frontPunch: 2.0858, letoff: 95.7107, drop: 140.1945, repSpring: 1.3444,
+      backcheck: 0.2176, damperGap: 3.5548, damperStop: 4.4337, pedalLift: 3.1837 },
+    fit: 'Hamburg\'s checklist prints no dip or aftertouch figure, so those two are graded on the generic bands. At the middle of Hamburg\'s blow (46 mm) with the generic 3/8 in dip this action leaves 1.21 mm of aftertouch, under the generic band; the regulated key here is set to 45.5 mm blow and 9.75 mm dip, inside both bands, which leaves 1.52.' },
   kawai: { name: 'Kawai', maker: 'Kawai', source: 'Kawai grand piano regulation manual',
     over: {
       blow: { target: 46, tol: IN / 32, src: `Kawai: 46 mm (${OWN})` },
@@ -1804,9 +1825,9 @@ export const SPEC_SETS = {
       check: { target: 15, tol: IN / 16, src: `Kawai: 15 mm (${OWN})` },
       damperStop: { target: 1.5, lo: 1, hi: 2, src: 'Kawai: 1 to 2 mm is permissible' },
     },
-    reg: { jackScrew: -0.4605, repStop: -0.4347, capstan: 13.6749, restRail: 107.7608, frontPunch: 1.7542, letoff: 95.7311, drop: 140.3574, repSpring: 1.3329,
-      backcheck: 0.1087, damperGap: 3.5882, damperStop: 6.1123, pedalLift: 4.3623 },
-    fit: 'This action meets Kawai\'s middle-and-treble figures at every level, with 1.77 mm of aftertouch (Kawai prints no aftertouch figure: graded on the generic band). Kawai\'s key height (66 to 68 mm from the keybed) and its bass let-off and drop are not modelled.' },
+    reg: { jackScrew: -0.4574, repStop: -0.4339, capstan: 13.6727, restRail: 101.5326, frontPunch: 1.7542, letoff: 95.6652, drop: 140.3052, repSpring: 1.3317,
+      backcheck: 0.1096, damperGap: 3.5813, damperStop: 5.1136, pedalLift: 3.3636 },
+    fit: 'This action meets Kawai\'s middle-and-treble figures at every level, with 1.83 mm of aftertouch (Kawai prints no aftertouch figure: graded on the generic band). Kawai\'s key height (66 to 68 mm from the keybed) and its bass let-off and drop are not modelled.' },
 };
 const GENERIC_SPEC = { ...SPEC }, GENERIC_FACTORY = { ...FACTORY };
 let specSetNow = 'generic';
