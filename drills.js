@@ -8,8 +8,10 @@ const rnd = (lo, hi) => lo + Math.random() * (hi - lo);
 // Hold the hammer flange so the shank stands level, let go, and count the half-swings (each change of direction) until
 // it stops. Each hammer on the bench has a friction torque at its center pin; its count follows technicians' counts
 // against the gram gauge (swingCount in model.js: half-swings ≈ 21 ÷ grams at 23 mm). Too few: tight; too many: loose.
-// The call is on the friction itself, Renner's 2 to 5 g at 23 mm (CENTERS.hammer), about 4 to 10 half-swings; about 9
-// is Chris Brown's ideal for hard bushings (Key Steps for Grand Regulating). A hammer that swings right can still
+// The call is on the friction itself, Renner's 2 to 5 g at 23 mm (CENTERS.hammer), which the sim's own conversion puts
+// at about 4 to 10 half-swings (Greg's band, 2026-11-07). Renner's manual itself says only "Four to six swings of the
+// hammer is typical", the flange held "firmly between the fingers"; about 9 is Chris Brown's ideal for hard bushings
+// (Key Steps for Grand Regulating). A hammer that swings right can still
 // wobble on its pin: one side of its bushing worn (Renner).
 const H = CENTERS.hammer;
 export const SWING = { target: 9, good: [SWING_K / H.band[1], SWING_K / H.band[0]] };   // about 4.2 to 10.5
@@ -58,7 +60,7 @@ export function mountSwingDrill(root, { el, toast }) {
   let state = 'ready', sw = { th: Math.PI / 2, w: 0, rev: 0 }, raf = null, last = 0, acc = 0;
   const cv = el('canvas', { width: 360, height: 230, class: 'drillcanvas' });
   const ctx = cv.getContext('2d');
-  const status = el('p', { class: 'muted small' }, 'The flange is in the vise and the shank is held level. Let it go and count the half-swings (each time it changes direction) until it stops.');
+  const status = el('p', { class: 'muted small' }, 'The flange is held firmly between the fingers and the shank is held level. Let it go and count the half-swings (each time it changes direction) until it stops.');
   const input = el('input', { type: 'number', min: 0, max: 40, placeholder: 'count', class: 'countin' });
   const wobbleLine = el('p', { class: 'small' });
   const verdict = el('div');
@@ -69,8 +71,8 @@ export function mountSwingDrill(root, { el, toast }) {
     const ink = css.getPropertyValue('--ink').trim() || '#222', muted = css.getPropertyValue('--muted').trim() || '#777';
     ctx.clearRect(0, 0, W, Hc);
     const px = W / 2, py = 46, L = 132, th = sw.th;
-    // vise jaws and flange
-    ctx.fillStyle = '#7a5634'; ctx.fillRect(px - 46, py - 40, 30, 34); ctx.fillRect(px + 16, py - 40, 30, 34);
+    // finger and thumb on the flange's sides (Renner: held firmly between the fingers), and the flange
+    ctx.fillStyle = '#c9a08a'; ctx.beginPath(); ctx.roundRect(px - 48, py - 40, 32, 34, 12); ctx.roundRect(px + 16, py - 40, 32, 34, 12); ctx.fill();
     ctx.fillStyle = '#d7b98c'; ctx.fillRect(px - 14, py - 34, 28, 30);
     // shank and head, swinging below the center pin
     const hx = px + L * Math.sin(th), hy = py + L * Math.cos(th);
@@ -138,7 +140,7 @@ export function mountSwingDrill(root, { el, toast }) {
     verdict.replaceChildren(
       el('p', { class: c === call ? 'okc' : 'badc' }, c === call ? `Right: the center is ${words[call]}.` : `Not quite: the center is ${words[call]}.`),
       el('p', { class: 'muted small' }, `It made ${count()} half-swings, about ${g.toFixed(1)} g on a gram gauge at ${H.at} mm (${Math.round(ham.T)} mm·g). `
-        + `Renner wants ${H.band[0]} to ${H.band[1]} g there, about ${Math.round(SWING.good[0])} to ${Math.floor(SWING.good[1])} half-swings; about ${SWING.target} is Chris Brown's ideal for hard bushings.`),
+        + `Renner's table gives ${H.band[0]} to ${H.band[1]} g there, and its manual calls four to six swings typical. The sim passes ${H.band[0]} to ${H.band[1]} g, which by its own conversion (about ${SWING_K} ÷ grams) is ${Math.round(SWING.good[0])} to ${Math.floor(SWING.good[1])} half-swings; about ${SWING.target} is Chris Brown's ideal for hard bushings.`),
       call === 'good' ? el('div', { class: 'row' }, el('button', { class: 'primary', onclick: newPart }, 'Next hammer'))
         : el('div', { class: 'row' }, fixes[call]));
   }
@@ -152,7 +154,7 @@ export function mountSwingDrill(root, { el, toast }) {
     state = 'ready'; sw = { th: Math.PI / 2, w: 0, rev: 0 }; input.value = ''; verdict.replaceChildren(); wobbleLine.textContent = '';
     status.textContent = text; draw();
   }
-  function newPart() { ham = benchHammer(); wobbled = false; reset('A new hammer in the vise. Let it go and count.'); }
+  function newPart() { ham = benchHammer(); wobbled = false; reset('A new hammer between your fingers. Let it go and count.'); }
   root.append(
     el('h3', {}, 'Hammer swing test'),
     el('p', {}, 'Checks the friction of the hammer flange center. Too tight and the hammer is sluggish to repeat; too loose and it wobbles sideways. A hammer can swing right and still wobble: hold the flange and flex the shank to see.'),
@@ -160,7 +162,7 @@ export function mountSwingDrill(root, { el, toast }) {
     el('div', { class: 'row' }, el('button', { class: 'primary', onclick: release }, 'Let it go'), input, el('button', { onclick: check }, 'Check my count'),
       el('button', { onclick: wobble }, 'Wobble it')),
     wobbleLine, verdict,
-    el('p', { class: 'credit' }, 'About nine half-swings for hard bushings: Chris Brown RPT, Key Steps for Grand Regulating. Counts against the gram gauge: a fit to Brown\'s figure and Fred Sturm\'s (PTG), not a published rule. Friction range and the wobble test: Renner USA\'s flange bushing cloth manual (Bill Spurlock).'));
+    el('p', { class: 'credit' }, 'About nine half-swings for hard bushings: Chris Brown RPT, Key Steps for Grand Regulating. Counts against the gram gauge: the sim\'s own fit to Brown\'s figure and Fred Sturm\'s (PTG), not a published rule. Friction range (2 to 5 g at 23 mm), "four to six swings" as typical, the flange held between the fingers, and the wobble test: Renner USA\'s flange bushing cloth manual (Bill Spurlock). The counts differ because the sources do: the sim grades the grams.'));
   draw();
   return () => cancelAnimationFrame(raf);
 }
