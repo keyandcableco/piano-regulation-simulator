@@ -30,6 +30,17 @@ function openMenu(cat, focusItem) {
   place(cat);
   if (focusItem) { const list = items(cat); (list.find(b => b.classList.contains('on')) ?? list[0])?.focus(); }
 }
+// A phone, or a window as small: the picture above the panel (or beside it, a phone on its side). The same test as the
+// page's phone styles (index.html). Learn lays its steps out for it: the test and the reading first, the reading folded.
+const PHONE = matchMedia('(max-width: 820px), (orientation: landscape) and (max-height: 500px)');
+export const compact = () => PHONE.matches;
+export const onCompact = f => PHONE.addEventListener('change', f);
+// bring a piece of the panel's own furniture (the tabs, the bench bar under them) to the panel's top edge: on a phone the
+// header and tabs above a Learn step would otherwise fill the half screen the step has
+export function panelTo(sel) {
+  const a = document.querySelector('aside'), e = document.querySelector(sel);
+  if (a && e && e.offsetParent) a.scrollTop += e.getBoundingClientRect().top - a.getBoundingClientRect().top - 6;
+}
 export function closeMenu(refocus = false) {
   if (!open) return;
   const cat = open; open = null;

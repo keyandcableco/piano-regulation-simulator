@@ -6,7 +6,7 @@ import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
 import { TOOLBAG } from './toolbag.js';
 import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F, touch, dipAt, repeatRun, pedalFor } from './model.js';
-import { initControls, markView, closeMenu } from './controls.js';
+import { initControls, markView, closeMenu, compact, onCompact, panelTo } from './controls.js';
 import { mountBench } from './bench-ui.js';
 import { diffAdj } from './bench.js';
 
@@ -972,12 +972,18 @@ const stepDone = s => stepSpecs(s).every(id => tested.has(id) && gradeL(id, m).o
 function renderLearn(p) {
   const st = STEPS[stepIdx];
   const done = stepIdx >= STEPS.length;
-  put(p, el('div', { class: 'steps' }, STEPS.map((s, i) =>
+  // On a phone (GT-22) the panel is half the screen: the steps are one list to pick from, not three rows of buttons; the
+  // test and its reading come first with the reading matter folded under them; Back and Next stay at the bottom edge.
+  const phone = compact();
+  put(p, phone ? el('select', { class: 'stepsel', 'aria-label': 'Step', onchange: e => { stepIdx = +e.target.value; focusStep(); refresh(); panelTo('#benchbar'); } },
+      STEPS.map((s, i) => el('option', { value: i, selected: i === stepIdx ? '' : false }, `${i + 1}. ${s.title}${!s.info && stepDone(s) ? ' ✓' : ''}`)),
+      el('option', { value: STEPS.length, selected: done ? '' : false }, '✓ Final check'))
+    : el('div', { class: 'steps' }, STEPS.map((s, i) =>
     el('button', { class: 'pip' + (s.info ? ' info' : '') + (i === stepIdx ? ' cur' : '') + (!s.info && stepDone(s) ? ' ok' : ''), title: s.title,
       onclick: () => { stepIdx = i; focusStep(); refresh(); } }, String(i + 1))),
     el('button', { class: 'pip' + (done ? ' cur' : ''), title: 'Final check', onclick: () => { stepIdx = STEPS.length; refresh(); } }, '✓')),
     // the key arrives knocked out of regulation (messUp), and nothing else on the page would say so
-    done ? null : el('p', { class: 'muted small' }, 'This key starts out of regulation on purpose: every setting, hammer alignment included, is knocked a little off. Work through the steps to put it right; ✓ re-checks everything at the end. The key is kept while you look at another tab. ',
+    done || phone ? null : el('p', { class: 'muted small' }, 'This key starts out of regulation on purpose: every setting, hammer alignment included, is knocked a little off. Work through the steps to put it right; ✓ re-checks everything at the end. The key is kept while you look at another tab. ',
       el('button', { class: 'linkish', onclick: newLearnKey }, 'Start over with a new key')));
   if (done) {
     GRADED.flatMap(stepSpecs).forEach(id => tested.add(id));
@@ -989,15 +995,33 @@ function renderLearn(p) {
       el('div', { class: 'row' }, el('button', { onclick: () => { stepIdx = 0; tested = new Set(); messUp(); focusStep(); } }, 'Start over with a new key')));
     return;
   }
-  const nav = (okToGo) => el('div', { class: 'row' },
-    el('button', { disabled: stepIdx === 0 ? '' : false, onclick: () => { stepIdx--; focusStep(); refresh(); } }, '← Back'),
-    el('button', { class: okToGo ? 'primary' : '', onclick: () => { stepIdx++; focusStep(); refresh(); } }, okToGo ? 'Next step →' : 'Skip →'));
+  const go = by => { stepIdx += by; focusStep(); refresh(); if (phone) panelTo('#benchbar'); };
+  const navBtns = okToGo => [el('button', { disabled: stepIdx === 0 ? '' : false, onclick: () => go(-1) }, '← Back'),
+    el('button', { class: okToGo ? 'primary' : '', onclick: () => go(+1) }, okToGo ? 'Next step →' : 'Skip →')];
+  // (on a phone they are the panel's bottom bar, always in reach)
+  const nav = okToGo => { if (!phone) return el('div', { class: 'row' }, navBtns(okToGo)); put($('#actionbar'), el('span', { class: 'muted small grow' }, `Step ${stepIdx + 1} of ${STEPS.length}`), navBtns(okToGo)); return null; };
   const head = el('div', { class: 'muted small' }, `Step ${stepIdx + 1} of ${STEPS.length}${st.info ? ' · not in the sim' : ''}`);
   if (st.info) {
-    put(p, head, el('h2', {}, st.title), el('p', {}, st.what), el('p', { class: 'muted' }, st.how), benchTips(st.id), nav(true));
+    put(p, phone ? null : [head, el('h2', {}, st.title)], el('p', {}, st.what), el('p', { class: 'muted' }, st.how), benchTips(st.id, !phone), nav(true));
     return;
   }
   const earlier = STEPS.slice(0, stepIdx).filter(s => !s.info).flatMap(stepSpecs);
+  if (phone) {
+    // (the step's title is in the list above; a step with a handful of tests shows its readings before them)
+    const tests = el('div', { class: 'row' }, (st.tests || [st.test]).map(testButton)), table = measureTable(stepSpecs(st));
+    put(p, tests.children.length > 2 ? [table, tests] : [tests, table],
+      fold('why', 'What to look for, and how to set it',
+        stepIdx ? null : el('p', { class: 'muted small' }, 'This key starts out of regulation on purpose: every setting, hammer alignment included, is knocked a little off. Work through the steps to put it right; the last entry in the list re-checks everything. ',
+          el('button', { class: 'linkish', onclick: newLearnKey }, 'Start over with a new key')),
+        el('p', {}, st.what), el('p', { class: 'muted' }, st.how), st.note ? el('p', { class: 'note' }, st.note) : null),
+      el('div', { class: 'knobs' }, st.knobs.map(knobRow)),
+      st.bushings ? bushingRepairs() : null,
+      st.centers ? centerRepairs(st.centers) : null,
+      benchTips(st.id ?? st.spec, false),
+      nav(stepDone(st)),
+      earlier.length ? el('details', {}, el('summary', {}, 'Earlier steps'), measureTable(earlier)) : null);
+    return;
+  }
   put(p, head,
     el('h2', {}, st.title),
     el('p', {}, st.what), el('p', { class: 'muted' }, st.how),
@@ -1019,10 +1043,10 @@ function tipLine(t) {
   return el('li', {}, t.text, ' ', el('span', { class: 'credit' }, '— ', t.url ? el('a', { href: t.url, target: '_blank', rel: 'noopener' }, label) : label),
     t.sim ? el('div', { class: 'muted small simgrades' }, t.sim) : null);
 }
-function benchTips(key) {
+function benchTips(key, open = true) {
   const tips = TIPS[key];
   if (!tips?.length) return null;
-  return el('details', { class: 'bench', open: '' }, el('summary', {}, 'From the bench'), el('ul', {}, tips.map(tipLine)));
+  return el('details', { class: 'bench', open: open ? '' : false }, el('summary', {}, 'From the bench'), el('ul', {}, tips.map(tipLine)));
 }
 function renderCredits(p) {
   const all = Object.values(TIPS).flat();
@@ -1988,6 +2012,7 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   if (mode === 'learn') {
     if (k) { ({ stepIdx } = k); adj = k.adj; applyAdj(); tested = k.tested; store(); refresh(); } else { stepIdx = 0; messUp(); }
     focusStep();
+    if (compact()) panelTo('.tabs');   // a phone: the step, not the header, in the half screen the panel has
   }
   else if (mode === 'diagnose') {
     scenario = null; adj = { ...FACTORY };
@@ -2387,6 +2412,7 @@ function frame(now) {
 // the key's buttons in the bar, its menu and the frame buttons (not the menus' own buttons, nor the speeds)
 const keyButtons = [...document.querySelectorAll('button[id^="k-"]')];
 initControls();
+onCompact(() => refresh());   // Learn is laid out differently on a phone-sized window
 applyTheme();
 adj = { ...FACTORY }; applyAdj(); view('angle');
 // the exam clock keeps time even while the tab is in the background

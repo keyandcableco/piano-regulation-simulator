@@ -8,7 +8,7 @@ import { FACTORY, ADJ, DAMAGE, Sim, measure, grade, pose, evenTol, DAMPER_PEDAL_
 import { hand, UPRIGHT_HOLD, HOLD_NAMES, dragTo } from './hand.js';
 import { createUprightScene } from './scene-upright.js';
 import { STEPS, TESTS, TIPS, TOOLS, SPEC_NAMES, REPAIRS, SCENARIOS, bandText, readingText, callouts, deregulated, fairStart, creditOf, advise, alsoText } from './content-upright.js';
-import { markView } from './controls.js';
+import { markView, compact, panelTo } from './controls.js';
 import { diffAdj } from './bench.js';
 
 const DT = 0.0001;          // s: the Sim's step (its tests' and fit's)
@@ -282,13 +282,14 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       })) : null);
   }
   const testButton = id => el('button', { class: 'test', disabled: busy ? '' : false, 'data-anchor': `u-test:${id}`, onclick: () => runTest(id) }, '▶ ', TESTS[id].label);
-  function benchTips(key) {
+  function benchTips(key, open = true) {
     const tips = TIPS[key];
     if (!tips?.length) return null;
-    return el('details', { class: 'bench', open: '' }, el('summary', {}, 'From the bench'), el('ul', {}, tips.map(t =>
+    return el('details', { class: 'bench', open: open ? '' : false }, el('summary', {}, 'From the bench'), el('ul', {}, tips.map(t =>
       el('li', {}, t.text, ' ', el('span', { class: 'credit' }, '— ', t.url ? el('a', { href: t.url, target: '_blank', rel: 'noopener' }, creditOf(t)) : creditOf(t))))));
   }
   const GRADED = STEPS.filter(s => !s.info);
+  let whyOpen = false;   // Learn on a phone: the step's reading matter, folded under its test
   const stepDone = st => specsOf(st).every(id => tested.has(id) && gradeL(id).ok);
   function goStep(i) {
     if (busy) return;
@@ -297,13 +298,19 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     S.highlight(stepParts());
     if (st && !st.info) view(TESTS[st.test].view);
     refresh();
+    if (compact() && mode === 'learn') panelTo('#benchbar');   // a phone: the step at the top of the panel's half screen
   }
   function renderLearn(p) {
     const st = STEPS[stepIdx], done = stepIdx >= STEPS.length;
-    put(p, el('div', { class: 'steps' }, STEPS.map((s, i) =>
+    // on a phone, as the grand's Learn (GT-22): the steps one list, the test and reading first, Back and Next at the bottom edge
+    const phone = compact();
+    put(p, phone ? el('select', { class: 'stepsel', 'aria-label': 'Step', disabled: busy ? '' : false, onchange: e => goStep(+e.target.value) },
+        STEPS.map((s, i) => el('option', { value: i, selected: i === stepIdx ? '' : false }, `${i + 1}. ${s.title}${!s.info && stepDone(s) ? ' ✓' : ''}`)),
+        el('option', { value: STEPS.length, selected: done ? '' : false }, '✓ Final check'))
+      : el('div', { class: 'steps' }, STEPS.map((s, i) =>
       el('button', { class: 'pip' + (s.info ? ' info' : '') + (i === stepIdx ? ' cur' : '') + (!s.info && stepDone(s) ? ' ok' : ''), title: s.title, onclick: () => goStep(i) }, String(i + 1))),
       el('button', { class: 'pip' + (done ? ' cur' : ''), title: 'Final check', onclick: () => goStep(STEPS.length) }, '✓')),
-      done ? null : el('p', { class: 'muted small' }, 'This key starts out of regulation on purpose: every adjustment is knocked a little off. Work through the steps to put it right; ✓ re-checks everything at the end.'));
+      done || phone ? null : el('p', { class: 'muted small' }, 'This key starts out of regulation on purpose: every adjustment is knocked a little off. Work through the steps to put it right; ✓ re-checks everything at the end.'));
     if (done) {
       GRADED.flatMap(specsOf).forEach(id => tested.add(id));
       const bad = GRADED.filter(s => !stepDone(s));
@@ -320,12 +327,25 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       const adv = advise(m, level().tolK), to = adv && GRADED.find(g => specsOf(g).includes(adv.spec));
       return adv ? [`: ${adv.text}`, to && to !== s ? [' (', el('button', { class: 'linkish', onclick: () => goStep(STEPS.indexOf(to)) }, to.title), ')'] : null] : null;
     }
-    const nav = ok => el('div', { class: 'row' },
-      el('button', { disabled: stepIdx === 0 ? '' : false, onclick: () => goStep(stepIdx - 1) }, '← Back'),
-      el('button', { class: ok ? 'primary' : '', onclick: () => goStep(stepIdx + 1) }, ok ? 'Next step →' : 'Skip →'));
+    const navBtns = ok => [el('button', { disabled: stepIdx === 0 ? '' : false, onclick: () => goStep(stepIdx - 1) }, '← Back'),
+      el('button', { class: ok ? 'primary' : '', onclick: () => goStep(stepIdx + 1) }, ok ? 'Next step →' : 'Skip →')];
+    const nav = ok => { if (!phone) return el('div', { class: 'row' }, navBtns(ok)); put($('#actionbar'), el('span', { class: 'muted small grow' }, `Step ${stepIdx + 1} of ${STEPS.length}`), navBtns(ok)); return null; };
     const head = el('div', { class: 'muted small' }, `Step ${stepIdx + 1} of ${STEPS.length}${st.info ? ' · not in the sim' : ''}`);
-    if (st.info) { put(p, head, el('h2', {}, st.title), el('p', {}, st.what), el('p', { class: 'muted' }, st.how), st.note ? el('p', { class: 'note' }, st.note) : null, benchTips(st.id), nav(true)); return; }
+    if (st.info) { put(p, phone ? null : [head, el('h2', {}, st.title)], el('p', {}, st.what), el('p', { class: 'muted' }, st.how), st.note ? el('p', { class: 'note' }, st.note) : null, benchTips(st.id), nav(true)); return; }
     const earlier = STEPS.slice(0, stepIdx).filter(s => !s.info).flatMap(specsOf);
+    if (phone) {
+      const tests = el('div', { class: 'row' }, (st.tests ?? [st.test]).map(testButton)), table = readingsTable(specsOf(st));
+      put(p, tests.children.length > 2 ? [table, tests] : [tests, table],
+        st.spec === 'aftertouch' && specsOf(st).every(id => tested.has(id)) && !stepDone(st) ? el('p', { class: 'note', 'data-advice': '' }, 'What to move', backTo(st)) : null,
+        el('details', { class: 'fold', open: whyOpen ? '' : false, ontoggle: e => { whyOpen = e.target.open; } }, el('summary', {}, 'What to look for, and how to set it'),
+          el('div', { class: 'fold-body' }, stepIdx ? null : el('p', { class: 'muted small' }, 'This key starts out of regulation on purpose: every adjustment is knocked a little off. Work through the steps to put it right; the last entry in the list re-checks everything.'),
+            el('p', {}, st.what), el('p', { class: 'muted' }, st.how), st.note ? el('p', { class: 'note' }, st.note) : null)),
+        el('div', { class: 'knobs' }, st.knobs.map(k => knobRow(k))),
+        st.repairs ? repairButtons(specsOf(st)) : null,
+        benchTips(st.id ?? st.spec, false), nav(stepDone(st)),
+        earlier.length ? el('details', {}, el('summary', {}, 'Earlier steps'), readingsTable(earlier)) : null);
+      return;
+    }
     put(p, head, el('h2', {}, st.title), el('p', {}, st.what), el('p', { class: 'muted' }, st.how), st.note ? el('p', { class: 'note' }, st.note) : null,
       el('div', { class: 'row' }, (st.tests ?? [st.test]).map(testButton)),
       readingsTable(specsOf(st)),
