@@ -26,7 +26,7 @@ test('grand: the key held by hand goes down through let-off and comes back up wh
   near(s.d, s.dip, 0.01, 'at the bottom');
   assert.ok(types(down).includes('letoff') && !types(down).includes('strike'), `a slow press lets off without a blow: ${types(down)}`);
   s.letGo(); s.press(0, GM.KEY.upSpeed);
-  const up = run(s, 0.6, G_DT);
+  const up = run(s, 1, G_DT);   // (the key comes up on its own with the hammer riding it, and takes about 0.65 s to settle on its back rail)
   assert.equal(s.d, 0); assert.ok(types(up).includes('reset'));
 });
 

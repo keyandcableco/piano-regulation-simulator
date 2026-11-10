@@ -100,8 +100,15 @@ const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if
   await tap('.tab[data-mode="sandbox"]'); await page.waitForTimeout(600);
   // repeat
   await page.evaluate(() => { const d = [...document.querySelectorAll('details.fold')].find(x => /^Jack/.test(x.querySelector('summary').textContent)); if (d && !d.open) d.querySelector('summary').click(); });
+  // while it counts, the page goes on drawing: the longest stretch of script without a break (long tasks), and the
+  // progress line by the key buttons
+  await page.evaluate(() => { window.__long = 0; new PerformanceObserver(l => { for (const e of l.getEntries()) window.__long = Math.max(window.__long, e.duration); }).observe({ entryTypes: ['longtask'] }); });
+  await said();
   await tap('[data-anchor="test:repeat"]');
   await page.waitForFunction(() => /Fastest from a half release|doesn't repeat at all/.test(document.querySelector('#mode').textContent), null, { timeout: 180000 });
+  const long = Math.round(await page.evaluate(() => window.__long)), counting = (await said()).filter(l => /trying \d+ a second/.test(l)).length;
+  check(long < 200, `repeat: the longest stretch the page was held up while it played and counted: ${long} ms (headless software drawing included)`);
+  check(counting >= 5, `repeat: ${counting} progress lines while it counted`);
   const rep = await page.evaluate(() => /At \d+ blows a second[^.]*\.[^.]*a second[^.]*/.exec(document.querySelector('#mode').textContent)?.[0]);
   const half = +/half release: (\d+)/.exec(rep ?? '')?.[1];
   check(half >= 10 && half <= 16, `repeat: ${rep}`);

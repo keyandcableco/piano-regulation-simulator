@@ -41,13 +41,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 144,
+     "keyUpMs": 137,
      "homeMs": null,
-     "endDist": 43.375,
-     "endD": 0.183
+     "endDist": 42.902,
+     "endD": 0.264
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -81,7 +81,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 66,
-     "homeMs": 488,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
@@ -91,17 +91,17 @@
       0.826
      ],
      "tStrike": 0.097,
-     "letoff": 1.495,
+     "letoff": 1.485,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
-     "maxD": 9.925,
+     "resetUp": 0.179,
+     "maxD": 9.924,
      "dip": 9.525,
-     "keyUpMs": 141,
+     "keyUpMs": 129,
      "homeMs": null,
-     "endDist": 43.644,
-     "endD": 0.137
+     "endDist": 43.045,
+     "endD": 0.24
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -109,7 +109,7 @@
       2.225
      ],
      "tStrike": 0.039,
-     "letoff": 1.617,
+     "letoff": 1.615,
      "tLetoff": 0.039,
      "check": 14.34,
      "tCheck": 0.057,
@@ -117,9 +117,9 @@
      "maxD": 10.417,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.174,
-     "endD": 0.047
+     "homeMs": 498,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
@@ -127,7 +127,7 @@
       4.982
      ],
      "tStrike": 0.018,
-     "letoff": 1.797,
+     "letoff": 1.796,
      "tLetoff": 0.017,
      "check": 18.975,
      "tCheck": 0.029,
@@ -135,25 +135,25 @@
      "maxD": 10.766,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 482,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.445
+      3.444
      ],
      "tStrike": 0.024,
-     "letoff": 1.486,
+     "letoff": 1.488,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
      "resetUp": 0.754,
-     "maxD": 10.339,
+     "maxD": 10.338,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 572,
+     "homeMs": 541,
      "endDist": 44.45,
      "endD": 0
     }
@@ -166,7 +166,7 @@
    },
    "keyReturn": {
     "keyMs": 68.9,
-    "homeMs": 521,
+    "homeMs": 497.8,
     "resetUp": 0.42,
     "stuck": false
    },
@@ -205,13 +205,13 @@
      "tLetoff": 0.137,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.178,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 145,
+     "keyUpMs": 137,
      "homeMs": null,
-     "endDist": 43.362,
-     "endD": 0.185
+     "endDist": 42.901,
+     "endD": 0.264
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -226,10 +226,10 @@
      "resetUp": 0.4,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 84,
+     "keyUpMs": 83,
      "homeMs": null,
-     "endDist": 45.193,
-     "endD": -0.126
+     "endDist": 45.147,
+     "endD": -0.118
     },
     "set600": {
      "order": "strike letoff checked uncheck reset",
@@ -255,17 +255,17 @@
       0.843
      ],
      "tStrike": 0.097,
-     "letoff": 0.45,
+     "letoff": 0.44,
      "tLetoff": 0.096,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.167,
+     "resetUp": 0.179,
      "maxD": 9.915,
      "dip": 9.525,
-     "keyUpMs": 141,
+     "keyUpMs": 129,
      "homeMs": null,
-     "endDist": 43.646,
-     "endD": 0.137
+     "endDist": 43.029,
+     "endD": 0.242
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -273,7 +273,7 @@
       2.261
      ],
      "tStrike": 0.039,
-     "letoff": 0.561,
+     "letoff": 0.559,
      "tLetoff": 0.039,
      "check": 14.402,
      "tCheck": 0.056,
@@ -281,9 +281,9 @@
      "maxD": 10.408,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.182,
-     "endD": 0.046
+     "homeMs": 497,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike checked uncheck buzz reset",
@@ -295,13 +295,13 @@
      "tLetoff": 0.018,
      "check": 18.952,
      "tCheck": 0.029,
-     "resetUp": 0.176,
+     "resetUp": 0.154,
      "maxD": 10.893,
      "dip": 9.525,
-     "keyUpMs": 135,
+     "keyUpMs": 124,
      "homeMs": null,
-     "endDist": 43.947,
-     "endD": 0.086
+     "endDist": 43.201,
+     "endD": 0.213
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
@@ -309,7 +309,7 @@
       3.449
      ],
      "tStrike": 0.024,
-     "letoff": 0.532,
+     "letoff": 0.534,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
@@ -317,7 +317,7 @@
      "maxD": 10.337,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 572,
+     "homeMs": 541,
      "endDist": 44.45,
      "endD": 0
     }
@@ -329,8 +329,8 @@
     "bottom": 44.451
    },
    "keyReturn": {
-    "keyMs": 68.7,
-    "homeMs": 520.6,
+    "keyMs": 68.5,
+    "homeMs": 497,
     "resetUp": 0.425,
     "stuck": false
    },
@@ -367,13 +367,13 @@
      "tLetoff": 0.115,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.3,
+     "resetUp": 0.287,
      "maxD": 9.354,
      "dip": 9.525,
-     "keyUpMs": 148,
+     "keyUpMs": 138,
      "homeMs": null,
-     "endDist": 43.432,
-     "endD": 0.173
+     "endDist": 43.014,
+     "endD": 0.245
     },
     "set250": {
      "order": "letoff strike jackjam checked uncheck reset",
@@ -390,8 +390,8 @@
      "dip": 9.525,
      "keyUpMs": 125,
      "homeMs": null,
-     "endDist": 44.75,
-     "endD": -0.051
+     "endDist": 44.728,
+     "endD": -0.047
     },
     "set600": {
      "order": "letoff strike jackjam checked uncheck reset",
@@ -407,7 +407,7 @@
      "maxD": 9.48,
      "dip": 9.525,
      "keyUpMs": 66,
-     "homeMs": 488,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
@@ -417,17 +417,17 @@
       0.659
      ],
      "tStrike": 0.098,
-     "letoff": 6.931,
+     "letoff": 6.922,
      "tLetoff": 0.088,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.292,
-     "maxD": 9.351,
+     "resetUp": 0.294,
+     "maxD": 9.353,
      "dip": 9.525,
-     "keyUpMs": 147,
+     "keyUpMs": 138,
      "homeMs": null,
-     "endDist": 43.468,
-     "endD": 0.167
+     "endDist": 43.008,
+     "endD": 0.246
     },
     "mf": {
      "order": "letoff strike jackjam checked uncheck reset",
@@ -435,7 +435,7 @@
       1.942
      ],
      "tStrike": 0.04,
-     "letoff": 6.95,
+     "letoff": 6.949,
      "tLetoff": 0.036,
      "check": 13.562,
      "tCheck": 0.059,
@@ -461,14 +461,14 @@
      "maxD": 9.362,
      "dip": 9.525,
      "keyUpMs": 62,
-     "homeMs": 474,
+     "homeMs": 448,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff pop strike jackjam checked uncheck reset",
      "strikes": [
-      3.283
+      3.284
      ],
      "tStrike": 0.024,
      "letoff": 6.985,
@@ -476,23 +476,23 @@
      "check": 16.124,
      "tCheck": 0.039,
      "resetUp": 0.448,
-     "maxD": 9.392,
+     "maxD": 9.393,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 517,
+     "homeMs": 510,
      "endDist": 44.45,
      "endD": 0
     }
    },
    "touch": {
     "down": 43.769,
-    "up": 17.393,
+    "up": 17.417,
     "peak": 80.857,
     "bottom": 30.357
    },
    "keyReturn": {
     "keyMs": 76.1,
-    "homeMs": 532.2,
+    "homeMs": 508.1,
     "resetUp": 0.405,
     "stuck": false
    },
@@ -522,7 +522,7 @@
      "endD": 8.47
     },
     "set60": {
-     "order": "letoff strike reset softcheck",
+     "order": "letoff strike reset uncheck",
      "strikes": [
       0.223
      ],
@@ -531,13 +531,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.067,
+     "resetUp": 0.081,
      "maxD": 8.47,
      "dip": 8.47,
-     "keyUpMs": 195,
+     "keyUpMs": 184,
      "homeMs": null,
-     "endDist": 43.793,
-     "endD": 0.112
+     "endDist": 43.733,
+     "endD": 0.122
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -571,27 +571,27 @@
      "maxD": 8.47,
      "dip": 8.47,
      "keyUpMs": 67,
-     "homeMs": 495,
+     "homeMs": 475,
      "endDist": 44.45,
      "endD": 0
     },
     "pp": {
-     "order": "letoff strike softcheck reset softcheck",
+     "order": "letoff strike softcheck reset uncheck",
      "strikes": [
       0.826
      ],
      "tStrike": 0.097,
-     "letoff": 1.495,
+     "letoff": 1.485,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.069,
+     "resetUp": 0.064,
      "maxD": 8.845,
      "dip": 8.47,
-     "keyUpMs": 197,
+     "keyUpMs": 187,
      "homeMs": null,
-     "endDist": 43.7,
-     "endD": 0.128
+     "endDist": 43.539,
+     "endD": 0.155
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -599,7 +599,7 @@
       2.225
      ],
      "tStrike": 0.039,
-     "letoff": 1.617,
+     "letoff": 1.615,
      "tLetoff": 0.039,
      "check": 15.09,
      "tCheck": 0.057,
@@ -608,8 +608,8 @@
      "dip": 8.47,
      "keyUpMs": 116,
      "homeMs": null,
-     "endDist": 44.902,
-     "endD": -0.077
+     "endDist": 44.895,
+     "endD": -0.076
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
@@ -617,7 +617,7 @@
       4.982
      ],
      "tStrike": 0.018,
-     "letoff": 1.797,
+     "letoff": 1.796,
      "tLetoff": 0.017,
      "check": 20.079,
      "tCheck": 0.03,
@@ -625,17 +625,17 @@
      "maxD": 9.785,
      "dip": 8.47,
      "keyUpMs": 57,
-     "homeMs": 465,
+     "homeMs": 439,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.445
+      3.444
      ],
      "tStrike": 0.024,
-     "letoff": 1.486,
+     "letoff": 1.488,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
@@ -643,7 +643,7 @@
      "maxD": 9.314,
      "dip": 8.47,
      "keyUpMs": 0,
-     "homeMs": 582,
+     "homeMs": 548,
      "endDist": 44.45,
      "endD": 0
     }
@@ -656,13 +656,13 @@
    },
    "keyReturn": {
     "keyMs": 116,
-    "homeMs": 553.8,
+    "homeMs": 520.6,
     "resetUp": 0.367,
     "stuck": false
    },
    "repeat": {
     "half": 16,
-    "full": 21
+    "full": 17
    }
   },
   {
@@ -695,13 +695,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.275,
+     "resetUp": 0.267,
      "maxD": 10.369,
      "dip": 10.369,
-     "keyUpMs": 136,
+     "keyUpMs": 132,
      "homeMs": null,
-     "endDist": 42.705,
-     "endD": 0.298
+     "endDist": 42.492,
+     "endD": 0.335
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -735,7 +735,7 @@
      "maxD": 10.369,
      "dip": 10.369,
      "keyUpMs": 66,
-     "homeMs": 495,
+     "homeMs": 465,
      "endDist": 44.45,
      "endD": 0
     },
@@ -743,20 +743,20 @@
      "order": "letoff strike softcheck strike bobble reset",
      "strikes": [
       0.826,
-      0.127
+      0.126
      ],
      "tStrike": 0.097,
-     "letoff": 1.495,
+     "letoff": 1.485,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
      "resetUp": 0.275,
-     "maxD": 10.723,
+     "maxD": 10.713,
      "dip": 10.369,
-     "keyUpMs": 133,
+     "keyUpMs": 130,
      "homeMs": null,
-     "endDist": 42.879,
-     "endD": 0.268
+     "endDist": 42.551,
+     "endD": 0.324
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -764,16 +764,16 @@
       2.225
      ],
      "tStrike": 0.039,
-     "letoff": 1.617,
+     "letoff": 1.615,
      "tLetoff": 0.039,
      "check": 13.186,
      "tCheck": 0.056,
-     "resetUp": 0.468,
-     "maxD": 10.737,
+     "resetUp": 0.469,
+     "maxD": 10.738,
      "dip": 10.369,
-     "keyUpMs": 69,
+     "keyUpMs": 68,
      "homeMs": null,
-     "endDist": 44.171,
+     "endDist": 44.173,
      "endD": 0.047
     },
     "ff": {
@@ -782,7 +782,7 @@
       4.982
      ],
      "tStrike": 0.018,
-     "letoff": 1.797,
+     "letoff": 1.796,
      "tLetoff": 0.017,
      "check": 18.168,
      "tCheck": 0.029,
@@ -790,25 +790,25 @@
      "maxD": 10.678,
      "dip": 10.369,
      "keyUpMs": 60,
-     "homeMs": 493,
+     "homeMs": 466,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset",
      "strikes": [
-      3.445
+      3.444
      ],
      "tStrike": 0.024,
-     "letoff": 1.486,
+     "letoff": 1.488,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.773,
-     "maxD": 10.805,
+     "resetUp": 0.772,
+     "maxD": 10.804,
      "dip": 10.369,
      "keyUpMs": 0,
-     "homeMs": 409,
+     "homeMs": 383,
      "endDist": 44.45,
      "endD": 0
     }
@@ -820,13 +820,13 @@
     "bottom": 44.711
    },
    "keyReturn": {
-    "keyMs": 68.1,
-    "homeMs": 525.2,
+    "keyMs": 68.2,
+    "homeMs": 502.7,
     "resetUp": 0.441,
     "stuck": false
    },
    "repeat": {
-    "half": 12,
+    "half": 13,
     "full": 16
    }
   },
@@ -863,10 +863,10 @@
      "resetUp": null,
      "maxD": 7.521,
      "dip": 7.521,
-     "keyUpMs": 217,
+     "keyUpMs": 198,
      "homeMs": null,
-     "endDist": 43.589,
-     "endD": 0.147
+     "endDist": 43.29,
+     "endD": 0.198
     },
     "set250": {
      "order": "strike strike bobble softcheck",
@@ -882,10 +882,10 @@
      "resetUp": null,
      "maxD": 7.521,
      "dip": 7.521,
-     "keyUpMs": 217,
+     "keyUpMs": 198,
      "homeMs": null,
-     "endDist": 43.589,
-     "endD": 0.147
+     "endDist": 43.29,
+     "endD": 0.198
     },
     "set600": {
      "order": "strike strike bobble strike bobble softcheck",
@@ -902,16 +902,16 @@
      "resetUp": null,
      "maxD": 7.521,
      "dip": 7.521,
-     "keyUpMs": 217,
+     "keyUpMs": 198,
      "homeMs": null,
-     "endDist": 43.589,
-     "endD": 0.147
+     "endDist": 43.29,
+     "endD": 0.198
     },
     "pp": {
      "order": "strike strike bobble softcheck",
      "strikes": [
       0.802,
-      0.262
+      0.261
      ],
      "tStrike": 0.097,
      "letoff": null,
@@ -919,12 +919,12 @@
      "check": null,
      "tCheck": null,
      "resetUp": null,
-     "maxD": 7.882,
+     "maxD": 7.883,
      "dip": 7.521,
-     "keyUpMs": 213,
+     "keyUpMs": 188,
      "homeMs": null,
-     "endDist": 43.446,
-     "endD": 0.171
+     "endDist": 43.523,
+     "endD": 0.158
     },
     "mf": {
      "order": "letoff strike reset pop strike bobble softcheck",
@@ -933,17 +933,17 @@
       0.523
      ],
      "tStrike": 0.039,
-     "letoff": 1.42,
+     "letoff": 1.418,
      "tLetoff": 0.039,
      "check": null,
      "tCheck": null,
      "resetUp": -0.011,
      "maxD": 8.273,
      "dip": 7.521,
-     "keyUpMs": 211,
+     "keyUpMs": 183,
      "homeMs": null,
-     "endDist": 43.423,
-     "endD": 0.175
+     "endDist": 43.79,
+     "endD": 0.112
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
@@ -959,7 +959,7 @@
      "maxD": 8.75,
      "dip": 7.521,
      "keyUpMs": 57,
-     "homeMs": 454,
+     "homeMs": 428,
      "endDist": 44.45,
      "endD": 0
     },
@@ -969,17 +969,17 @@
       3.434
      ],
      "tStrike": 0.024,
-     "letoff": 1.491,
+     "letoff": 1.493,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.155,
+     "resetUp": 0.154,
      "maxD": 8.391,
      "dip": 7.521,
      "keyUpMs": 0,
      "homeMs": null,
-     "endDist": 44.5,
-     "endD": -0.008
+     "endDist": 44.224,
+     "endD": 0.038
     }
    },
    "touch": {
@@ -989,13 +989,13 @@
     "bottom": 18.514
    },
    "keyReturn": {
-    "keyMs": 211,
-    "homeMs": 586.5,
+    "keyMs": 183.3,
+    "homeMs": 550.2,
     "resetUp": null,
     "stuck": false
    },
    "repeat": {
-    "half": 11,
+    "half": 23,
     "full": 16
    }
   },
@@ -1032,10 +1032,10 @@
      "resetUp": 0.386,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 245,
+     "keyUpMs": 191,
      "homeMs": null,
-     "endDist": 43.786,
-     "endD": 0.113
+     "endDist": 44.817,
+     "endD": -0.062
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -1050,10 +1050,10 @@
      "resetUp": 0.423,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 176,
+     "keyUpMs": 173,
      "homeMs": null,
-     "endDist": 44.921,
-     "endD": -0.08
+     "endDist": 44.825,
+     "endD": -0.064
     },
     "set600": {
      "order": "strike letoff checked uncheck reset",
@@ -1068,10 +1068,10 @@
      "resetUp": 0.496,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 162,
+     "keyUpMs": 161,
      "homeMs": null,
-     "endDist": 44.5,
-     "endD": -0.009
+     "endDist": 44.605,
+     "endD": -0.026
     },
     "pp": {
      "order": "letoff strike checked uncheck reset",
@@ -1079,17 +1079,17 @@
       0.829
      ],
      "tStrike": 0.097,
-     "letoff": 1.526,
+     "letoff": 1.521,
      "tLetoff": 0.095,
-     "check": 11.834,
+     "check": 11.831,
      "tCheck": 0.128,
      "resetUp": 0.399,
      "maxD": 9.992,
      "dip": 9.525,
-     "keyUpMs": 173,
+     "keyUpMs": 170,
      "homeMs": null,
-     "endDist": 44.922,
-     "endD": -0.08
+     "endDist": 44.836,
+     "endD": -0.066
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -1104,10 +1104,10 @@
      "resetUp": 0.457,
      "maxD": 10.432,
      "dip": 9.525,
-     "keyUpMs": 156,
+     "keyUpMs": 154,
      "homeMs": null,
-     "endDist": 44.501,
-     "endD": -0.009
+     "endDist": 44.628,
+     "endD": -0.03
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
@@ -1123,9 +1123,9 @@
      "maxD": 10.686,
      "dip": 9.525,
      "keyUpMs": 145,
-     "homeMs": null,
-     "endDist": 44.297,
-     "endD": 0.026
+     "homeMs": 494,
+     "endDist": 44.45,
+     "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
@@ -1133,17 +1133,17 @@
       3.442
      ],
      "tStrike": 0.024,
-     "letoff": 1.486,
+     "letoff": 1.487,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.801,
-     "maxD": 10.36,
+     "resetUp": 0.842,
+     "maxD": 10.358,
      "dip": 9.525,
      "keyUpMs": 0,
      "homeMs": null,
-     "endDist": 44.311,
-     "endD": 0.024
+     "endDist": 44.562,
+     "endD": -0.019
     }
    },
    "touch": {
@@ -1153,8 +1153,8 @@
     "bottom": 23.984
    },
    "keyReturn": {
-    "keyMs": 155.6,
-    "homeMs": 535.9,
+    "keyMs": 153.9,
+    "homeMs": 516.1,
     "resetUp": 0.456,
     "stuck": false
    },
@@ -1193,13 +1193,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.192,
+     "resetUp": 0.212,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 101,
+     "keyUpMs": 110,
      "homeMs": null,
-     "endDist": 44.028,
-     "endD": 0.072
+     "endDist": 43.242,
+     "endD": 0.206
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -1216,8 +1216,8 @@
      "dip": 9.525,
      "keyUpMs": 53,
      "homeMs": null,
-     "endDist": 44.442,
-     "endD": 0.001
+     "endDist": 44.495,
+     "endD": -0.008
     },
     "set600": {
      "order": "strike letoff checked uncheck reset",
@@ -1234,8 +1234,8 @@
      "dip": 9.525,
      "keyUpMs": 48,
      "homeMs": null,
-     "endDist": 44.752,
-     "endD": -0.051
+     "endDist": 44.937,
+     "endD": -0.083
     },
     "pp": {
      "order": "letoff strike strike bobble reset railbounce",
@@ -1244,17 +1244,17 @@
       0.234
      ],
      "tStrike": 0.097,
-     "letoff": 1.537,
+     "letoff": 1.522,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.199,
+     "resetUp": 0.22,
      "maxD": 9.849,
      "dip": 9.525,
-     "keyUpMs": 102,
+     "keyUpMs": 113,
      "homeMs": null,
-     "endDist": 43.996,
-     "endD": 0.077
+     "endDist": 43.036,
+     "endD": 0.241
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -1262,7 +1262,7 @@
       2.224
      ],
      "tStrike": 0.039,
-     "letoff": 1.624,
+     "letoff": 1.621,
      "tLetoff": 0.039,
      "check": 14.112,
      "tCheck": 0.057,
@@ -1271,8 +1271,8 @@
      "dip": 9.525,
      "keyUpMs": 49,
      "homeMs": null,
-     "endDist": 44.89,
-     "endD": -0.075
+     "endDist": 44.913,
+     "endD": -0.079
     },
     "ff": {
      "order": "letoff strike checked jumpcheck pop strike bobble reset",
@@ -1285,13 +1285,13 @@
      "tLetoff": 0.017,
      "check": 18.887,
      "tCheck": 0.029,
-     "resetUp": 0.201,
+     "resetUp": 0.215,
      "maxD": 10.758,
      "dip": 9.525,
-     "keyUpMs": 119,
+     "keyUpMs": 116,
      "homeMs": null,
-     "endDist": 42.784,
-     "endD": 0.285
+     "endDist": 42.855,
+     "endD": 0.272
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
@@ -1299,15 +1299,15 @@
       3.447
      ],
      "tStrike": 0.024,
-     "letoff": 1.485,
+     "letoff": 1.487,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.736,
+     "resetUp": 0.735,
      "maxD": 10.323,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 564,
+     "homeMs": 539,
      "endDist": 44.45,
      "endD": 0
     }
@@ -1320,7 +1320,7 @@
    },
    "keyReturn": {
     "keyMs": 49.1,
-    "homeMs": 531,
+    "homeMs": 524.9,
     "resetUp": 0.424,
     "stuck": false
    },
@@ -1359,13 +1359,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 144,
+     "keyUpMs": 137,
      "homeMs": null,
-     "endDist": 43.375,
-     "endD": 0.183
+     "endDist": 42.902,
+     "endD": 0.264
     },
     "set250": {
      "order": "letoff strike strike bobble reset",
@@ -1378,13 +1378,13 @@
      "tLetoff": 0.032,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 144,
+     "keyUpMs": 137,
      "homeMs": null,
-     "endDist": 43.375,
-     "endD": 0.183
+     "endDist": 42.902,
+     "endD": 0.264
     },
     "set600": {
      "order": "strike letoff railbounce pop strike bobble reset",
@@ -1397,13 +1397,13 @@
      "tLetoff": 0.013,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 144,
+     "keyUpMs": 137,
      "homeMs": null,
-     "endDist": 43.375,
-     "endD": 0.183
+     "endDist": 42.902,
+     "endD": 0.264
     },
     "pp": {
      "order": "letoff strike reset",
@@ -1411,17 +1411,17 @@
       0.826
      ],
      "tStrike": 0.097,
-     "letoff": 1.495,
+     "letoff": 1.485,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.181,
-     "maxD": 9.925,
+     "resetUp": 0.174,
+     "maxD": 9.924,
      "dip": 9.525,
-     "keyUpMs": 141,
+     "keyUpMs": 129,
      "homeMs": null,
-     "endDist": 43.644,
-     "endD": 0.137
+     "endDist": 43.043,
+     "endD": 0.24
     },
     "mf": {
      "order": "letoff strike railbounce strike bobble reset",
@@ -1430,17 +1430,17 @@
       0.149
      ],
      "tStrike": 0.039,
-     "letoff": 1.617,
+     "letoff": 1.615,
      "tLetoff": 0.039,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.203,
+     "resetUp": 0.182,
      "maxD": 10.417,
      "dip": 9.525,
-     "keyUpMs": 136,
+     "keyUpMs": 122,
      "homeMs": null,
-     "endDist": 43.927,
-     "endD": 0.089
+     "endDist": 43.156,
+     "endD": 0.221
     },
     "ff": {
      "order": "letoff strike railbounce pop strike bobble reset",
@@ -1449,36 +1449,36 @@
       0.648
      ],
      "tStrike": 0.018,
-     "letoff": 1.797,
+     "letoff": 1.796,
      "tLetoff": 0.017,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.193,
+     "resetUp": 0.178,
      "maxD": 10.766,
      "dip": 9.525,
-     "keyUpMs": 136,
+     "keyUpMs": 131,
      "homeMs": null,
-     "endDist": 43.902,
-     "endD": 0.093
+     "endDist": 43.163,
+     "endD": 0.219
     },
     "staccato": {
      "order": "letoff strike reset railbounce pop letoff strike reset",
      "strikes": [
-      3.445,
-      0.526
+      3.444,
+      0.559
      ],
      "tStrike": 0.024,
-     "letoff": 1.486,
+     "letoff": 1.488,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
      "resetUp": 0.966,
-     "maxD": 10.339,
+     "maxD": 10.338,
      "dip": 9.525,
      "keyUpMs": 0,
      "homeMs": null,
-     "endDist": 43.653,
-     "endD": 0.136
+     "endDist": 43.437,
+     "endD": 0.173
     }
    },
    "touch": {
@@ -1488,8 +1488,8 @@
     "bottom": 44.426
    },
    "keyReturn": {
-    "keyMs": 132.5,
-    "homeMs": 604.1,
+    "keyMs": 129.1,
+    "homeMs": 563.8,
     "resetUp": 0.199,
     "stuck": false
    },
@@ -1531,8 +1531,8 @@
      "resetUp": 0.04,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 221,
-     "homeMs": 333,
+     "keyUpMs": 205,
+     "homeMs": 328,
      "endDist": 48.597,
      "endD": 0
     },
@@ -1550,7 +1550,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 137,
-     "homeMs": 280,
+     "homeMs": 278,
      "endDist": 48.597,
      "endD": 0
     },
@@ -1568,7 +1568,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 130,
-     "homeMs": 272,
+     "homeMs": 270,
      "endDist": 48.597,
      "endD": 0
     },
@@ -1578,15 +1578,15 @@
       0.867
      ],
      "tStrike": 0.099,
-     "letoff": 1.483,
-     "tLetoff": 0.098,
+     "letoff": 1.558,
+     "tLetoff": 0.097,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.049,
-     "maxD": 9.905,
+     "resetUp": 0.039,
+     "maxD": 9.906,
      "dip": 9.525,
-     "keyUpMs": 223,
-     "homeMs": 335,
+     "keyUpMs": 209,
+     "homeMs": 330,
      "endDist": 48.597,
      "endD": 0
     },
@@ -1596,7 +1596,7 @@
       2.343
      ],
      "tStrike": 0.041,
-     "letoff": 1.516,
+     "letoff": 1.514,
      "tLetoff": 0.041,
      "check": 14.44,
      "tCheck": 0.058,
@@ -1614,7 +1614,7 @@
       5.241
      ],
      "tStrike": 0.019,
-     "letoff": 1.5,
+     "letoff": 1.499,
      "tLetoff": 0.019,
      "check": 19.508,
      "tCheck": 0.03,
@@ -1629,10 +1629,10 @@
     "staccato": {
      "order": "letoff strike uncheck reset railbounce railbounce railbounce",
      "strikes": [
-      3.334
+      3.333
      ],
      "tStrike": 0.026,
-     "letoff": 1.713,
+     "letoff": 1.714,
      "tLetoff": 0.025,
      "check": null,
      "tCheck": null,
@@ -1646,14 +1646,14 @@
     }
    },
    "touch": {
-    "down": 52.807,
+    "down": 45.228,
     "up": 16.898,
     "peak": 136.175,
     "bottom": 43.725
    },
    "keyReturn": {
     "keyMs": 130.5,
-    "homeMs": 361,
+    "homeMs": 342.7,
     "resetUp": 0.286,
     "stuck": false
    },
@@ -1692,13 +1692,13 @@
      "tLetoff": 0.116,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.306,
+     "resetUp": 0.312,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 131,
+     "keyUpMs": 116,
      "homeMs": null,
-     "endDist": 38.545,
-     "endD": 0.007
+     "endDist": 39.023,
+     "endD": -0.076
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -1714,7 +1714,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 64,
-     "homeMs": 467,
+     "homeMs": 445,
      "endDist": 38.587,
      "endD": 0
     },
@@ -1732,7 +1732,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 467,
+     "homeMs": 415,
      "endDist": 38.587,
      "endD": 0
     },
@@ -1743,17 +1743,17 @@
       0.151
      ],
      "tStrike": 0.089,
-     "letoff": 1.503,
+     "letoff": 1.49,
      "tLetoff": 0.087,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.31,
+     "resetUp": 0.293,
      "maxD": 9.669,
      "dip": 9.525,
-     "keyUpMs": 115,
+     "keyUpMs": 118,
      "homeMs": null,
-     "endDist": 38.877,
-     "endD": -0.051
+     "endDist": 38.989,
+     "endD": -0.07
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -1761,15 +1761,15 @@
       2.067
      ],
      "tStrike": 0.036,
-     "letoff": 1.558,
+     "letoff": 1.556,
      "tLetoff": 0.036,
      "check": 13.676,
      "tCheck": 0.054,
      "resetUp": 0.509,
-     "maxD": 9.661,
+     "maxD": 9.662,
      "dip": 9.525,
      "keyUpMs": 60,
-     "homeMs": 465,
+     "homeMs": 443,
      "endDist": 38.587,
      "endD": 0
     },
@@ -1787,7 +1787,7 @@
      "maxD": 9.746,
      "dip": 9.525,
      "keyUpMs": 55,
-     "homeMs": 477,
+     "homeMs": 421,
      "endDist": 38.587,
      "endD": 0
     },
@@ -1797,15 +1797,15 @@
       3.413
      ],
      "tStrike": 0.022,
-     "letoff": 1.496,
+     "letoff": 1.495,
      "tLetoff": 0.022,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.616,
+     "resetUp": 0.614,
      "maxD": 9.711,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 468,
+     "homeMs": 418,
      "endDist": 38.587,
      "endD": 0
     }
@@ -1818,12 +1818,12 @@
    },
    "keyReturn": {
     "keyMs": 59.3,
-    "homeMs": 464.6,
+    "homeMs": 442.7,
     "resetUp": 0.513,
     "stuck": false
    },
    "repeat": {
-    "half": 5,
+    "half": 3,
     "full": 14
    }
   },
@@ -1858,13 +1858,13 @@
      "tLetoff": 0.125,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.312,
+     "resetUp": 0.335,
      "maxD": 10.188,
      "dip": 10.585,
-     "keyUpMs": 122,
+     "keyUpMs": 124,
      "homeMs": null,
-     "endDist": 40.443,
-     "endD": 0.212
+     "endDist": 40.326,
+     "endD": 0.232
     },
     "set250": {
      "order": "letoff strike jackjam checked uncheck reset",
@@ -1880,7 +1880,7 @@
      "maxD": 10.3,
      "dip": 10.585,
      "keyUpMs": 69,
-     "homeMs": 497,
+     "homeMs": 466,
      "endDist": 41.67,
      "endD": 0
     },
@@ -1898,7 +1898,7 @@
      "maxD": 10.32,
      "dip": 10.585,
      "keyUpMs": 63,
-     "homeMs": 486,
+     "homeMs": 461,
      "endDist": 41.67,
      "endD": 0
     },
@@ -1906,20 +1906,20 @@
      "order": "letoff strike jackjam softcheck strike bobble reset",
      "strikes": [
       0.799,
-      0.16
+      0.162
      ],
      "tStrike": 0.093,
-     "letoff": 1.498,
+     "letoff": 1.488,
      "tLetoff": 0.091,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.331,
-     "maxD": 10.207,
+     "resetUp": 0.34,
+     "maxD": 10.216,
      "dip": 10.585,
-     "keyUpMs": 123,
+     "keyUpMs": 124,
      "homeMs": null,
-     "endDist": 40.429,
-     "endD": 0.214
+     "endDist": 40.311,
+     "endD": 0.235
     },
     "mf": {
      "order": "letoff strike jackjam checked uncheck reset",
@@ -1927,7 +1927,7 @@
       2.152
      ],
      "tStrike": 0.038,
-     "letoff": 1.6,
+     "letoff": 1.598,
      "tLetoff": 0.037,
      "check": 13.236,
      "tCheck": 0.055,
@@ -1935,7 +1935,7 @@
      "maxD": 10.176,
      "dip": 10.585,
      "keyUpMs": 67,
-     "homeMs": 486,
+     "homeMs": 461,
      "endDist": 41.67,
      "endD": 0
     },
@@ -1953,7 +1953,7 @@
      "maxD": 10.284,
      "dip": 10.585,
      "keyUpMs": 60,
-     "homeMs": 490,
+     "homeMs": 463,
      "endDist": 41.67,
      "endD": 0
     },
@@ -1963,15 +1963,15 @@
       3.499
      ],
      "tStrike": 0.023,
-     "letoff": 1.468,
+     "letoff": 1.467,
      "tLetoff": 0.023,
-     "check": 15.594,
+     "check": 15.593,
      "tCheck": 0.037,
      "resetUp": 0.571,
      "maxD": 10.288,
      "dip": 10.585,
      "keyUpMs": 0,
-     "homeMs": 513,
+     "homeMs": 488,
      "endDist": 41.67,
      "endD": 0
     }
@@ -1984,12 +1984,12 @@
    },
    "keyReturn": {
     "keyMs": 66.4,
-    "homeMs": 485.6,
+    "homeMs": 460.4,
     "resetUp": 0.514,
     "stuck": false
    },
    "repeat": {
-    "half": 5,
+    "half": 0,
     "full": 13
    }
   },
@@ -2014,7 +2014,7 @@
      "endD": 9.525
     },
     "set60": {
-     "order": "letoff strike reset railbounce",
+     "order": "letoff strike reset uncheck railbounce",
      "strikes": [
       0.251
      ],
@@ -2023,13 +2023,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 146,
-     "homeMs": null,
-     "endDist": 45,
-     "endD": 0.049
+     "keyUpMs": 141,
+     "homeMs": 498,
+     "endDist": 45.29,
+     "endD": 0
     },
     "set250": {
      "order": "letoff strike checked uncheck reset railbounce",
@@ -2045,9 +2045,9 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 79,
-     "homeMs": null,
-     "endDist": 45.255,
-     "endD": 0.006
+     "homeMs": 481,
+     "endDist": 45.29,
+     "endD": 0
     },
     "set600": {
      "order": "letoff strike checked uncheck reset",
@@ -2063,27 +2063,27 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 64,
-     "homeMs": 478,
+     "homeMs": 457,
      "endDist": 45.29,
      "endD": 0
     },
     "pp": {
      "order": "letoff strike softcheck reset railbounce",
      "strikes": [
-      0.754
+      0.719
      ],
-     "tStrike": 0.099,
-     "letoff": 1.413,
-     "tLetoff": 0.098,
+     "tStrike": 0.1,
+     "letoff": 0.828,
+     "tLetoff": 0.099,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.211,
-     "maxD": 9.892,
+     "resetUp": 0.19,
+     "maxD": 9.754,
      "dip": 9.525,
-     "keyUpMs": 144,
-     "homeMs": null,
-     "endDist": 45.003,
-     "endD": 0.048
+     "keyUpMs": 131,
+     "homeMs": 493,
+     "endDist": 45.29,
+     "endD": 0
     },
     "mf": {
      "order": "letoff strike checked uncheck reset railbounce",
@@ -2091,17 +2091,17 @@
       2.211
      ],
      "tStrike": 0.04,
-     "letoff": 1.458,
+     "letoff": 1.454,
      "tLetoff": 0.039,
-     "check": 14.077,
+     "check": 14.256,
      "tCheck": 0.057,
-     "resetUp": 0.447,
-     "maxD": 10.259,
+     "resetUp": 0.471,
+     "maxD": 10.355,
      "dip": 9.525,
-     "keyUpMs": 70,
-     "homeMs": null,
-     "endDist": 45.2,
-     "endD": 0.015
+     "keyUpMs": 69,
+     "homeMs": 483,
+     "endDist": 45.29,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike checked uncheck buzz reset railbounce",
@@ -2109,17 +2109,17 @@
       4.976
      ],
      "tStrike": 0.018,
-     "letoff": 1.362,
+     "letoff": 1.361,
      "tLetoff": 0.018,
-     "check": 18.668,
+     "check": 18.669,
      "tCheck": 0.029,
-     "resetUp": 0.168,
+     "resetUp": 0.194,
      "maxD": 10.627,
      "dip": 9.525,
-     "keyUpMs": 137,
-     "homeMs": null,
-     "endDist": 45.064,
-     "endD": 0.038
+     "keyUpMs": 124,
+     "homeMs": 487,
+     "endDist": 45.29,
+     "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
@@ -2127,7 +2127,7 @@
       3.509
      ],
      "tStrike": 0.024,
-     "letoff": 1.416,
+     "letoff": 1.414,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
@@ -2135,25 +2135,25 @@
      "maxD": 10.251,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 463,
+     "homeMs": 436,
      "endDist": 45.29,
      "endD": 0
     }
    },
    "touch": {
     "down": 47.098,
-    "up": 17.035,
+    "up": 17.058,
     "peak": 139.918,
     "bottom": 44.426
    },
    "keyReturn": {
-    "keyMs": 69.4,
-    "homeMs": 509.1,
-    "resetUp": 0.477,
+    "keyMs": 69,
+    "homeMs": 483.4,
+    "resetUp": 0.481,
     "stuck": false
    },
    "repeat": {
-    "half": 13,
+    "half": 0,
     "full": 14
    }
   },
@@ -2187,13 +2187,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.185,
+     "resetUp": 0.186,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 159,
+     "keyUpMs": 150,
      "homeMs": null,
-     "endDist": 43.043,
-     "endD": 0.24
+     "endDist": 42.602,
+     "endD": 0.316
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -2227,7 +2227,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 66,
-     "homeMs": 489,
+     "homeMs": 457,
      "endDist": 44.45,
      "endD": 0
     },
@@ -2238,17 +2238,17 @@
       0.184
      ],
      "tStrike": 0.097,
-     "letoff": 1.564,
+     "letoff": 1.555,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
      "resetUp": 0.186,
      "maxD": 9.949,
      "dip": 9.525,
-     "keyUpMs": 156,
+     "keyUpMs": 148,
      "homeMs": null,
-     "endDist": 43.075,
-     "endD": 0.235
+     "endDist": 42.58,
+     "endD": 0.319
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -2256,7 +2256,7 @@
       2.226
      ],
      "tStrike": 0.039,
-     "letoff": 1.616,
+     "letoff": 1.615,
      "tLetoff": 0.039,
      "check": 14.226,
      "tCheck": 0.057,
@@ -2264,9 +2264,9 @@
      "maxD": 10.422,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.158,
-     "endD": 0.05
+     "homeMs": 499,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
@@ -2282,25 +2282,25 @@
      "maxD": 10.683,
      "dip": 9.525,
      "keyUpMs": 60,
-     "homeMs": 481,
+     "homeMs": 455,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.433
+      3.432
      ],
      "tStrike": 0.024,
-     "letoff": 1.488,
+     "letoff": 1.49,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.683,
-     "maxD": 10.345,
+     "resetUp": 0.685,
+     "maxD": 10.346,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 570,
+     "homeMs": 541,
      "endDist": 44.45,
      "endD": 0
     }
@@ -2313,13 +2313,13 @@
    },
    "keyReturn": {
     "keyMs": 69.4,
-    "homeMs": 522.5,
+    "homeMs": 499.1,
     "resetUp": 0.425,
     "stuck": false
    },
    "repeat": {
-    "half": 13,
-    "full": 14
+    "half": 0,
+    "full": 15
    }
   },
   {
@@ -2352,13 +2352,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.174,
+     "resetUp": 0.18,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 149,
+     "keyUpMs": 152,
      "homeMs": null,
-     "endDist": 42.812,
-     "endD": 0.28
+     "endDist": 42.793,
+     "endD": 0.283
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -2388,13 +2388,13 @@
      "tLetoff": 0.013,
      "check": 16.236,
      "tCheck": 0.027,
-     "resetUp": 0.481,
+     "resetUp": 0.482,
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 72,
-     "homeMs": null,
-     "endDist": 44.396,
-     "endD": 0.009
+     "homeMs": 485,
+     "endDist": 44.45,
+     "endD": 0
     },
     "pp": {
      "order": "letoff strike softcheck reset",
@@ -2406,12 +2406,12 @@
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.188,
+     "resetUp": 0.186,
      "maxD": 9.953,
      "dip": 9.525,
-     "keyUpMs": 130,
+     "keyUpMs": 134,
      "homeMs": null,
-     "endDist": 42.958,
+     "endDist": 42.954,
      "endD": 0.255
     },
     "mf": {
@@ -2446,7 +2446,7 @@
      "maxD": 10.683,
      "dip": 9.525,
      "keyUpMs": 63,
-     "homeMs": 480,
+     "homeMs": 449,
      "endDist": 44.45,
      "endD": 0
     },
@@ -2464,7 +2464,7 @@
      "maxD": 10.352,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 574,
+     "homeMs": 548,
      "endDist": 44.45,
      "endD": 0
     }
@@ -2477,7 +2477,7 @@
    },
    "keyReturn": {
     "keyMs": 120.5,
-    "homeMs": 566.1,
+    "homeMs": 531.4,
     "resetUp": 0.409,
     "stuck": false
    },
@@ -2516,13 +2516,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.198,
+     "resetUp": 0.18,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 139,
+     "keyUpMs": 131,
      "homeMs": null,
-     "endDist": 44.45,
-     "endD": 0
+     "endDist": 45.289,
+     "endD": -0.142
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -2566,30 +2566,30 @@
       0.798
      ],
      "tStrike": 0.102,
-     "letoff": 1.513,
+     "letoff": 1.558,
      "tLetoff": 0.1,
      "check": null,
      "tCheck": null,
      "resetUp": 0.193,
-     "maxD": 9.917,
+     "maxD": 9.918,
      "dip": 9.525,
-     "keyUpMs": 134,
+     "keyUpMs": 124,
      "homeMs": null,
-     "endDist": 44.45,
-     "endD": 0
+     "endDist": 45.198,
+     "endD": -0.127
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
      "strikes": [
-      2.2
+      2.199
      ],
      "tStrike": 0.039,
-     "letoff": 1.551,
+     "letoff": 1.541,
      "tLetoff": 0.039,
-     "check": 14.285,
+     "check": 14.283,
      "tCheck": 0.057,
      "resetUp": 0.424,
-     "maxD": 10.412,
+     "maxD": 10.413,
      "dip": 9.525,
      "keyUpMs": 64,
      "homeMs": null,
@@ -2602,7 +2602,7 @@
       4.944
      ],
      "tStrike": 0.018,
-     "letoff": 1.724,
+     "letoff": 1.719,
      "tLetoff": 0.017,
      "check": 18.904,
      "tCheck": 0.029,
@@ -2617,14 +2617,14 @@
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.419
+      3.42
      ],
      "tStrike": 0.024,
-     "letoff": 1.422,
+     "letoff": 1.429,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.754,
+     "resetUp": 0.753,
      "maxD": 10.336,
      "dip": 9.525,
      "keyUpMs": 0,
@@ -2646,7 +2646,7 @@
     "stuck": false
    },
    "repeat": {
-    "half": 13,
+    "half": 0,
     "full": 15
    }
   },
@@ -2680,13 +2680,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.186,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 146,
+     "keyUpMs": 138,
      "homeMs": null,
-     "endDist": 43.303,
-     "endD": 0.196
+     "endDist": 42.914,
+     "endD": 0.262
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -2720,7 +2720,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 66,
-     "homeMs": 488,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
@@ -2730,17 +2730,17 @@
       0.8
      ],
      "tStrike": 0.097,
-     "letoff": 1.556,
+     "letoff": 1.546,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.175,
+     "resetUp": 0.17,
      "maxD": 9.906,
      "dip": 9.525,
-     "keyUpMs": 142,
+     "keyUpMs": 128,
      "homeMs": null,
-     "endDist": 43.604,
-     "endD": 0.144
+     "endDist": 43.028,
+     "endD": 0.243
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -2748,7 +2748,7 @@
       2.212
      ],
      "tStrike": 0.039,
-     "letoff": 1.481,
+     "letoff": 1.479,
      "tLetoff": 0.039,
      "check": 14.318,
      "tCheck": 0.057,
@@ -2756,9 +2756,9 @@
      "maxD": 10.418,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.163,
-     "endD": 0.049
+     "homeMs": 499,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
@@ -2766,7 +2766,7 @@
       4.977
      ],
      "tStrike": 0.018,
-     "letoff": 1.811,
+     "letoff": 1.81,
      "tLetoff": 0.017,
      "check": 18.965,
      "tCheck": 0.029,
@@ -2774,7 +2774,7 @@
      "maxD": 10.762,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 483,
+     "homeMs": 457,
      "endDist": 44.45,
      "endD": 0
     },
@@ -2784,15 +2784,15 @@
       3.438
      ],
      "tStrike": 0.024,
-     "letoff": 1.512,
+     "letoff": 1.514,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.752,
-     "maxD": 10.338,
+     "resetUp": 0.753,
+     "maxD": 10.339,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 572,
+     "homeMs": 541,
      "endDist": 44.45,
      "endD": 0
     }
@@ -2805,7 +2805,7 @@
    },
    "keyReturn": {
     "keyMs": 69.2,
-    "homeMs": 521.7,
+    "homeMs": 498.4,
     "resetUp": 0.426,
     "stuck": false
    },
@@ -2844,13 +2844,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 144,
+     "keyUpMs": 137,
      "homeMs": null,
-     "endDist": 43.375,
-     "endD": 0.183
+     "endDist": 42.902,
+     "endD": 0.264
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -2884,7 +2884,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 66,
-     "homeMs": 488,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
@@ -2894,17 +2894,17 @@
       0.826
      ],
      "tStrike": 0.097,
-     "letoff": 1.495,
+     "letoff": 1.485,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
-     "maxD": 9.925,
+     "resetUp": 0.179,
+     "maxD": 9.924,
      "dip": 9.525,
-     "keyUpMs": 141,
+     "keyUpMs": 129,
      "homeMs": null,
-     "endDist": 43.644,
-     "endD": 0.137
+     "endDist": 43.045,
+     "endD": 0.24
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -2912,7 +2912,7 @@
       2.225
      ],
      "tStrike": 0.039,
-     "letoff": 1.617,
+     "letoff": 1.615,
      "tLetoff": 0.039,
      "check": 14.34,
      "tCheck": 0.057,
@@ -2920,9 +2920,9 @@
      "maxD": 10.417,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.174,
-     "endD": 0.047
+     "homeMs": 498,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
@@ -2930,7 +2930,7 @@
       4.982
      ],
      "tStrike": 0.018,
-     "letoff": 1.797,
+     "letoff": 1.796,
      "tLetoff": 0.017,
      "check": 18.975,
      "tCheck": 0.029,
@@ -2938,25 +2938,25 @@
      "maxD": 10.766,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 482,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.445
+      3.444
      ],
      "tStrike": 0.024,
-     "letoff": 1.486,
+     "letoff": 1.488,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
      "resetUp": 0.754,
-     "maxD": 10.339,
+     "maxD": 10.338,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 572,
+     "homeMs": 541,
      "endDist": 44.45,
      "endD": 0
     }
@@ -2969,7 +2969,7 @@
    },
    "keyReturn": {
     "keyMs": 68.9,
-    "homeMs": 521,
+    "homeMs": 497.8,
     "resetUp": 0.42,
     "stuck": false
    },
@@ -3008,13 +3008,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 144,
+     "keyUpMs": 137,
      "homeMs": null,
-     "endDist": 43.375,
-     "endD": 0.183
+     "endDist": 42.902,
+     "endD": 0.264
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -3048,7 +3048,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 66,
-     "homeMs": 488,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
@@ -3058,17 +3058,17 @@
       0.826
      ],
      "tStrike": 0.097,
-     "letoff": 1.495,
+     "letoff": 1.485,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
-     "maxD": 9.925,
+     "resetUp": 0.179,
+     "maxD": 9.924,
      "dip": 9.525,
-     "keyUpMs": 141,
+     "keyUpMs": 129,
      "homeMs": null,
-     "endDist": 43.644,
-     "endD": 0.137
+     "endDist": 43.045,
+     "endD": 0.24
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -3076,7 +3076,7 @@
       2.225
      ],
      "tStrike": 0.039,
-     "letoff": 1.617,
+     "letoff": 1.615,
      "tLetoff": 0.039,
      "check": 14.34,
      "tCheck": 0.057,
@@ -3084,9 +3084,9 @@
      "maxD": 10.417,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.174,
-     "endD": 0.047
+     "homeMs": 498,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
@@ -3094,7 +3094,7 @@
       4.982
      ],
      "tStrike": 0.018,
-     "letoff": 1.797,
+     "letoff": 1.796,
      "tLetoff": 0.017,
      "check": 18.975,
      "tCheck": 0.029,
@@ -3102,25 +3102,25 @@
      "maxD": 10.766,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 482,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.445
+      3.444
      ],
      "tStrike": 0.024,
-     "letoff": 1.486,
+     "letoff": 1.488,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
      "resetUp": 0.754,
-     "maxD": 10.339,
+     "maxD": 10.338,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 572,
+     "homeMs": 541,
      "endDist": 44.45,
      "endD": 0
     }
@@ -3133,7 +3133,7 @@
    },
    "keyReturn": {
     "keyMs": 68.9,
-    "homeMs": 521,
+    "homeMs": 497.8,
     "resetUp": 0.42,
     "stuck": false
    },
@@ -3172,13 +3172,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 144,
+     "keyUpMs": 137,
      "homeMs": null,
-     "endDist": 44.466,
-     "endD": -0.003
+     "endDist": 44.2,
+     "endD": 0.043
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -3212,27 +3212,27 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 66,
-     "homeMs": 487,
+     "homeMs": 455,
      "endDist": 44.45,
      "endD": 0
     },
     "pp": {
      "order": "letoff strike softcheck reset",
      "strikes": [
-      0.812
+      0.811
      ],
      "tStrike": 0.098,
-     "letoff": 1.51,
+     "letoff": 1.498,
      "tLetoff": 0.097,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.172,
+     "resetUp": 0.187,
      "maxD": 9.922,
      "dip": 9.525,
-     "keyUpMs": 141,
+     "keyUpMs": 130,
      "homeMs": null,
-     "endDist": 44.81,
-     "endD": -0.061
+     "endDist": 44.672,
+     "endD": -0.038
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -3240,7 +3240,7 @@
       2.229
      ],
      "tStrike": 0.04,
-     "letoff": 1.52,
+     "letoff": 1.518,
      "tLetoff": 0.039,
      "check": 14.343,
      "tCheck": 0.057,
@@ -3248,9 +3248,9 @@
      "maxD": 10.448,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.236,
-     "endD": 0.036
+     "homeMs": 494,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
@@ -3266,25 +3266,25 @@
      "maxD": 10.697,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 481,
+     "homeMs": 455,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.431
+      3.43
      ],
      "tStrike": 0.024,
-     "letoff": 1.608,
+     "letoff": 1.609,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.78,
+     "resetUp": 0.779,
      "maxD": 10.321,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 540,
+     "homeMs": 487,
      "endDist": 44.45,
      "endD": 0
     }
@@ -3297,7 +3297,7 @@
    },
    "keyReturn": {
     "keyMs": 68.8,
-    "homeMs": 517,
+    "homeMs": 494.2,
     "resetUp": 0.42,
     "stuck": false
    },
@@ -3336,13 +3336,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 144,
+     "keyUpMs": 137,
      "homeMs": null,
-     "endDist": 43.375,
-     "endD": 0.183
+     "endDist": 42.902,
+     "endD": 0.264
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -3376,7 +3376,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 66,
-     "homeMs": 488,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
@@ -3386,17 +3386,17 @@
       0.826
      ],
      "tStrike": 0.097,
-     "letoff": 1.495,
+     "letoff": 1.485,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
-     "maxD": 9.925,
+     "resetUp": 0.179,
+     "maxD": 9.924,
      "dip": 9.525,
-     "keyUpMs": 141,
+     "keyUpMs": 129,
      "homeMs": null,
-     "endDist": 43.644,
-     "endD": 0.137
+     "endDist": 43.045,
+     "endD": 0.24
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -3404,7 +3404,7 @@
       2.225
      ],
      "tStrike": 0.039,
-     "letoff": 1.617,
+     "letoff": 1.615,
      "tLetoff": 0.039,
      "check": 14.34,
      "tCheck": 0.057,
@@ -3412,9 +3412,9 @@
      "maxD": 10.417,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.174,
-     "endD": 0.047
+     "homeMs": 498,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
@@ -3422,7 +3422,7 @@
       4.982
      ],
      "tStrike": 0.018,
-     "letoff": 1.797,
+     "letoff": 1.796,
      "tLetoff": 0.017,
      "check": 18.975,
      "tCheck": 0.029,
@@ -3430,25 +3430,25 @@
      "maxD": 10.766,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 482,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.445
+      3.444
      ],
      "tStrike": 0.024,
-     "letoff": 1.486,
+     "letoff": 1.488,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
      "resetUp": 0.754,
-     "maxD": 10.339,
+     "maxD": 10.338,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 572,
+     "homeMs": 541,
      "endDist": 44.45,
      "endD": 0
     }
@@ -3461,7 +3461,7 @@
    },
    "keyReturn": {
     "keyMs": 68.9,
-    "homeMs": 521,
+    "homeMs": 497.8,
     "resetUp": 0.42,
     "stuck": false
    },
@@ -3500,13 +3500,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 144,
+     "keyUpMs": 137,
      "homeMs": null,
-     "endDist": 43.375,
-     "endD": 0.183
+     "endDist": 42.902,
+     "endD": 0.264
     },
     "set250": {
      "order": "letoff strike click checked uncheck reset",
@@ -3540,7 +3540,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 66,
-     "homeMs": 488,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
@@ -3550,17 +3550,17 @@
       0.619
      ],
      "tStrike": 0.097,
-     "letoff": 1.495,
+     "letoff": 1.485,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
-     "maxD": 9.925,
+     "resetUp": 0.179,
+     "maxD": 9.924,
      "dip": 9.525,
-     "keyUpMs": 141,
+     "keyUpMs": 129,
      "homeMs": null,
-     "endDist": 43.644,
-     "endD": 0.137
+     "endDist": 43.045,
+     "endD": 0.24
     },
     "mf": {
      "order": "letoff strike click checked uncheck reset",
@@ -3568,7 +3568,7 @@
       1.669
      ],
      "tStrike": 0.039,
-     "letoff": 1.617,
+     "letoff": 1.615,
      "tLetoff": 0.039,
      "check": 14.34,
      "tCheck": 0.057,
@@ -3576,9 +3576,9 @@
      "maxD": 10.417,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.174,
-     "endD": 0.047
+     "homeMs": 498,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike click checked uncheck reset",
@@ -3586,7 +3586,7 @@
       3.736
      ],
      "tStrike": 0.018,
-     "letoff": 1.797,
+     "letoff": 1.796,
      "tLetoff": 0.017,
      "check": 18.975,
      "tCheck": 0.029,
@@ -3594,25 +3594,25 @@
      "maxD": 10.766,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 482,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike click uncheck reset railbounce",
      "strikes": [
-      2.584
+      2.583
      ],
      "tStrike": 0.024,
-     "letoff": 1.486,
+     "letoff": 1.488,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
      "resetUp": 0.754,
-     "maxD": 10.339,
+     "maxD": 10.338,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 572,
+     "homeMs": 541,
      "endDist": 44.45,
      "endD": 0
     }
@@ -3625,7 +3625,7 @@
    },
    "keyReturn": {
     "keyMs": 68.9,
-    "homeMs": 521,
+    "homeMs": 497.8,
     "resetUp": 0.42,
     "stuck": false
    },
@@ -3664,13 +3664,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 144,
+     "keyUpMs": 137,
      "homeMs": null,
-     "endDist": 43.375,
-     "endD": 0.183
+     "endDist": 42.902,
+     "endD": 0.264
     },
     "set250": {
      "order": "letoff strike click checked uncheck reset",
@@ -3704,7 +3704,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 66,
-     "homeMs": 488,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
@@ -3714,17 +3714,17 @@
       0.826
      ],
      "tStrike": 0.097,
-     "letoff": 1.495,
+     "letoff": 1.485,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
-     "maxD": 9.925,
+     "resetUp": 0.179,
+     "maxD": 9.924,
      "dip": 9.525,
-     "keyUpMs": 141,
+     "keyUpMs": 129,
      "homeMs": null,
-     "endDist": 43.644,
-     "endD": 0.137
+     "endDist": 43.045,
+     "endD": 0.24
     },
     "mf": {
      "order": "letoff strike click checked uncheck reset",
@@ -3732,7 +3732,7 @@
       2.225
      ],
      "tStrike": 0.039,
-     "letoff": 1.617,
+     "letoff": 1.615,
      "tLetoff": 0.039,
      "check": 14.34,
      "tCheck": 0.057,
@@ -3740,9 +3740,9 @@
      "maxD": 10.417,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.174,
-     "endD": 0.047
+     "homeMs": 498,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike click checked uncheck reset",
@@ -3750,7 +3750,7 @@
       4.982
      ],
      "tStrike": 0.018,
-     "letoff": 1.797,
+     "letoff": 1.796,
      "tLetoff": 0.017,
      "check": 18.975,
      "tCheck": 0.029,
@@ -3758,25 +3758,25 @@
      "maxD": 10.766,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 482,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike click uncheck reset railbounce",
      "strikes": [
-      3.445
+      3.444
      ],
      "tStrike": 0.024,
-     "letoff": 1.486,
+     "letoff": 1.488,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
      "resetUp": 0.754,
-     "maxD": 10.339,
+     "maxD": 10.338,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 572,
+     "homeMs": 541,
      "endDist": 44.45,
      "endD": 0
     }
@@ -3789,7 +3789,7 @@
    },
    "keyReturn": {
     "keyMs": 68.9,
-    "homeMs": 521,
+    "homeMs": 497.8,
     "resetUp": 0.42,
     "stuck": false
    },
@@ -3828,13 +3828,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 144,
+     "keyUpMs": 137,
      "homeMs": null,
-     "endDist": 43.375,
-     "endD": 0.183
+     "endDist": 42.902,
+     "endD": 0.264
     },
     "set250": {
      "order": "letoff strike click checked uncheck reset",
@@ -3868,7 +3868,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 66,
-     "homeMs": 488,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
@@ -3878,17 +3878,17 @@
       0.743
      ],
      "tStrike": 0.097,
-     "letoff": 1.495,
+     "letoff": 1.485,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
-     "maxD": 9.925,
+     "resetUp": 0.179,
+     "maxD": 9.924,
      "dip": 9.525,
-     "keyUpMs": 141,
+     "keyUpMs": 129,
      "homeMs": null,
-     "endDist": 43.644,
-     "endD": 0.137
+     "endDist": 43.045,
+     "endD": 0.24
     },
     "mf": {
      "order": "letoff strike click checked uncheck reset",
@@ -3896,7 +3896,7 @@
       2.002
      ],
      "tStrike": 0.039,
-     "letoff": 1.617,
+     "letoff": 1.615,
      "tLetoff": 0.039,
      "check": 14.34,
      "tCheck": 0.057,
@@ -3904,9 +3904,9 @@
      "maxD": 10.417,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.174,
-     "endD": 0.047
+     "homeMs": 498,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike click checked uncheck reset",
@@ -3914,7 +3914,7 @@
       4.484
      ],
      "tStrike": 0.018,
-     "letoff": 1.797,
+     "letoff": 1.796,
      "tLetoff": 0.017,
      "check": 18.975,
      "tCheck": 0.029,
@@ -3922,7 +3922,7 @@
      "maxD": 10.766,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 482,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
@@ -3932,15 +3932,15 @@
       3.1
      ],
      "tStrike": 0.024,
-     "letoff": 1.486,
+     "letoff": 1.488,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
      "resetUp": 0.754,
-     "maxD": 10.339,
+     "maxD": 10.338,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 572,
+     "homeMs": 541,
      "endDist": 44.45,
      "endD": 0
     }
@@ -3953,7 +3953,7 @@
    },
    "keyReturn": {
     "keyMs": 68.9,
-    "homeMs": 521,
+    "homeMs": 497.8,
     "resetUp": 0.42,
     "stuck": false
    },
@@ -3992,13 +3992,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.178,
+     "resetUp": 0.202,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 151,
-     "homeMs": null,
-     "endDist": 44.543,
-     "endD": -0.016
+     "keyUpMs": 133,
+     "homeMs": 494,
+     "endDist": 44.45,
+     "endD": 0
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -4013,8 +4013,8 @@
      "resetUp": 0.408,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 84,
-     "homeMs": 490,
+     "keyUpMs": 83,
+     "homeMs": 464,
      "endDist": 44.45,
      "endD": 0
     },
@@ -4032,71 +4032,71 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 65,
-     "homeMs": 424,
+     "homeMs": 401,
      "endDist": 44.45,
      "endD": 0
     },
     "pp": {
      "order": "letoff strike softcheck reset",
      "strikes": [
-      0.792
+      0.804
      ],
      "tStrike": 0.099,
-     "letoff": 1.513,
+     "letoff": 1.557,
      "tLetoff": 0.097,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.201,
-     "maxD": 9.917,
+     "resetUp": 0.181,
+     "maxD": 9.921,
      "dip": 9.525,
-     "keyUpMs": 138,
-     "homeMs": null,
-     "endDist": 44.456,
-     "endD": -0.001
+     "keyUpMs": 136,
+     "homeMs": 495,
+     "endDist": 44.45,
+     "endD": 0
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
      "strikes": [
-      2.212
+      2.214
      ],
      "tStrike": 0.039,
-     "letoff": 1.516,
+     "letoff": 1.47,
      "tLetoff": 0.039,
-     "check": 14.293,
+     "check": 14.301,
      "tCheck": 0.057,
      "resetUp": 0.414,
-     "maxD": 10.416,
+     "maxD": 10.419,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": 442,
+     "homeMs": 410,
      "endDist": 44.45,
      "endD": 0
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
      "strikes": [
-      4.97
+      4.973
      ],
      "tStrike": 0.018,
-     "letoff": 1.866,
+     "letoff": 1.854,
      "tLetoff": 0.017,
-     "check": 18.955,
+     "check": 18.961,
      "tCheck": 0.029,
      "resetUp": 0.487,
-     "maxD": 10.67,
+     "maxD": 10.672,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 424,
+     "homeMs": 402,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.429
+      3.434
      ],
      "tStrike": 0.024,
-     "letoff": 1.612,
+     "letoff": 1.595,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
@@ -4104,7 +4104,7 @@
      "maxD": 10.337,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 489,
+     "homeMs": 481,
      "endDist": 44.45,
      "endD": 0
     }
@@ -4117,7 +4117,7 @@
    },
    "keyReturn": {
     "keyMs": 68.5,
-    "homeMs": 440.6,
+    "homeMs": 409.2,
     "resetUp": 0.425,
     "stuck": false
    },
@@ -4156,13 +4156,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.188,
+     "resetUp": 0.174,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 135,
+     "keyUpMs": 134,
      "homeMs": null,
-     "endDist": 41.88,
-     "endD": 0.44
+     "endDist": 42.828,
+     "endD": 0.277
     },
     "set250": {
      "order": "letoff strike click checked uncheck reset",
@@ -4206,17 +4206,17 @@
       0.851
      ],
      "tStrike": 0.094,
-     "letoff": 1.492,
+     "letoff": 1.482,
      "tLetoff": 0.093,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.192,
-     "maxD": 9.93,
+     "resetUp": 0.177,
+     "maxD": 9.931,
      "dip": 9.525,
-     "keyUpMs": 139,
+     "keyUpMs": 130,
      "homeMs": null,
-     "endDist": 42.236,
-     "endD": 0.379
+     "endDist": 42.136,
+     "endD": 0.396
     },
     "mf": {
      "order": "letoff strike click checked uncheck reset",
@@ -4224,7 +4224,7 @@
       2.234
      ],
      "tStrike": 0.039,
-     "letoff": 1.509,
+     "letoff": 1.507,
      "tLetoff": 0.038,
      "check": 14.366,
      "tCheck": 0.056,
@@ -4260,7 +4260,7 @@
       3.452
      ],
      "tStrike": 0.024,
-     "letoff": 1.696,
+     "letoff": 1.695,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
@@ -4269,8 +4269,8 @@
      "dip": 9.525,
      "keyUpMs": 0,
      "homeMs": null,
-     "endDist": 45.292,
-     "endD": -0.143
+     "endDist": 44.96,
+     "endD": -0.087
     }
    },
    "touch": {
@@ -4281,7 +4281,7 @@
    },
    "keyReturn": {
     "keyMs": 68.8,
-    "homeMs": 660.7,
+    "homeMs": 610.4,
     "resetUp": 0.421,
     "stuck": false
    },
@@ -4320,13 +4320,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.185,
+     "resetUp": 0.171,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 140,
+     "keyUpMs": 138,
      "homeMs": null,
-     "endDist": 41.966,
-     "endD": 0.425
+     "endDist": 42.028,
+     "endD": 0.414
     },
     "set250": {
      "order": "letoff strike click checked uncheck reset",
@@ -4370,17 +4370,17 @@
       0.839
      ],
      "tStrike": 0.095,
-     "letoff": 1.483,
+     "letoff": 1.554,
      "tLetoff": 0.094,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.189,
-     "maxD": 9.928,
+     "resetUp": 0.176,
+     "maxD": 9.926,
      "dip": 9.525,
-     "keyUpMs": 141,
+     "keyUpMs": 125,
      "homeMs": null,
-     "endDist": 41.984,
-     "endD": 0.422
+     "endDist": 41.645,
+     "endD": 0.48
     },
     "mf": {
      "order": "letoff strike click checked uncheck reset",
@@ -4388,7 +4388,7 @@
       2.227
      ],
      "tStrike": 0.039,
-     "letoff": 1.673,
+     "letoff": 1.672,
      "tLetoff": 0.038,
      "check": 14.345,
      "tCheck": 0.057,
@@ -4397,8 +4397,8 @@
      "dip": 9.525,
      "keyUpMs": 69,
      "homeMs": null,
-     "endDist": 44.859,
-     "endD": -0.069
+     "endDist": 44.871,
+     "endD": -0.072
     },
     "ff": {
      "order": "letoff strike click checked uncheck reset",
@@ -4424,7 +4424,7 @@
       3.449
      ],
      "tStrike": 0.024,
-     "letoff": 1.424,
+     "letoff": 1.423,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
@@ -4432,9 +4432,9 @@
      "maxD": 10.341,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": null,
-     "endDist": 44.092,
-     "endD": 0.061
+     "homeMs": 594,
+     "endDist": 44.45,
+     "endD": 0
     }
    },
    "touch": {
@@ -4445,7 +4445,7 @@
    },
    "keyReturn": {
     "keyMs": 68.7,
-    "homeMs": 575.2,
+    "homeMs": 520.8,
     "resetUp": 0.425,
     "stuck": false
    },
@@ -4487,8 +4487,8 @@
      "resetUp": 0.2,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 164,
-     "homeMs": 473,
+     "keyUpMs": 145,
+     "homeMs": 450,
      "endDist": 44.45,
      "endD": 0
     },
@@ -4506,7 +4506,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 131,
-     "homeMs": 479,
+     "homeMs": 439,
      "endDist": 44.45,
      "endD": 0
     },
@@ -4524,7 +4524,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 74,
-     "homeMs": 429,
+     "homeMs": 406,
      "endDist": 44.45,
      "endD": 0
     },
@@ -4534,15 +4534,15 @@
       0.793
      ],
      "tStrike": 0.1,
-     "letoff": 1.493,
+     "letoff": 1.483,
      "tLetoff": 0.098,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.2,
+     "resetUp": 0.197,
      "maxD": 9.907,
      "dip": 9.525,
-     "keyUpMs": 158,
-     "homeMs": 470,
+     "keyUpMs": 149,
+     "homeMs": 451,
      "endDist": 44.45,
      "endD": 0
     },
@@ -4552,7 +4552,7 @@
       2.213
      ],
      "tStrike": 0.039,
-     "letoff": 1.629,
+     "letoff": 1.628,
      "tLetoff": 0.039,
      "check": 14.312,
      "tCheck": 0.057,
@@ -4560,7 +4560,7 @@
      "maxD": 10.418,
      "dip": 9.525,
      "keyUpMs": 126,
-     "homeMs": 477,
+     "homeMs": 437,
      "endDist": 44.45,
      "endD": 0
     },
@@ -4578,25 +4578,25 @@
      "maxD": 10.758,
      "dip": 9.525,
      "keyUpMs": 65,
-     "homeMs": 404,
+     "homeMs": 395,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.426
+      3.421
      ],
      "tStrike": 0.024,
-     "letoff": 1.654,
+     "letoff": 1.659,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.735,
-     "maxD": 10.336,
+     "resetUp": 0.733,
+     "maxD": 10.335,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 466,
+     "homeMs": 442,
      "endDist": 44.45,
      "endD": 0
     }
@@ -4608,14 +4608,14 @@
     "bottom": 40.74
    },
    "keyReturn": {
-    "keyMs": 125.6,
-    "homeMs": 477,
+    "keyMs": 125.5,
+    "homeMs": 437.2,
     "resetUp": 0.422,
     "stuck": false
    },
    "repeat": {
     "half": 13,
-    "full": 14
+    "full": 15
    }
   },
   {
@@ -4648,13 +4648,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.185,
+     "resetUp": 0.174,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 144,
+     "keyUpMs": 137,
      "homeMs": null,
-     "endDist": 43.09,
-     "endD": 0.232
+     "endDist": 42.699,
+     "endD": 0.299
     },
     "set250": {
      "order": "letoff strike click checked uncheck reset",
@@ -4688,9 +4688,9 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 65,
-     "homeMs": null,
-     "endDist": 44.385,
-     "endD": 0.011
+     "homeMs": 485,
+     "endDist": 44.45,
+     "endD": 0
     },
     "pp": {
      "order": "letoff strike click softcheck reset",
@@ -4698,17 +4698,17 @@
       0.828
      ],
      "tStrike": 0.096,
-     "letoff": 1.522,
+     "letoff": 1.512,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.185,
+     "resetUp": 0.187,
      "maxD": 9.926,
      "dip": 9.525,
-     "keyUpMs": 140,
+     "keyUpMs": 129,
      "homeMs": null,
-     "endDist": 43.371,
-     "endD": 0.184
+     "endDist": 42.783,
+     "endD": 0.285
     },
     "mf": {
      "order": "letoff strike click checked uncheck reset",
@@ -4716,7 +4716,7 @@
       2.226
      ],
      "tStrike": 0.039,
-     "letoff": 1.593,
+     "letoff": 1.592,
      "tLetoff": 0.039,
      "check": 14.342,
      "tCheck": 0.057,
@@ -4724,9 +4724,9 @@
      "maxD": 10.417,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.132,
-     "endD": 0.054
+     "homeMs": 500,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike click checked uncheck reset",
@@ -4734,7 +4734,7 @@
       4.982
      ],
      "tStrike": 0.018,
-     "letoff": 1.792,
+     "letoff": 1.791,
      "tLetoff": 0.017,
      "check": 18.976,
      "tCheck": 0.029,
@@ -4742,17 +4742,17 @@
      "maxD": 10.766,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 492,
+     "homeMs": 459,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike click uncheck reset railbounce",
      "strikes": [
-      3.446
+      3.445
      ],
      "tStrike": 0.024,
-     "letoff": 1.477,
+     "letoff": 1.479,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
@@ -4760,7 +4760,7 @@
      "maxD": 10.339,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 576,
+     "homeMs": 545,
      "endDist": 44.45,
      "endD": 0
     }
@@ -4773,7 +4773,7 @@
    },
    "keyReturn": {
     "keyMs": 68.4,
-    "homeMs": 523.4,
+    "homeMs": 499.6,
     "resetUp": 0.422,
     "stuck": false
    },
@@ -4812,13 +4812,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.236,
+     "resetUp": 0.238,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 143,
+     "keyUpMs": 139,
      "homeMs": null,
-     "endDist": 43.425,
-     "endD": 0.175
+     "endDist": 42.903,
+     "endD": 0.264
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -4852,7 +4852,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 66,
-     "homeMs": 489,
+     "homeMs": 457,
      "endDist": 44.45,
      "endD": 0
     },
@@ -4862,17 +4862,17 @@
       0.825
      ],
      "tStrike": 0.097,
-     "letoff": 1.495,
+     "letoff": 1.485,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.225,
-     "maxD": 9.897,
+     "resetUp": 0.203,
+     "maxD": 9.896,
      "dip": 9.525,
      "keyUpMs": 133,
      "homeMs": null,
-     "endDist": 43.834,
-     "endD": 0.105
+     "endDist": 42.944,
+     "endD": 0.257
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -4880,7 +4880,7 @@
       2.225
      ],
      "tStrike": 0.039,
-     "letoff": 1.617,
+     "letoff": 1.616,
      "tLetoff": 0.039,
      "check": 14.334,
      "tCheck": 0.057,
@@ -4888,9 +4888,9 @@
      "maxD": 10.411,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.18,
-     "endD": 0.046
+     "homeMs": 498,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
@@ -4898,7 +4898,7 @@
       4.982
      ],
      "tStrike": 0.018,
-     "letoff": 1.797,
+     "letoff": 1.796,
      "tLetoff": 0.017,
      "check": 18.975,
      "tCheck": 0.029,
@@ -4906,25 +4906,25 @@
      "maxD": 10.763,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 483,
+     "homeMs": 457,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.445
+      3.444
      ],
      "tStrike": 0.024,
-     "letoff": 1.486,
+     "letoff": 1.488,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.942,
+     "resetUp": 0.941,
      "maxD": 10.332,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 572,
+     "homeMs": 541,
      "endDist": 44.45,
      "endD": 0
     }
@@ -4937,7 +4937,7 @@
    },
    "keyReturn": {
     "keyMs": 68.5,
-    "homeMs": 520.5,
+    "homeMs": 497.4,
     "resetUp": 0.51,
     "stuck": false
    },
@@ -4976,13 +4976,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.197,
+     "resetUp": 0.186,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 147,
+     "keyUpMs": 136,
      "homeMs": null,
-     "endDist": 43.281,
-     "endD": 0.199
+     "endDist": 42.947,
+     "endD": 0.257
     },
     "set250": {
      "order": "letoff strike click checked uncheck reset",
@@ -5016,7 +5016,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 65,
-     "homeMs": 488,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
@@ -5026,17 +5026,17 @@
       0.826
      ],
      "tStrike": 0.097,
-     "letoff": 1.495,
+     "letoff": 1.485,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.202,
+     "resetUp": 0.184,
      "maxD": 9.928,
      "dip": 9.525,
-     "keyUpMs": 142,
+     "keyUpMs": 128,
      "homeMs": null,
-     "endDist": 43.62,
-     "endD": 0.141
+     "endDist": 43.031,
+     "endD": 0.242
     },
     "mf": {
      "order": "letoff strike click checked uncheck reset",
@@ -5044,7 +5044,7 @@
       2.225
      ],
      "tStrike": 0.039,
-     "letoff": 1.617,
+     "letoff": 1.615,
      "tLetoff": 0.039,
      "check": 14.342,
      "tCheck": 0.057,
@@ -5052,9 +5052,9 @@
      "maxD": 10.418,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.167,
-     "endD": 0.048
+     "homeMs": 498,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike click checked uncheck reset",
@@ -5062,7 +5062,7 @@
       4.982
      ],
      "tStrike": 0.018,
-     "letoff": 1.797,
+     "letoff": 1.796,
      "tLetoff": 0.017,
      "check": 18.975,
      "tCheck": 0.029,
@@ -5070,25 +5070,25 @@
      "maxD": 10.766,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 483,
+     "homeMs": 457,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike click uncheck reset railbounce",
      "strikes": [
-      3.445
+      3.444
      ],
      "tStrike": 0.024,
-     "letoff": 1.486,
+     "letoff": 1.488,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.708,
+     "resetUp": 0.707,
      "maxD": 10.339,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 572,
+     "homeMs": 541,
      "endDist": 44.45,
      "endD": 0
     }
@@ -5101,7 +5101,7 @@
    },
    "keyReturn": {
     "keyMs": 68.8,
-    "homeMs": 521,
+    "homeMs": 497.8,
     "resetUp": 0.432,
     "stuck": false
    },
@@ -5140,13 +5140,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.186,
+     "resetUp": 0.185,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 161,
+     "keyUpMs": 138,
      "homeMs": null,
-     "endDist": 43.844,
-     "endD": 0.103
+     "endDist": 42.915,
+     "endD": 0.262
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -5180,79 +5180,79 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 70,
-     "homeMs": null,
-     "endDist": 44.405,
-     "endD": 0.008
+     "homeMs": 483,
+     "endDist": 44.45,
+     "endD": 0
     },
     "pp": {
      "order": "letoff strike softcheck reset",
      "strikes": [
-      0.799
+      0.825
      ],
      "tStrike": 0.097,
-     "letoff": 1.509,
+     "letoff": 1.496,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.169,
-     "maxD": 9.905,
+     "resetUp": 0.196,
+     "maxD": 9.911,
      "dip": 9.525,
-     "keyUpMs": 153,
+     "keyUpMs": 145,
      "homeMs": null,
-     "endDist": 44.243,
-     "endD": 0.035
+     "endDist": 42.781,
+     "endD": 0.285
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
      "strikes": [
-      2.214
+      2.224
      ],
      "tStrike": 0.039,
-     "letoff": 1.512,
+     "letoff": 1.617,
      "tLetoff": 0.039,
-     "check": 14.272,
+     "check": 14.297,
      "tCheck": 0.057,
      "resetUp": 0.409,
-     "maxD": 10.413,
+     "maxD": 10.414,
      "dip": 9.525,
      "keyUpMs": 80,
      "homeMs": null,
-     "endDist": 44.638,
-     "endD": -0.032
+     "endDist": 44.611,
+     "endD": -0.027
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
      "strikes": [
-      4.975
+      4.982
      ],
      "tStrike": 0.018,
-     "letoff": 1.823,
+     "letoff": 1.797,
      "tLetoff": 0.017,
-     "check": 18.948,
+     "check": 18.961,
      "tCheck": 0.029,
      "resetUp": 0.506,
-     "maxD": 10.761,
+     "maxD": 10.764,
      "dip": 9.525,
      "keyUpMs": 64,
-     "homeMs": 481,
+     "homeMs": 451,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.437
+      3.444
      ],
      "tStrike": 0.024,
-     "letoff": 1.53,
+     "letoff": 1.489,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.731,
-     "maxD": 10.333,
+     "resetUp": 0.733,
+     "maxD": 10.335,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 573,
+     "homeMs": 541,
      "endDist": 44.45,
      "endD": 0
     }
@@ -5264,9 +5264,9 @@
     "bottom": 39.937
    },
    "keyReturn": {
-    "keyMs": 80.1,
-    "homeMs": 542.2,
-    "resetUp": 0.408,
+    "keyMs": 78.7,
+    "homeMs": 514.1,
+    "resetUp": 0.433,
     "stuck": false
    },
    "repeat": {
@@ -5304,13 +5304,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.169,
+     "resetUp": 0.205,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 130,
+     "keyUpMs": 129,
      "homeMs": null,
-     "endDist": 43.35,
-     "endD": 0.188
+     "endDist": 42.949,
+     "endD": 0.256
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -5327,8 +5327,8 @@
      "dip": 9.525,
      "keyUpMs": 75,
      "homeMs": null,
-     "endDist": 44.295,
-     "endD": 0.026
+     "endDist": 44.308,
+     "endD": 0.024
     },
     "set600": {
      "order": "strike letoff checked uncheck reset",
@@ -5344,27 +5344,27 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 63,
-     "homeMs": 486,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
     "pp": {
      "order": "letoff strike softcheck reset",
      "strikes": [
-      0.826
+      0.827
      ],
      "tStrike": 0.097,
-     "letoff": 1.487,
+     "letoff": 1.557,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.176,
+     "resetUp": 0.188,
      "maxD": 9.932,
      "dip": 9.525,
-     "keyUpMs": 127,
+     "keyUpMs": 129,
      "homeMs": null,
-     "endDist": 43.408,
-     "endD": 0.178
+     "endDist": 42.934,
+     "endD": 0.259
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -5372,7 +5372,7 @@
       2.225
      ],
      "tStrike": 0.039,
-     "letoff": 1.616,
+     "letoff": 1.614,
      "tLetoff": 0.039,
      "check": 14.368,
      "tCheck": 0.057,
@@ -5380,9 +5380,9 @@
      "maxD": 10.419,
      "dip": 9.525,
      "keyUpMs": 65,
-     "homeMs": null,
-     "endDist": 44.265,
-     "endD": 0.031
+     "homeMs": 493,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
@@ -5398,25 +5398,25 @@
      "maxD": 10.767,
      "dip": 9.525,
      "keyUpMs": 57,
-     "homeMs": 485,
+     "homeMs": 458,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.445
+      3.444
      ],
      "tStrike": 0.024,
-     "letoff": 1.485,
+     "letoff": 1.487,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
      "resetUp": 0.763,
-     "maxD": 10.341,
+     "maxD": 10.34,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 570,
+     "homeMs": 542,
      "endDist": 44.45,
      "endD": 0
     }
@@ -5429,7 +5429,7 @@
    },
    "keyReturn": {
     "keyMs": 64.8,
-    "homeMs": 514.6,
+    "homeMs": 492.5,
     "resetUp": 0.415,
     "stuck": false
    },
@@ -5468,13 +5468,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 144,
+     "keyUpMs": 137,
      "homeMs": null,
-     "endDist": 43.369,
-     "endD": 0.184
+     "endDist": 42.895,
+     "endD": 0.265
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -5508,7 +5508,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 66,
-     "homeMs": 488,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
@@ -5518,17 +5518,17 @@
       0.817
      ],
      "tStrike": 0.097,
-     "letoff": 1.492,
+     "letoff": 1.482,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
+     "resetUp": 0.175,
      "maxD": 9.918,
      "dip": 9.525,
-     "keyUpMs": 141,
+     "keyUpMs": 129,
      "homeMs": null,
-     "endDist": 43.63,
-     "endD": 0.14
+     "endDist": 43.042,
+     "endD": 0.24
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -5536,17 +5536,17 @@
       2.221
      ],
      "tStrike": 0.039,
-     "letoff": 1.642,
+     "letoff": 1.64,
      "tLetoff": 0.039,
-     "check": 14.337,
+     "check": 14.333,
      "tCheck": 0.057,
-     "resetUp": 0.423,
-     "maxD": 10.42,
+     "resetUp": 0.422,
+     "maxD": 10.416,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.169,
-     "endD": 0.048
+     "homeMs": 498,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
@@ -5562,17 +5562,17 @@
      "maxD": 10.764,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 482,
+     "homeMs": 455,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.443
+      3.442
      ],
      "tStrike": 0.024,
-     "letoff": 1.495,
+     "letoff": 1.497,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
@@ -5580,7 +5580,7 @@
      "maxD": 10.337,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 572,
+     "homeMs": 541,
      "endDist": 44.45,
      "endD": 0
     }
@@ -5592,8 +5592,8 @@
     "bottom": 44.426
    },
    "keyReturn": {
-    "keyMs": 68.8,
-    "homeMs": 521,
+    "keyMs": 68.9,
+    "homeMs": 497.9,
     "resetUp": 0.414,
     "stuck": false
    },
@@ -5632,13 +5632,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.989,
+     "resetUp": 1.005,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 177,
+     "keyUpMs": 169,
      "homeMs": null,
-     "endDist": 44.707,
-     "endD": -0.044
+     "endDist": 44.941,
+     "endD": -0.083
     },
     "set250": {
      "order": "letoff strike checked uncheck reset",
@@ -5672,27 +5672,27 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 67,
-     "homeMs": 490,
+     "homeMs": 458,
      "endDist": 44.45,
      "endD": 0
     },
     "pp": {
-     "order": "letoff strike softcheck uncheck reset",
+     "order": "letoff strike softcheck uncheck railbounce reset",
      "strikes": [
       0.826
      ],
      "tStrike": 0.097,
-     "letoff": 1.573,
+     "letoff": 1.563,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 1.005,
+     "resetUp": 0.996,
      "maxD": 9.966,
      "dip": 9.525,
-     "keyUpMs": 168,
-     "homeMs": null,
-     "endDist": 45.004,
-     "endD": -0.094
+     "keyUpMs": 163,
+     "homeMs": 322,
+     "endDist": 44.45,
+     "endD": 0
     },
     "mf": {
      "order": "letoff strike checked uncheck reset",
@@ -5700,17 +5700,17 @@
       2.225
      ],
      "tStrike": 0.039,
-     "letoff": 1.617,
+     "letoff": 1.615,
      "tLetoff": 0.039,
      "check": 14.359,
      "tCheck": 0.057,
-     "resetUp": 0.981,
+     "resetUp": 0.98,
      "maxD": 10.426,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.157,
-     "endD": 0.05
+     "homeMs": 499,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike checked uncheck reset",
@@ -5718,7 +5718,7 @@
       4.982
      ],
      "tStrike": 0.018,
-     "letoff": 1.797,
+     "letoff": 1.796,
      "tLetoff": 0.017,
      "check": 18.98,
      "tCheck": 0.029,
@@ -5726,25 +5726,25 @@
      "maxD": 10.683,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 483,
+     "homeMs": 457,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.445
+      3.444
      ],
      "tStrike": 0.024,
-     "letoff": 1.486,
+     "letoff": 1.488,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.984,
-     "maxD": 10.349,
+     "resetUp": 0.98,
+     "maxD": 10.35,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 573,
+     "homeMs": 542,
      "endDist": 44.45,
      "endD": 0
     }
@@ -5757,7 +5757,7 @@
    },
    "keyReturn": {
     "keyMs": 69,
-    "homeMs": 521.5,
+    "homeMs": 498.3,
     "resetUp": 0.981,
     "stuck": false
    },
@@ -5796,11 +5796,11 @@
      "tLetoff": 0.147,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.107,
+     "resetUp": 0.104,
      "maxD": 9.695,
      "dip": 9.695,
-     "keyUpMs": 205,
-     "homeMs": 336,
+     "keyUpMs": 202,
+     "homeMs": 334,
      "endDist": 49.712,
      "endD": 0
     },
@@ -5818,7 +5818,7 @@
      "maxD": 9.695,
      "dip": 9.695,
      "keyUpMs": 133,
-     "homeMs": 294,
+     "homeMs": 295,
      "endDist": 49.712,
      "endD": 0
     },
@@ -5846,15 +5846,15 @@
       0.837
      ],
      "tStrike": 0.103,
-     "letoff": 2.916,
+     "letoff": 2.911,
      "tLetoff": 0.099,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.113,
+     "resetUp": 0.107,
      "maxD": 10.099,
      "dip": 9.695,
-     "keyUpMs": 216,
-     "homeMs": 346,
+     "keyUpMs": 195,
+     "homeMs": 327,
      "endDist": 49.712,
      "endD": 0
     },
@@ -5864,7 +5864,7 @@
       2.315
      ],
      "tStrike": 0.042,
-     "letoff": 2.984,
+     "letoff": 2.983,
      "tLetoff": 0.041,
      "check": 16.655,
      "tCheck": 0.061,
@@ -5920,7 +5920,7 @@
     "bottom": 40.981
    },
    "keyReturn": {
-    "keyMs": 127.4,
+    "keyMs": 127.3,
     "homeMs": 335.9,
     "resetUp": 0.374,
     "stuck": false
@@ -5960,13 +5960,13 @@
      "tLetoff": 0.133,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
+     "resetUp": 0.168,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 144,
+     "keyUpMs": 137,
      "homeMs": null,
-     "endDist": 43.375,
-     "endD": 0.183
+     "endDist": 42.902,
+     "endD": 0.264
     },
     "set250": {
      "order": "letoff strike keyclick checked uncheck reset",
@@ -6000,7 +6000,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 66,
-     "homeMs": 488,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
@@ -6010,17 +6010,17 @@
       0.826
      ],
      "tStrike": 0.097,
-     "letoff": 1.495,
+     "letoff": 1.485,
      "tLetoff": 0.095,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.18,
-     "maxD": 9.925,
+     "resetUp": 0.179,
+     "maxD": 9.924,
      "dip": 9.525,
-     "keyUpMs": 141,
+     "keyUpMs": 129,
      "homeMs": null,
-     "endDist": 43.644,
-     "endD": 0.137
+     "endDist": 43.045,
+     "endD": 0.24
     },
     "mf": {
      "order": "letoff strike keyclick checked uncheck reset",
@@ -6028,7 +6028,7 @@
       2.225
      ],
      "tStrike": 0.039,
-     "letoff": 1.617,
+     "letoff": 1.615,
      "tLetoff": 0.039,
      "check": 14.34,
      "tCheck": 0.057,
@@ -6036,9 +6036,9 @@
      "maxD": 10.417,
      "dip": 9.525,
      "keyUpMs": 69,
-     "homeMs": null,
-     "endDist": 44.174,
-     "endD": 0.047
+     "homeMs": 498,
+     "endDist": 44.45,
+     "endD": 0
     },
     "ff": {
      "order": "letoff strike keyclick checked uncheck reset",
@@ -6046,7 +6046,7 @@
       4.982
      ],
      "tStrike": 0.018,
-     "letoff": 1.797,
+     "letoff": 1.796,
      "tLetoff": 0.017,
      "check": 18.975,
      "tCheck": 0.029,
@@ -6054,25 +6054,25 @@
      "maxD": 10.766,
      "dip": 9.525,
      "keyUpMs": 59,
-     "homeMs": 482,
+     "homeMs": 456,
      "endDist": 44.45,
      "endD": 0
     },
     "staccato": {
      "order": "letoff strike keyclick uncheck reset railbounce",
      "strikes": [
-      3.445
+      3.444
      ],
      "tStrike": 0.024,
-     "letoff": 1.486,
+     "letoff": 1.488,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
      "resetUp": 0.754,
-     "maxD": 10.339,
+     "maxD": 10.338,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": 572,
+     "homeMs": 541,
      "endDist": 44.45,
      "endD": 0
     }
@@ -6085,7 +6085,7 @@
    },
    "keyReturn": {
     "keyMs": 68.9,
-    "homeMs": 521,
+    "homeMs": 497.8,
     "resetUp": 0.42,
     "stuck": false
    },
@@ -6129,8 +6129,8 @@
      "dip": 9.525,
      "keyUpMs": null,
      "homeMs": null,
-     "endDist": 3.537,
-     "endD": 7.584
+     "endDist": 3.621,
+     "endD": 7.567
     },
     "set250": {
      "order": "letoff strike checked uncheck reset keystuck",
@@ -6142,16 +6142,16 @@
      "tLetoff": 0.032,
      "check": 12.52,
      "tCheck": 0.056,
-     "resetUp": 0.354,
+     "resetUp": 0.313,
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": null,
      "homeMs": null,
-     "endDist": 25.182,
-     "endD": 3.429
+     "endDist": 11.829,
+     "endD": 5.955
     },
     "set600": {
-     "order": "strike letoff checked uncheck reset",
+     "order": "strike letoff checked uncheck reset keystuck",
      "strikes": [
       3.454
      ],
@@ -6160,102 +6160,102 @@
      "tLetoff": 0.013,
      "check": 16.232,
      "tCheck": 0.027,
-     "resetUp": 0.429,
+     "resetUp": 0.387,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 237,
+     "keyUpMs": null,
      "homeMs": null,
-     "endDist": 44.674,
-     "endD": -0.038
+     "endDist": 18.426,
+     "endD": 4.693
     },
     "pp": {
      "order": "letoff strike reset keystuck",
      "strikes": [
-      0.56
+      0.446
      ],
-     "tStrike": 0.13,
-     "letoff": 1.487,
-     "tLetoff": 0.127,
+     "tStrike": 0.15,
+     "letoff": 1.484,
+     "tLetoff": 0.146,
      "check": null,
      "tCheck": null,
      "resetUp": 0.167,
-     "maxD": 9.768,
+     "maxD": 9.681,
      "dip": 9.525,
      "keyUpMs": null,
      "homeMs": null,
-     "endDist": 3.542,
-     "endD": 7.583
+     "endDist": 3.589,
+     "endD": 7.573
     },
     "mf": {
      "order": "letoff strike checked uncheck reset keystuck",
      "strikes": [
-      2.14
+      2.112
      ],
      "tStrike": 0.041,
-     "letoff": 1.552,
-     "tLetoff": 0.04,
-     "check": 14.112,
-     "tCheck": 0.058,
-     "resetUp": 0.374,
-     "maxD": 10.394,
+     "letoff": 1.527,
+     "tLetoff": 0.041,
+     "check": 14.036,
+     "tCheck": 0.059,
+     "resetUp": 0.34,
+     "maxD": 10.391,
      "dip": 9.525,
      "keyUpMs": null,
      "homeMs": null,
-     "endDist": 38.124,
-     "endD": 1.094
+     "endDist": 15.082,
+     "endD": 5.329
     },
     "ff": {
-     "order": "letoff strike checked uncheck reset",
+     "order": "letoff strike checked uncheck reset keystuck",
      "strikes": [
-      4.932
+      4.935
      ],
      "tStrike": 0.018,
-     "letoff": 1.49,
+     "letoff": 1.661,
      "tLetoff": 0.018,
-     "check": 18.891,
+     "check": 18.89,
      "tCheck": 0.03,
-     "resetUp": 0.433,
-     "maxD": 10.734,
+     "resetUp": 0.402,
+     "maxD": 10.762,
      "dip": 9.525,
-     "keyUpMs": 194,
+     "keyUpMs": null,
      "homeMs": null,
-     "endDist": 44.119,
-     "endD": 0.056
+     "endDist": 22.112,
+     "endD": 4
     },
     "staccato": {
-     "order": "letoff strike uncheck reset railbounce",
+     "order": "letoff strike uncheck reset railbounce keystuck",
      "strikes": [
-      3.315
+      3.261
      ],
      "tStrike": 0.025,
-     "letoff": 1.699,
+     "letoff": 1.458,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.749,
-     "maxD": 10.305,
+     "resetUp": 0.736,
+     "maxD": 10.29,
      "dip": 9.525,
      "keyUpMs": 0,
      "homeMs": null,
-     "endDist": 44.799,
-     "endD": -0.059
+     "endDist": 38.853,
+     "endD": 0.966
     }
    },
    "touch": {
-    "down": 69.769,
-    "up": -8.942,
-    "peak": 162.792,
-    "bottom": 18.426
+    "down": 77.769,
+    "up": -16.942,
+    "peak": 170.792,
+    "bottom": 10.426
    },
    "keyReturn": {
     "keyMs": null,
     "homeMs": null,
-    "resetUp": 0.373,
+    "resetUp": 0.34,
     "stuck": true
    },
    "repeat": {
     "half": 0,
-    "full": 14
+    "full": 11
    }
   },
   {
@@ -6291,8 +6291,8 @@
      "resetUp": 0.173,
      "maxD": 9.525,
      "dip": 9.525,
-     "keyUpMs": 264,
-     "homeMs": 406,
+     "keyUpMs": 203,
+     "homeMs": 370,
      "endDist": 44.45,
      "endD": 0
     },
@@ -6310,7 +6310,7 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 144,
-     "homeMs": 368,
+     "homeMs": 343,
      "endDist": 44.45,
      "endD": 0
     },
@@ -6328,25 +6328,25 @@
      "maxD": 9.525,
      "dip": 9.525,
      "keyUpMs": 135,
-     "homeMs": 372,
+     "homeMs": 344,
      "endDist": 44.45,
      "endD": 0
     },
     "pp": {
      "order": "letoff strike softcheck reset",
      "strikes": [
-      0.715
+      0.716
      ],
      "tStrike": 0.108,
-     "letoff": 1.492,
+     "letoff": 1.548,
      "tLetoff": 0.106,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.169,
+     "resetUp": 0.188,
      "maxD": 9.865,
      "dip": 9.525,
-     "keyUpMs": 258,
-     "homeMs": 401,
+     "keyUpMs": 211,
+     "homeMs": 377,
      "endDist": 44.45,
      "endD": 0
     },
@@ -6356,15 +6356,15 @@
       2.186
      ],
      "tStrike": 0.04,
-     "letoff": 1.533,
+     "letoff": 1.532,
      "tLetoff": 0.039,
      "check": 14.232,
      "tCheck": 0.058,
      "resetUp": 0.409,
-     "maxD": 10.409,
+     "maxD": 10.408,
      "dip": 9.525,
      "keyUpMs": 136,
-     "homeMs": 368,
+     "homeMs": 341,
      "endDist": 44.45,
      "endD": 0
     },
@@ -6389,20 +6389,20 @@
     "staccato": {
      "order": "letoff strike uncheck reset railbounce",
      "strikes": [
-      3.386
+      3.381
      ],
      "tStrike": 0.024,
-     "letoff": 1.694,
+     "letoff": 1.698,
      "tLetoff": 0.024,
      "check": null,
      "tCheck": null,
-     "resetUp": 0.701,
-     "maxD": 10.325,
+     "resetUp": 0.699,
+     "maxD": 10.324,
      "dip": 9.525,
      "keyUpMs": 0,
-     "homeMs": null,
-     "endDist": 44.637,
-     "endD": -0.032
+     "homeMs": 345,
+     "endDist": 44.45,
+     "endD": 0
     }
    },
    "touch": {
@@ -6413,12 +6413,12 @@
    },
    "keyReturn": {
     "keyMs": 136,
-    "homeMs": 368.2,
+    "homeMs": 340.3,
     "resetUp": 0.399,
     "stuck": false
    },
    "repeat": {
-    "half": 13,
+    "half": 0,
     "full": 14
    }
   }

@@ -25,22 +25,46 @@ function play(adj, blow, { tUp = 0.3, T = 0.9, chunk = 0.001, h } = {}) {
 }
 const T0 = touch(FACTORY);
 
-test('touchweight: the factory key weighs off like a medium grand, and the Sim agrees with the reading', () => {
+test('touchweight: the factory key weighs off like a medium-light grand', () => {
   // usual figures: about 50 g down, 20 to 30 up (Stanwood's example, PTG 2022: 50 and 24)
   assert.ok(T0.down > 38 && T0.down < 55, `downweight ${T0.down.toFixed(1)}`);
   assert.ok(T0.up > 12 && T0.up < 30, `upweight ${T0.up.toFixed(1)}`);
   assert.ok(T0.friction > 8 && T0.friction < 16 && T0.returns, `friction ${T0.friction.toFixed(1)}`);
-  // a gram weight a little over the downweight takes the key down to the let-off bump and no further; a little under
-  // doesn't take it down
-  const down = w => { const s = new Sim(FACTORY); s.push(w); s.step(4); return s.d; };
-  const bump = T0.trace.find(r => r.state).d;
-  const over = down(T0.down + 3), under = down(T0.down - 3);
-  assert.ok(over > bump - 0.4 && over < bump + 0.5, `${(T0.down + 3).toFixed(0)} g stops at the bump: ${over.toFixed(2)} of ${bump.toFixed(2)}`);
-  assert.ok(under < 2, `${(T0.down - 3).toFixed(0)} g doesn't take it down: ${under.toFixed(2)}`);
-  // from there the key lifts a little under the upweight all the way back, and not a little over it
-  const up = w => { const s = new Sim(FACTORY); s.push(T0.down + 3); s.step(4); s.push(w); s.step(4); return s.d; };
-  assert.ok(up(T0.up - 3) < 0.3, `the key lifts ${(T0.up - 3).toFixed(0)} g back up: ${up(T0.up - 3).toFixed(2)}`);
-  assert.ok(up(T0.up + 4) > 3, `it doesn't lift ${(T0.up + 4).toFixed(0)} g: ${up(T0.up + 4).toFixed(2)}`);
+});
+
+// The weigh-off as the app's test does it and captions it (app.js weighOff): the pedal down, the rounded downweight
+// + 3 g steadied on the key (Sim.weigh), then the key backed a hair off let-off and the rounded upweight - 3 g left on.
+const weighDown = (adj, w) => { const s = new Sim(adj); s.setPedal(true); s.step(0.3); s.weigh(w); s.step(1.6); return s; };
+const weighUp = (adj, t, w) => { const s = weighDown(adj, Math.round(t.down) + 3); s.press(Math.max(0.5, t.bumpAt - 0.3), 10); s.step(0.15); s.weigh(Math.max(0, w)); s.step(2); return s.d; };
+test('weighed off on the Sim: down to the let-off bump under dw + 3 and not under dw - 3; uw - 3 lifted all the way back and not uw + 3', () => {
+  for (const f of [{}, { center: 'hammerTight' }, { center: 'wippenTight' }, { bushing: 'balTight' }, { repSpring: 0.7 }, { repSpring: -0.8 }, { jackScrew: -1.4 }, { letoff: -1 }, { drop: 2 }, { capstan: -0.6 }, { wear: 0.8 }, { damperGap: -1.5 }]) {
+    const a = at(f), t = touch(a), dw = Math.round(t.down), uw = Math.round(t.up), name = JSON.stringify(f);
+    const over = weighDown(a, dw + 3), under = weighDown(a, dw - 3);
+    assert.ok(over.d > t.bumpAt - 0.4 && over.d < t.bumpAt + 0.5 && !over.st.escaped && !over.events.some(e => e.type === 'strike'),
+      `${name}: ${dw + 3} g goes down to where let-off resists (${t.bumpAt.toFixed(2)} mm) and stops, the action not fired: ${over.d.toFixed(2)}`);
+    assert.ok(under.d < t.bumpAt - 2, `${name}: ${dw - 3} g doesn't take it down to let-off: ${under.d.toFixed(2)}`);
+    const back = weighUp(a, t, uw - 3), stays = weighUp(a, t, uw + 3);
+    assert.ok(back < t.lostTo + 0.3, `${name}: the key lifts ${uw - 3} g all the way back: ends ${back.toFixed(2)} mm down`);
+    assert.ok(stays > t.lostTo + 1, `${name}: it doesn't lift ${uw + 3} g all the way: ends ${stays.toFixed(2)} mm down`);
+  }
+  // a weight not steadied is another thing: a few grams over the downweight, left to run, gathers speed and fires the action
+  const s = new Sim(FACTORY); s.setPedal(true); s.step(0.3); s.push(Math.round(T0.down) + 3); s.step(2);
+  assert.ok(s.st.escaped && s.d > T0.bumpAt + 0.5, 'unsteadied, the same weight goes through let-off');
+});
+
+test('a hand taking the key while it bounces above its rest brings it from where it is; a key at rest is at rest', () => {
+  const s = new Sim(FACTORY); s.blow('staccato');
+  let low = 0; for (let i = 0; i < 3000 && s.d > -0.3; i++) s.sub(s.h);
+  assert.ok(s.d < -0.2, `the key is above its rest on the back rail cloth: ${s.d.toFixed(2)}`);
+  const d0 = s.d; s.press(s.dip, 6); s.sub(s.h);
+  assert.ok(Math.abs(s.d - d0) < 0.05, `no jump when a slow press takes it: ${d0.toFixed(3)} to ${s.d.toFixed(3)}`);
+  s.step(0.05); assert.ok(s.d > 0 && s.d < 0.5, `and it goes on down from there: ${s.d.toFixed(2)}`);
+  // nothing on the key, nothing moving: at rest, and a step changes nothing; a played key isn't, until it has settled
+  const r = new Sim(FACTORY), g0 = r.g;
+  assert.ok(r.atRest); r.step(0.5); assert.ok(r.atRest && r.g === g0 && r.d === 0);
+  r.blow('mf'); assert.ok(!r.atRest); r.step(0.3); r.events.length = 0; assert.ok(!r.atRest);
+  r.release(); r.step(2); r.events.length = 0; assert.ok(r.atRest, 'home and settled two seconds after letting go');
+  r.setPedal(true); assert.ok(!r.atRest); r.step(0.5); r.events.length = 0; assert.ok(r.atRest, 'the pedal held steady');
 });
 
 test('touchweight: the let-off bump is in the trace, and getting through it takes two or three times the downweight', () => {
