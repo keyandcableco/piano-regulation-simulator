@@ -4,8 +4,8 @@
 // ~/.nvm/versions/node/v22.23.2/bin/node --test tests/upright-scenarios.test.mjs (a few minutes: every case is played)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FACTORY, Sim, measure, grade } from '../upright-model.js';
-import { SCENARIOS } from '../content-upright.js';
+import { FACTORY, Sim, measure, grade, stringGap, gRail, gString } from '../upright-model.js';
+import { SCENARIOS, alsoText } from '../content-upright.js';
 
 const UP = 236;
 const setUp = sc => ({ ...FACTORY, damage: null, ...sc.make(FACTORY) });
@@ -13,10 +13,11 @@ const setUp = sc => ({ ...FACTORY, damage: null, ...sc.make(FACTORY) });
 function blow(a, v, { hold = 0.4, release = UP } = {}) {
   const s = new Sim(a);
   s.press(s.dip, v); s.run(s.dip / v + hold);
-  const down = s.events; s.events = [];
+  const down = s.events, held = { gap: stringGap(s.g), d: s.d, dip: s.dip, blocked: s.blocked, jack: s.jack, checked: s.checked }; s.events = [];
   const t0 = s.t; s.press(0, release); s.run(0.6);
   const up = s.events;
-  return { strikes: down.filter(e => e.type === 'strike').length, blocked: down.some(e => e.type === 'blocked'),
+  return { strikes: down.filter(e => e.type === 'strike').length, blocked: down.some(e => e.type === 'blocked'), bobbles: down.filter(e => e.type === 'bobble').length,
+    held,
     checked: down.findLast(e => e.type === 'checked')?.dist ?? null, railAt: (up.find(e => e.type === 'rail')?.t ?? Infinity) - t0,
     seatedAt: (up.find(e => e.type === 'seated')?.t ?? Infinity) - t0, sim: s };
 }
@@ -33,16 +34,21 @@ function repeats(a, hz, n = 6) {
   for (let i = 0; i < n; i++) { s.press(s.dip, 450); s.run(0.5 / hz); s.press(0, UP); s.run(0.5 / hz); }
   return s.events.filter(e => e.type === 'strike').length;
 }
-// (a quick release, the key let go at 1.5 m/s: where Ellis found the strap matters)
-const F = { m: measure(FACTORY), mf: blow(FACTORY, 450), quick: blow(FACTORY, 1300, { release: 1500 }), min: minStrike(FACTORY), rep: repeats(FACTORY, 12) };
+// the hammer lifted 45% of the way to the strings by hand and let go (the prep card's test): seconds back to the rail
+function liftHome(a) { const s = new Sim(a), g0 = gRail(a); s.g = g0 + 0.45 * (gString() - g0); s.run(0.6); return s.events.find(e => e.type === 'rail')?.t ?? Infinity; }
+const F = { m: measure(FACTORY), mf: blow(FACTORY, 450), min: minStrike(FACTORY), rep: repeats(FACTORY, 14), lift: liftHome(FACTORY) };
 
 // what each complaint looks like on the action; the factory must not look like it
 const SYMPTOM = {
   stickyJack: a => !jackReturns(a),
-  looseKeys: (a, m) => m.lostMotionKey > 0.35,
-  letoffClose: a => { const b = blow(a, 450); return b.strikes > 1 || b.blocked; },
+  looseKeys: (a, m) => m.lostMotionKey > 0.3,
+  // it strikes again off the jack, at a soft blow and a moderate one, but is not jammed there
+  letoffClose: a => [120, 450].every(v => { const b = blow(a, v); return b.strikes > 1 && !b.held.blocked && b.held.checked; }),
+  // a thud, the key stopped short, the hammer on the strings for as long as the key is held: at every dynamic
+  blocking: a => [120, 450, 1300].every(v => { const b = blow(a, v); return b.blocked && b.held.blocked && b.held.gap < 0.2 && b.held.d < b.held.dip - 1 && !b.held.checked; }),
   letoffFar: a => minStrike(a) > F.min,
-  blubber: (a, m) => m.escapement <= 0.05,
+  // soft and moderate blows bounce on the jack and hang there near the strings; a moderate one strikes again
+  blubber: a => [120, 450].every(v => { const b = blow(a, v); return b.bobbles >= 1 && b.held.gap > 1 && b.held.gap < 5 && b.held.jack === 'under' && !b.held.checked; }) && blow(a, 450).strikes >= 2,
   checkFar: a => blow(a, 450).checked > 17,
   bridleTight: (a, m) => m.softLifts,
   softWeak: (a, m) => m.softPedal < 0.35,
@@ -50,11 +56,13 @@ const SYMPTOM = {
   buttLeather: (a, m) => m.lostMotionKey > 0.3,
   catcherLeather: a => blow(a, 450).checked > 17,
   jackSpringBroken: a => { const s = new Sim(a); for (const _ of [0, 1]) { s.press(s.dip, 450); s.run(0.4); s.press(0, UP); s.run(0.6); } return s.events.filter(e => e.type === 'strike').length === 1; },
-  jackSpringWeak: a => repeats(a, 12) < F.rep,
+  jackSpringWeak: a => repeats(a, 14) < F.rep && repeats(a, 4) === 6,
+  buttSpringBroken: a => liftHome(a) > 1.2 * F.lift && blow(a, 450).railAt > F.mf.railAt + 0.001,
   damperSpringBroken: a => blow(a, 450).seatedAt === Infinity,
   damperSpringWeak: a => blow(a, 450).seatedAt > F.mf.seatedAt + 0.05,
   buttCenterTight: a => minStrike(a) > F.min,
-  strapBroken: a => blow(a, 1300, { release: 1500 }).railAt > F.quick.railAt * 1.3,
+  // at the app's own release (236 mm/s, S15's), from check: the film has 126 ms against 110
+  strapBroken: a => blow(a, 450).railAt > F.mf.railAt * 1.08,
 };
 
 test('every case has a symptom check, and the factory shows none of them', () => {
@@ -68,8 +76,11 @@ for (const sc of SCENARIOS) {
     const bad = ['keyHeight', 'dip', 'blow', 'lostMotion', 'letoff', 'aftertouch', 'escapement', 'check', 'bridle', 'softPedal', 'damperTiming',
       'buttLeather', 'catcherLeather', 'jackSpring', 'damperSpring', 'buttSpring', 'buttCenter', 'strap'].filter(id => !grade(id, m).ok);
     assert.ok(bad.length > 0, 'some check finds it');
+    // the one cause, and exactly the readings the answer says it drags out with it (U20)
+    assert.deepEqual([...bad].sort(), [...sc.reads, ...sc.also].sort(), 'the readings out are the ones the case names (reads, also)');
+    if (sc.also.length) assert.match(alsoText(sc), /also puts out/);
     const b = blow(a, 450);
-    if (sc.id !== 'letoffClose') assert.ok(b.strikes >= 1 && !b.blocked, `a mf blow still strikes cleanly (${b.strikes} strikes, blocked ${b.blocked})`);
+    if (!['letoffClose', 'blocking', 'blubber'].includes(sc.id)) assert.ok(b.strikes === 1 && !b.blocked && b.bobbles === 0, `a mf blow still strikes cleanly (${b.strikes} strikes, blocked ${b.blocked}, bobbles ${b.bobbles})`);
     assert.ok(!m.jammed || sc.id === 'letoffFar', 'no jack jammed on its stop');
     console.log(`  ${sc.id}: out of spec: ${bad.join(', ')}`);
   });
