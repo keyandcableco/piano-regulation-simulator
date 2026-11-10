@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { G, FACTORY, NEIGHBOR_H, WEAR, TRAVEL_RISE, SIDE_K, WIPPEN_JACK_ARM, WIPPEN_PAPER, keyAngle, hamPt, repRho, knuckleBottom, linkage, dipOf, gFromTail, gOnJackAt, eff } from './model.js';
+import { G, FACTORY, NEIGHBOR_H, WEAR, TRAVEL_RISE, SIDE_K, WIPPEN_JACK_ARM, WIPPEN_PAPER, keyAngle, hamPt, repRho, knuckleBottom, linkage, dipOf, gFromTail, gOnJackAt, eff, trayLift } from './model.js';
 
 const COLORS = {
   keybed: 0x6e4c2e, rail: 0xa47a4c, wood: 0xd7b98c, keywood: 0xe6d3ad, keytop: 0xf6f3ea,
@@ -919,11 +919,12 @@ export function createScene(canvas, overlay) {
     n.wire.forEach((m, i) => rodTo(m, wp[i], wp[i + 1]));
     if (drawShared) {
       // the stop rail sits where the underlever's top would be with the damper lifted damperStop;
-      // the lift tray's top touches the underlever's underside when the pedal lifts it
+      // the lift tray's top comes up to the line of underlevers (a regulated note's, FACTORY.damperGap) after its free
+      // play, and touches this underlever's underside sooner or later as it sits below or above that line
       const feltRest = keyTop + (a.damperGap ?? 3.5);
       const ulY = (th, lx, ly) => UL_PIVOT[1] + lx * Math.sin(th) + ly * Math.cos(th);
       dStopRail.position.y = ulY(solveUl(feltRest + (a.damperStop ?? 7) / G.dmpRatio), 539 - UL_PIVOT[0], 5);
-      liftTray.position.y = ulY(solveUl(feltRest + (sim.pedal ?? 0) * (a.pedalLift ?? 7) / G.dmpRatio), 575 - UL_PIVOT[0], -2) - 0.3;
+      liftTray.position.y = ulY(solveUl(keyTop + FACTORY.damperGap + trayLift(a, sim.pedal ?? 0) / G.dmpRatio), 575 - UL_PIVOT[0], -2) - 0.3;
     }
   }
   // jack-local shift of the jack button along its screw that puts its felt on the stop face at jack angle psi

@@ -5,7 +5,7 @@ import { createScene, NOTE_Z, BASS } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
 import { TOOLBAG } from './toolbag.js';
-import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F, touch, dipAt, repeatRun } from './model.js';
+import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F, touch, dipAt, repeatRun, pedalFor } from './model.js';
 import { initControls, markView, closeMenu } from './controls.js';
 
 const $ = s => document.querySelector(s);
@@ -211,10 +211,10 @@ const STEPS = [
     what: 'With the key held firmly down, the damper head should still have a little play before the underlever reaches the stop rail: about 1/16" on this note. Steinway gives about 1/16" in the treble and 3/32" in the bass; Kawai allows 1 to 2 mm.',
     how: 'Raise or lower the rail. It keeps dampers from flying up on hard staccato and bobbling on the way down. It is not the pedal\'s stop: the pedal has its own, set lower.',
     note: 'The makers check this holding a sharp down, since the sharps lift their dampers a little higher. The sim has no sharp, so it reads this natural. Simplified here: the damper falls by its own weight. Many bass dampers also have springs.' },
-  { spec: 'pedalLift', title: 'Damper pedal lift', knobs: ['pedalLift'], test: 'pedalTest',
-    what: 'The pedal should lift every damper as high as the keys lift them, or a hair less, and never up to the stop rail. Kawai: the same height with the pedal as with the keys. Steinway: to a point below the stop rail, slightly below where the sharp keys lift.',
-    how: 'Set the pedal\'s stop (or the rod length) so the lift tray takes the dampers to the key\'s lift or just under it. Too little and the dampers don\'t clear the strings cleanly; too much and the pedal drives the dampers into the stop rail with a thump.',
-    note: 'The makers set this against the sharps\' lift; the sim reads it against this natural, and passes level with the key down to 1/32" under. On a real piano also leave a little free play in the pedal and rod before the tray moves. Not modelled yet.' },
+  { spec: 'pedalLift', also: ['pedalStart'], title: 'Damper pedal lift', knobs: ['pedalLift', 'damperGap'], test: 'pedalTest', tests: ['pedalTest', 'pedalWink'],
+    what: 'The pedal should lift every damper as high as the keys lift them, or a hair less, and never up to the stop rail. Kawai: the same height with the pedal as with the keys. Steinway: to a point below the stop rail, slightly below where the sharp keys lift. And the dampers should all leave the strings together: barely wink the pedal and watch for one that starts before or after the rest.',
+    how: 'Set the pedal\'s stop (or the rod length) so the lift tray takes the dampers to the key\'s lift or just under it. Too little and the dampers don\'t clear the strings cleanly; too much and the pedal drives the dampers into the stop rail with a thump. A damper that starts early or late on the pedal has its underlever off the line of the others: move the underlever on its wire, the same set screw that times it at the key.',
+    note: 'The makers set this against the sharps\' lift; the sim reads it against this natural, and passes level with the key down to 1/32" under. The tray starts 1/8" below the line of underlevers (Steinway\'s figure for its lost motion), so the first of the pedal\'s travel moves no damper; that free play is fixed here, not something to regulate. One place on the wire sets both when the key lifts a damper and when the tray does, so recheck the lift timing after moving it. How close "together" must be has no published figure: the band is the sim\'s own.' },
   { spec: 'damperFall', also: ['damperSeat', 'underCenter'], title: 'Damper wires: fall freely, seat flat', knobs: ['damperDrag', 'damperCenter', 'damperLevel'], centers: ['under'], test: 'pedalTest', tests: ['pedalTest', 'damperSight', 'ulDrop'],
     what: 'Let the pedal go: every damper should drop and land at once. One that hangs or lands late leaves the note ringing. Each head should sit centered on its unison, both ends of its felt on the strings with equal force.',
     how: 'A late damper usually has a wire that isn\'t running straight through its guide rail bushing: bend the wire so it passes without binding, or ease a tight bushing. If the wire runs free, loosen its set screw and let the underlever drop on its own: it should fall from its own weight, or its center is tight. Bend the top of the wire (bends 3 and 4, in Igrec\'s numbering) to center the head, and bend it as seen from the side to seat both ends.',
@@ -286,6 +286,26 @@ const TESTS = {
       const ms = slots.map((slot, i) => landed.has(slot) ? Math.round(1000 * (landed.get(slot) - t0[slot])) : null);
       toast(slots.length > 1 ? `Dampers landed after ${ms.map((v, i) => `note ${i + 1}: ${v ?? '—'} ms`).join(', ')}` : `Damper landed after ${ms[0] ?? '—'} ms`);
       landed = null;
+    } },
+  // Spurlock: barely wink the pedal and the early lifters show. The tray is eased up until a damper on the line of
+  // underlevers is just off its strings, and held: one set low on its wire is already well up, one set high hasn't moved
+  pedalWink: { label: 'Wink the pedal: do the dampers start together?', specs: ['pedalStart'], view: 'dampers', damper: true, noExam: true,
+    run: async () => {
+      await releaseKey(); setPedal(false); await waitSim(0.1);
+      if (multi()) view('damperrow');
+      const slots = multi() ? EXAM_ORDER : [cur];
+      NOTES.forEach(n => n.sim.setPedal(true, { to: pedalFor(n.sim.a, 0.5), over: 0.6 }));
+      pedalDown = true; $('#k-pedal').classList.add('on');
+      await waitSim(0.6); await waitReal(1.2);
+      const how = slots.map(s => { const r = gradeL('pedalStart', NOTES[s].m); return r.ok ? 'with the line' : NOTES[s].m.trayHolds > 0.005 ? 'held up by the tray even with the pedal up' : r.v > 0 ? 'early' : 'late'; });
+      const bad = how.some(h => h !== 'with the line');
+      say(slots.length > 1 ? `A wink of the pedal: ${how.map((h, i) => `note ${i + 1} starts ${h}`).join(', ')}`
+        : how[0] === 'with the line' ? 'A wink of the pedal, and this damper stirs with the line of the others'
+        : how[0] === 'early' ? 'A wink of the pedal, and this damper is already well up: it leaves the strings before the others'
+        : how[0] === 'late' ? 'A wink of the pedal lifts the line of dampers, and this one is still on its strings: it starts late'
+        : 'This damper is off its strings before the pedal moves: its underlever sits on the lift tray', bad ? 'warn' : '');
+      await waitReal(0.8);
+      setPedal(false); await waitSim(0.25);
     } },
   dipBlock: { label: 'Dip block at the key front', specs: ['dip'], view: 'keyfront',
     run: async () => { await releaseKey(); sim.press(sim.dip, 12); await waitSim(1.4); await waitReal(1.2); await releaseKey(); } },
@@ -618,14 +638,14 @@ const KNOB_FOR = {
   hammerTravel: ['hammerTravel'], hammerSpace: ['hammerSpacing'], hammerSquare: ['hammerSquare'],
   jackScrew: ['jackPos'], wippenSpace: ['wippenSpacing'], wippenTravel: ['wippenSpacing'], repStop: ['wink'], letoff: ['letoff'], drop: ['drop'], repSpring: ['spring'],
   backcheck: ['check'], backcheckSpace: ['backcheckAlign'], backcheckSquare: ['backcheckAlign'],
-  damperGap: ['damperTiming'], damperStop: ['damperStop'], pedalLift: ['pedalLift'],
+  damperGap: ['damperTiming', 'pedalStart'], damperStop: ['damperStop'], pedalLift: ['pedalLift'],
   damperDrag: ['damperFall'], damperCenter: ['damperSeat'], damperLevel: ['damperSeat'],
 };
 const SHORT = {
   keyBushings: 'Key bushings', keyHeight: 'Key height', dip: 'Dip', aftertouch: 'Aftertouch', blow: 'Blow', lostMotion: 'Lost motion', restGap: 'Rail gap',
   hammerTravel: 'Travel', hammerSpacing: 'Spacing', hammerSquare: 'Square', hammerSound: 'Solid on its center', jackPos: 'Jack position', wippenSpacing: 'Jack centered',
   wink: 'Wink', letoff: 'Let-off', drop: 'Drop', spring: 'Spring', check: 'Checking', backcheckAlign: 'Centered, square',
-  damperTiming: 'Lift timing', damperStop: 'Stop rail', pedalLift: 'Pedal lift', damperFall: 'Fall', damperSeat: 'Seat',
+  damperTiming: 'Lift timing', damperStop: 'Stop rail', pedalLift: 'Pedal lift', pedalStart: 'Starts on the pedal', damperFall: 'Fall', damperSeat: 'Seat',
   hammerCenter: 'Hammer center', wippenCenter: 'Wippen center', jackCenter: 'Jack center', repCenter: 'Rep lever center', underCenter: 'Underlever center',
 };
 // an unmeasured reading names its test, which may sit in another part of the action (aftertouch: the slow press)
@@ -718,6 +738,7 @@ function specTarget(id) {
   if (id === 'spring') return 'rises, no pop';
   if (id === 'pedalLift') return 'the key\'s lift, or a hair under';
   if (id === 'damperTiming') return 'a third to half';
+  if (id === 'pedalStart') return 'together';
   if (id === 'hammerSquare') return 'square';
   if (id === 'hammerSound') return 'solid, quiet';
   if (id === 'hammerSpacing') return 'centered';
@@ -737,6 +758,7 @@ function reading(id, mm = m) {
   let txt;
   if (id === 'spring') txt = r.note;
   else if (id === 'damperTiming' && r.v != null) txt = `at ${Math.round(r.v * 100)}% of hammer travel`;
+  else if (id === 'pedalStart') txt = mm.trayHolds > 0.005 ? r.note : Math.abs(r.v) < 0.05 ? 'with the line' : `${fmtGraded(id, Math.abs(r.v))} ${r.v > 0 ? 'early' : 'late'}` + (r.note ? ` · ${r.note}` : '');
   else if (id === 'hammerSquare') txt = r.note ? r.note : Math.abs(r.v) < 0.25 ? 'square' : `${Math.abs(r.v).toFixed(1)}° out of square`;
   else if (id === 'hammerSound') txt = r.note;
   else if (id === 'hammerSpacing') txt = side(r.v, id);
@@ -799,7 +821,7 @@ const SCENARIOS = [
   { complaint: 'Notes ring on after I let go, and the sustain pedal leaves a little smear.', faults: { damperDrag: +0.5 }, answer: 'A damper wire binding in its guide rail bushing: that damper falls late.' },
   { complaint: 'This note keeps ringing faintly after I let the key up, even without the pedal.', faults: { damperLevel: +0.6 }, answer: 'The damper head isn\'t seated: its back end sits up off the strings, so a string goes on ringing. Bend the wire, as seen from the side, until both ends sit with equal force.' },
   { complaint: 'One string of this note rings on after I let go.', faults: { damperCenter: +2.0 }, answer: 'The damper head sits off center on its unison, so its felt doesn\'t cover one string properly. Bend the top of the wire to center it.' },
-  { complaint: 'The key feels heavier right at the top of the stroke than the ones next to it.', faults: { damperGap: -1.5 }, answer: 'The damper lifts too early: the key picks up the underlever before the hammer is a third of the way up. Lifting earlier also lifts it further, which eats the stop rail clearance and leaves the pedal short of the key lift: they come right once the timing is fixed. Weigh the key off and read the trace: with the pedal up, the damper\'s weight (the thin line, about 11 g at the key) comes in at 2 mm of key travel where its neighbors\' comes in past 3.5.' },
+  { complaint: 'The key feels heavier right at the top of the stroke than the ones next to it.', faults: { damperGap: -1.5 }, answer: 'The damper lifts too early: the key picks up the underlever before the hammer is a third of the way up. Lifting earlier also lifts it further, which eats the stop rail clearance; and the underlever sits low on its wire, so on the pedal this damper leaves the strings before its neighbors (wink the pedal). Both come right once the underlever is moved back. Weigh the key off and read the trace: with the pedal up, the damper\'s weight (the thin line, about 11 g at the key) comes in at 2 mm of key travel where its neighbors\' comes in past 3.5.' },
   { complaint: 'There\'s a thump when I put the sustain pedal down.', faults: { pedalLift: +2 }, answer: 'Pedal lift too high: it drives the dampers into the stop rail (put the pedal down and the sim says so). The pedal should lift them no higher than the keys do, and stop short of the rail.' },
   { complaint: 'This note sounds thinner than its neighbors, and there\'s a little click. The hammer looks a bit crooked.', faults: { damage: 'splitShank' }, alone: true,
     answer: 'A split hammer shank, not yet broken: it flexes on the blow (less power), clicks, and the head wobbles. Burning or traveling won\'t hold; replace the shank, then travel, space and square the new one.' },
@@ -1027,7 +1049,7 @@ const LIMITS = {
   ],
   grand: [
     ['Measured, with stand-ins.', 'The hammer action is one measured Boston GP-178 note (Hirschkorn, 2004). The dampers and their lift tray are drawn to suit, not measured.'],
-    ['No una corda or sostenuto, and no pedal trapwork.', 'The damper pedal lifts the tray by itself: no pitman, no free play to regulate.'],
+    ['No una corda or sostenuto, and no pedal trapwork.', 'The damper pedal lifts the tray by itself: no pitman, and the tray\'s 1/8" of free play under the line of underlevers is fixed, not something to regulate. Where the tray meets an underlever follows from the lever\'s place on its wire; the tray itself is drawn to suit.'],
     ['Feel is a number and a picture, not a feel.', 'The key has weight and is pushed by a finger\'s force: the weigh-off test gives downweight and upweight in grams, the trace under it shows the bump at let-off, and the key comes back up by its own weight and springs. You read all that; you don\'t feel it. The finger forces behind pp, mf, ff and staccato are the sim\'s own, picked to give hammer speeds in the range Askenfelt and Jansson measured; a real finger\'s push rises through the stroke. The weights and friction are one measured Boston key\'s (Hirschkorn); sliding friction at the capstan and knuckle is left out, and the key has no leads to move.'],
     ['Some parts give, most are rigid.', 'The front punching and the back rail cloth squash as Hirschkorn measured them, so dip depends on how hard the key is pressed and the hammer comes home with a bounce. How far a played key bounces back off its front punching is tuned, not measured: his felt alone throws a bare key back at about 0.6 of its speed, and a figure of the sim\'s own stands in for the hand behind the finger that holds it down. The knuckle does not settle into the repetition lever or the jack, the key does not bend, and the backcheck\'s give is a fitted figure: a key with a little too little aftertouch still plays cleanly here, where Igrec warns below about 0.8 mm. The fingertip check of jack against lever, and "as high as it goes without scraping" for the backcheck, don\'t come out as they do on a bench.'],
     ['A key with lost motion still sits up on its back rail.', 'By its measured weights this key is front-heavy without the hammer on it, so with the hammer down on the rest rail its front would hang low until the jack met the knuckle. The sim keeps it up, with free play at the top, as the lost-motion reading has it. Not checked on a bench.'],
@@ -1137,7 +1159,7 @@ const AREAS = [
   { id: 'jack', name: 'Jack and repetition lever', tests: ['sightJack', 'sightJackFront', 'wink', 'slowPress', 'easeUp', 'repeat'],
     knobs: ['jackScrew', 'wippenSpace', 'wippenTravel', 'repStop', 'letoff', 'drop', 'repSpring'] },
   { id: 'backcheck', name: 'Backcheck', tests: ['strikeHold', 'sightBackcheck'], knobs: ['backcheck', 'backcheckSpace', 'backcheckSquare'] },
-  { id: 'dampers', name: 'Dampers and pedal', tests: ['damperSlow', 'pedalTest', 'damperSight'],
+  { id: 'dampers', name: 'Dampers and pedal', tests: ['damperSlow', 'pedalTest', 'pedalWink', 'damperSight'],
     knobs: ['damperGap', 'damperStop', 'pedalLift', 'damperDrag', 'damperCenter', 'damperLevel'] },
   { id: 'centers', name: 'Action centers', tests: ['swingHammer', 'wobbleHammer', 'wippenTilt', 'tenderPlay', 'jackFall', 'repGauge', 'ulDrop'],
     knobs: [], repairs: () => centerRepairs(Object.keys(CENTERS)) },
@@ -1189,8 +1211,8 @@ const PART_TESTS = {
   letoff: ['slowPress'], regrail: ['slowPress'], drop: ['slowPress'], dropfelt: ['slowPress', 'repGauge'],
   wippen: ['sightJackFront', 'wippenTilt'], wflange: ['sightJackFront'], wcenter: ['wippenTilt', 'tenderPlay'], wippenrail: ['sightJackFront'],
   backcheck: ['strikeHold', 'sightBackcheck'],
-  damper: ['damperSight', 'damperSlow', 'pedalTest'], damperfelt: ['damperSight'], damperwire: ['damperSight', 'pedalTest'], guiderail: ['pedalTest'],
-  underlever: ['damperSlow', 'ulDrop'], ulflange: ['damperSlow'], ucenter: ['ulDrop', 'damperSlow'], damperstop: ['damperSlow'], lifttray: ['pedalTest'],
+  damper: ['damperSight', 'damperSlow', 'pedalTest', 'pedalWink'], damperfelt: ['damperSight'], damperwire: ['damperSight', 'pedalTest'], guiderail: ['pedalTest'],
+  underlever: ['damperSlow', 'ulDrop'], ulflange: ['damperSlow'], ucenter: ['ulDrop', 'damperSlow'], damperstop: ['damperSlow'], lifttray: ['pedalTest', 'pedalWink'],
 };
 // the center pins: their cards carry that center's repairs
 const CENTER_PART = { hcenter: 'hammer', wcenter: 'wippen', jcenter: 'jack', rcenter: 'rep', ucenter: 'under' };
@@ -1406,6 +1428,7 @@ function damperCompare() {
   const cell = (id, txt) => s => { const ok = gradeL(id, NOTES[s].m).ok; return el('td', { class: ok ? 'okc' : 'badc' }, mark(ok), txt(NOTES[s].m)); };
   const rows = [
     ['Starts lifting (share of hammer travel)', 'damperTiming', mm => mm.damperTiming == null ? 'never' : `${Math.round(100 * mm.damperTiming)}%`],
+    ['Starts on the pedal', 'pedalStart', mm => Math.abs(mm.pedalStart) < 0.05 ? 'with the line' : `${fmt(Math.abs(mm.pedalStart))} ${mm.pedalStart > 0 ? 'early' : 'late'}`],
     ['Lands after the pedal', 'damperFall', mm => `${Math.round(mm.fallMs)} ms`]];
   return el('table', { class: 'specs score' },
     el('thead', {}, el('tr', {}, el('th', {}, 'Dampers'), EXAM_ORDER.map((s, i) => el('th', {}, `Note ${i + 1}`)))),
@@ -1656,7 +1679,7 @@ function handleEvents() {
     if (e.type === 'damperbounce') say('The damper bobbled on the strings', 'warn');
     // the pedal taking the dampers up into the stop rail (a regulated pedal stops short of it); a hard blow that
     // throws a damper up to the rail is what the rail is there for, and is only noted
-    if (e.type === 'damperstop') sim.pedalTarget > 0 && sim.a.pedalLift >= sim.a.damperStop ? say('Thump: the pedal drove the dampers into the stop rail', 'warn')
+    if (e.type === 'damperstop') sim.pedalTarget > 0 && m.pedalIntoStop ? say('Thump: the pedal drove the dampers into the stop rail', 'warn')
       : say('The damper flew up to its stop rail');
     if (e.type === 'bobble') say(e.lever ? 'The hammer floated up off the repetition lever and struck again (bobble)'
       : 'The hammer bounced off the jack and struck again (bobble)', 'warn');
