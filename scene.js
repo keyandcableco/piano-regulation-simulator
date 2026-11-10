@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { ruleTicks } from './gauge.js';
 import { G, FACTORY, NEIGHBOR_H, WEAR, TRAVEL_RISE, SIDE_K, WIPPEN_JACK_ARM, WIPPEN_PAPER, keyAngle, hamPt, repRho, knuckleBottom, linkage, dipOf, gFromTail, gOnJackAt, eff } from './model.js';
 
 const COLORS = {
@@ -554,6 +555,58 @@ export function createScene(canvas, overlay) {
       if (keep.includes(id)) continue;
       scene.remove(c.line); c.el.remove(); callouts.delete(id);
     }
+  }
+
+  // ---------- a rule laid on the action, for the student to read (gauge.js; app.js places it every frame) ----------
+  // A steel rule standing in the plane of the part's near face, its zero on what is measured from and its scale running
+  // down, graduated on the edge next to the part; a fine sight line carried across from the part to the scale, and
+  // (mark) a pencil line at the zero. Drawn over everything, so a neighbor's key or hammer in front doesn't hide it.
+  const RULE_W = 14, RULE_PX = 32;   // mm wide; texture pixels per mm
+  const gauge = new THREE.Group(); gauge.visible = false; scene.add(gauge);
+  const ruleMat = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, side: THREE.DoubleSide });
+  const ruleMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), ruleMat); ruleMesh.renderOrder = 20; gauge.add(ruleMesh);
+  const gaugeLine = color => {
+    const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color, depthTest: false }));
+    l.renderOrder = 21; l.frustumCulled = false; gauge.add(l); return l;   // (moved every frame: its first bounds would cull it)
+  };
+  const sightLine = gaugeLine(0x101418), zeroLine = gaugeLine(0x1c5fd0);
+  let ruleKey = '';
+  // the rule's face: `head` mm of plain steel above the zero, then the scale; ticks from the edge on the part's side
+  function ruleTexture(units, length, head, ticksOnRight) {
+    const cv = document.createElement('canvas'), W = RULE_W * RULE_PX, H = Math.round((length + head) * RULE_PX);
+    cv.width = W; cv.height = H;
+    const c = cv.getContext('2d');
+    c.fillStyle = '#d4d8dd'; c.fillRect(0, 0, W, H);
+    c.strokeStyle = '#7d848c'; c.lineWidth = 4; c.strokeRect(2, 2, W - 4, H - 4);
+    c.strokeStyle = c.fillStyle = '#15191e'; c.textBaseline = 'middle'; c.textAlign = ticksOnRight ? 'left' : 'right';
+    const fine = units === 'in';
+    c.font = `600 ${Math.round((fine ? 2.0 : 2.3) * RULE_PX)}px system-ui, sans-serif`;
+    for (const t of ruleTicks(units, length)) {
+      const y = (head + t.at) * RULE_PX, len = t.rank * 0.46 * W;
+      c.lineWidth = t.rank >= 0.8 ? 4 : 3;
+      c.beginPath(); c.moveTo(ticksOnRight ? W : 0, y); c.lineTo(ticksOnRight ? W - len : len, y); c.stroke();
+      if (t.label && y < H - RULE_PX) c.fillText(t.label, ticksOnRight ? 0.04 * W : 0.96 * W, y);
+    }
+    if (head > 1.5) c.fillText('0', ticksOnRight ? 0.04 * W : 0.96 * W, head * RULE_PX - 0.9 * RULE_PX);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return tex;
+  }
+  // g: null to put it away, or { units, length, head, x (the rule's edge on the part's side), side (-1: the rule lies toward
+  // the keys from there, +1 toward the strings), z, zero (height of its zero), px, py (where the sight line starts: on the
+  // part, at the height being read), mark (a line at the zero too), hideGhosts }
+  function setGauge(g) {
+    if (!g) { if (gauge.visible) { gauge.visible = false; ghosts.visible = noteCount === 1; } return; }
+    const key = `${g.units}|${g.length}|${g.head}|${g.side}`;
+    if (key !== ruleKey) { ruleMat.map?.dispose(); ruleMat.map = ruleTexture(g.units, g.length, g.head, g.side < 0); ruleMat.needsUpdate = true; ruleKey = key; }
+    const h = g.length + g.head, far = g.x + g.side * RULE_W;
+    ruleMesh.scale.set(RULE_W, h, 1);
+    ruleMesh.position.set((g.x + far) / 2, g.zero + g.head - h / 2, g.z);
+    sightLine.geometry.setFromPoints([new THREE.Vector3(g.px, g.py, g.z + 0.05), new THREE.Vector3(far, g.py, g.z + 0.05)]);
+    zeroLine.visible = !!g.mark;
+    if (g.mark) zeroLine.geometry.setFromPoints([new THREE.Vector3(g.px, g.zero, g.z + 0.05), new THREE.Vector3(far, g.zero, g.z + 0.05)]);
+    gauge.visible = true;
+    if (g.hideGhosts) ghosts.visible = false;
   }
 
   // ---------- tail to backcheck: the narrowest side-view gap between the drawn tail and the backcheck's buckskin ----------
@@ -1112,5 +1165,5 @@ export function createScene(canvas, overlay) {
 
   setNoteCount(1);
   return { render, update, setView, zoomBy, slideBy, resetView, showTool, hideTool, spinTool, highlight, pick, screenOf, setCallout, clearCallouts, setCallouts, backcheckGap, setBackground, controls, camera, setLabels,
-           setNoteCount, setFocus, setInset, setInsetText, setInsetMode, insetEl: insetBox, straightedge, PART_NAMES, VIEWS };
+           setNoteCount, setFocus, setGauge, setInset, setInsetText, setInsetMode, insetEl: insetBox, straightedge, PART_NAMES, VIEWS };
 }

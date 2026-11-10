@@ -9,6 +9,7 @@ import { TOOLBAG } from './toolbag.js';
 import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F, touch, dipAt, repeatRun } from './model.js';
 import { initControls, markView, closeMenu } from './controls.js';
 import { SPEC_SETS, specSet, setSpecSet, specSource } from './model.js';
+import { GAUGES, graduation, parseReading, judgeReading } from './gauge.js';
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -125,7 +126,7 @@ const view = name => { viewNow = name; travelRestG = null; S.setFocus(focusFor(n
 // the View button names the view, and its menu marks it; the views only tests use are named here
 // (short enough to fit the button: tests/controls-check.cjs lists them too)
 const TEST_VIEWS = { travel: 'Traveling', jackfront: 'Jack from the keys', checkfront: 'Backcheck, end on', checktop: 'Backcheck, above',
-  damperline: 'Damper heads', damperrow: 'Three dampers', keytop: 'Key tops', wink: 'Jack and hammer', wippen: 'Wippen' };
+  damperline: 'Damper heads', damperrow: 'Three dampers', keytop: 'Key tops', wink: 'Jack and hammer', wippen: 'Wippen', gauge: 'Reading the rule' };
 function showView() {
   for (const b of document.querySelectorAll('[data-view]')) b.classList.toggle('on', b.dataset.view === viewNow);
   markView(document.querySelector(`[data-view="${viewNow}"] b`)?.textContent ?? TEST_VIEWS[viewNow] ?? viewNow);
@@ -254,7 +255,7 @@ const TESTS = {
       if (/rest rail/.test(why)) say(m.onRail ? 'The hammer sits on the rest rail, so tripping the jack moves nothing: lower the rail, then trip it again'
         : 'The hammer came down on the rest rail, not the repetition lever: lower the rail and trip it again', 'warn');
     } },
-  blowGauge: { label: 'Blow distance gauge', specs: ['blow'], view: 'hammer', run: async () => { await releaseKey(); } },
+  blowGauge: { label: 'Blow distance gauge', specs: ['blow'], view: 'hammer', run: async () => { await releaseKey(); if (gaugeMode) await gaugeBlow(); } },
   restRail: { label: 'Look at the rest rail', specs: ['restGap'], view: 'rails', run: async () => { await releaseKey(); } },
   damperSlow: { label: 'Press slowly: watch the damper', specs: ['damperTiming', 'damperStop'], view: 'dampers', damper: true,
     run: async () => { setPedal(false); await releaseKey(); sim.press(sim.dip, 6); await waitSim(2.2); await waitReal(1); } },
@@ -290,9 +291,9 @@ const TESTS = {
       landed = null;
     } },
   dipBlock: { label: 'Dip block at the key front', specs: ['dip'], view: 'keyfront',
-    run: async () => { await releaseKey(); sim.press(sim.dip, 12); await waitSim(1.4); await waitReal(1.2); await releaseKey(); } },
+    run: async () => { if (gaugeMode) return gaugeDip(); await releaseKey(); sim.press(sim.dip, 12); await waitSim(1.4); await waitReal(1.2); await releaseKey(); } },
   slowPress: { label: 'Press slowly to the bottom', specs: ['letoff', 'drop', 'aftertouch'], view: 'hammer',
-    run: async () => { await releaseKey(); sim.press(sim.dip, 6); await waitSim(2.2); await waitReal(1.2); } },
+    run: async () => { if (gaugeMode && await gaugeSlowPress()) return; await releaseKey(); sim.press(sim.dip, 6); await waitSim(2.2); await waitReal(1.2); } },
   strikeHold: { label: 'Strike and hold', specs: ['check'], view: 'backcheck', scale: 0.12,
     run: async () => { await releaseKey(); sim.blow('mf'); await waitSim(0.5); await waitReal(1); } },
   hammerLine: { label: 'Sight the hammer line', specs: ['blow'], view: 'hammerline', threeOnly: true,
@@ -583,13 +584,135 @@ async function runTest(id) {
   refresh();
   try { await t.run(); } finally { busy--; forcedScale = null; }
   // sighting the hammer line shows every hammer's height at once
-  if (gen === generation) (id === 'hammerLine' ? NOTES.map(n => n.tested) : [tested]).forEach(set => t.specs.forEach(s => set.add(s)));
+  // (with the gauges on, sighting the line shows which hammer is high or low, not the blow distance: that is read off the rule)
+  if (gen === generation && !(gaugeMode && id === 'hammerLine')) (id === 'hammerLine' ? NOTES.map(n => n.tested) : [tested]).forEach(set => t.specs.forEach(s => set.add(s)));
   store();
   refresh();
 }
 
+// ---------- gauges laid on the action: the student reads the rule and calls it (WCI-05, BE-13; gauge.js) ----------
+// With "Read the gauges yourself" on, the tests for blow, let-off, drop, dip and aftertouch stop where the reading is
+// taken, lay a rule on the action (scene.js setGauge) and wait. The student types what the rule reads; only then is the
+// model's own figure shown, with how far off the call was. "Show me the number" skips the call. Off (the default),
+// the tests print the figure as they always did.
+let gaugeMode = false;
+try { gaugeMode = localStorage.getItem('regsim-gauges') === '1'; } catch {}
+let gaugeNow = null;   // the reading being taken: { id, zero, x, truth, hide: readings kept back until they are called }
+const gaugeEl = $('#gaugeask');
+const exact = v => units === 'in' ? `${fracIn(v)} (${mm2(v)})` : `${mm2(v)} (${fracIn(v)})`;
+const crownG = y => { let lo = -0.6, hi = 0.7; for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (crownY(mid) < y) lo = mid; else hi = mid; } return (lo + hi) / 2; };
+const keyTopFront = d => { const k = keyAngle(eff(adj), d, true); return keyPt(k.By, k.th, [G.keyFrontLocal, G.keyThick + G.keyTopCap]); };
+// every screen frame: the rule stays where it was laid, and its sight line follows the part being read
+function placeGauge() {
+  const q = gaugeNow;
+  if (!q) { S.setGauge(null); return; }
+  const nz = NOTE_Z[cur], spec = GAUGES[q.id];
+  if (spec.at === 'hammer') S.setGauge({ units, length: spec.length, head: q.id === 'drop' ? 3 : 0, side: -1, x: q.x - 15, z: nz + 5.6, zero: q.zero,
+    px: q.x + 5, py: crownTop(hammerOverride ?? sim.g)[1], mark: q.id === 'drop' });
+  else S.setGauge({ units, length: spec.length, head: 3, side: -1, x: q.x - 2, z: nz + 10.6, zero: q.zero, px: q.x + 9, py: keyTopFront(sim.d)[1], mark: true, hideGhosts: true });
+}
+// Lay the rule for one reading and wait for it to be called: resolves once the student has read the answer (false if
+// the key was changed under it). The rule is read close up, the view level with the sight line so nothing is read aslant.
+function gaugeRead(id, { zero, x, truth, hide = [id] }) {
+  return new Promise(resolve => {
+    const gen = generation, mode0 = mode, done0 = exam.done, set = tested, spec = GAUGES[id];
+    gaugeNow = { id, zero, x, truth, hide: new Set(hide) };
+    const y = zero - truth, cx = x - (spec.at === 'hammer' ? 12 : 4), front = spec.at === 'hammer' ? 5.6 : 10.6;
+    S.VIEWS.gauge = { t: [cx, y, 0], p: [cx, y + 0.3, front + (spec.length > 30 ? 62 : 48)] };   // closer for the short rule's small readings
+    view('gauge');
+    let said = null;
+    const done = ok => { clearInterval(watch); gaugeNow = null; gaugeEl.hidden = true; gaugeEl.replaceChildren(); S.setGauge(null); resolve(ok); };
+    // the key changed under it (a new key, another tab, the exam handed in): the rule is put away and the test's own view comes back
+    const watch = setInterval(() => { if (generation !== gen || mode !== mode0 || exam.done !== done0) { done(false); if (viewNow === 'gauge') view(TESTS[spec.test].view); } }, 150);
+    const input = el('input', { type: 'text', id: 'gauge-in', inputmode: 'text', autocomplete: 'off', placeholder: 'your reading', 'aria-label': `${spec.name}: your reading` });
+    const err = el('p', { class: 'badc small', id: 'gauge-err' });
+    const reveal = shown => {
+      set.add(id); gaugeNow.hide.delete(id);
+      const j = shown ? null : judgeReading(said, truth, units), g = graduation(units), unit = units === 'in' ? 'a 64th' : 'half a millimetre';
+      const how = shown ? '' : j.close ? (Math.abs(j.off) < g / 4 ? ' Right on it.' : ` You were ${mm2(Math.abs(j.off))} ${j.off > 0 ? 'over' : 'under'}: within one graduation (${unit}), a good read.`)
+        : ` You were ${exact(Math.abs(j.off))} ${j.off > 0 ? 'over' : 'under'}, about ${j.grads} graduations of the rule (${unit} each). Look again at where the sight line crosses the scale.`;
+      const next = el('button', { class: 'primary', id: 'gauge-next', onclick: () => done(true) }, 'Go on');
+      gaugeEl.replaceChildren(el('div', { class: 'small muted' }, spec.name),
+        el('p', { id: 'gauge-result', class: shown ? '' : j.close ? 'okc' : 'badc' }, shown ? `It reads ${exact(truth)}.` : `You called ${exact(said)}. The model's figure is ${exact(truth)}.${how}`),
+        el('div', { class: 'row' }, next));
+      refresh(); setTimeout(() => next.isConnected && next.focus(), 300);   // (not at once: the Enter that called it would press it too)
+    };
+    const call = () => {
+      said = parseReading(input.value, units);
+      if (said === null) { err.textContent = 'Type it as you would say it: 1 3/4, 3/64, .4 or 1.6 (in the units showing), or with its unit: 44.5 mm.'; input.focus(); return; }
+      reveal(false);
+    };
+    input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); call(); } });
+    gaugeEl.replaceChildren(el('div', { class: 'small muted' }, `${spec.name} · read the rule`),
+      el('p', {}, spec.ask),
+      el('p', { class: 'small muted' }, `The rule's zero is on ${spec.from}, and the fine line is carried across from the part. Smallest graduation: ${units === 'in' ? '1/64 in' : '0.5 mm'}. Zoom and slide the view as you like.`),
+      el('div', { class: 'row' }, input, el('button', { class: 'primary', id: 'gauge-call', onclick: call }, 'Call it'),
+        el('button', { id: 'gauge-show', onclick: () => reveal(true) }, 'Show me the number')),
+      err);
+    gaugeEl.hidden = false;
+    refresh();
+  });
+}
+async function gaugeBlow() {
+  await waitReal(0.3);
+  await gaugeRead('blow', { zero: G.stringY, x: crownTop(sim.g)[0], truth: m.blow });
+  view(TESTS.blowGauge.view);
+}
+async function gaugeDip() {
+  await releaseKey();
+  const top = keyTopFront(0);
+  sim.press(sim.dip, 12); await waitSim(1.4);
+  await gaugeRead('dip', { zero: top[1], x: top[0], truth: m.dip });
+  view(TESTS.dipBlock.view);
+  await releaseKey();
+}
+// The slow press, stopped three times: on the brink of let-off, just after the drop, and at the bottom. Returns false
+// when there is nothing to read off a rule (the hammer blocks, or the jack never lets off): the plain slow press then
+// shows what happens instead.
+async function gaugeSlowPress() {
+  const sp = m.press, gen = generation;
+  if (m.letoff == null || m.blocked || sp.dEsc == null) return false;
+  await releaseKey();
+  const later = ['letoff', 'drop', 'aftertouch'];
+  try {
+    gaugeNow = { id: 'letoff', zero: G.stringY, x: 0, truth: m.letoff, hide: new Set(later) };   // nothing given away on the way there
+    const x = crownTop(crownG(G.stringY - m.letoff))[0];
+    gaugeNow.x = x;
+    sim.press(Math.max(0, sp.dEsc - 0.05), 6); await waitSim(sp.dEsc / 6 + 0.3);
+    if (generation !== gen) return true;
+    hammerOverride = crownG(G.stringY - m.letoff);
+    if (!await gaugeRead('letoff', { zero: G.stringY, x, truth: m.letoff, hide: later })) return true;
+    // the drop, where there is one to read (a lever not yet on its screw, or holding the hammer at the string, reads as words)
+    // (nor is one that runs off the rule: a lever sagging under the hammer drops it an inch)
+    if (gradeL('drop', m).v != null && m.drop >= 0 && m.drop < GAUGES.drop.length - 3) {
+      gaugeNow = { id: 'drop', zero: G.stringY - m.letoff, x, truth: m.drop, hide: new Set(later.slice(1)) };
+      sim.press(Math.min(sim.dip, sp.dEsc + 0.06), 6); await waitSim(0.3);
+      hammerOverride = crownG(G.stringY - m.letoff - m.drop);
+      if (!await gaugeRead('drop', { zero: G.stringY - m.letoff, x, truth: m.drop, hide: later.slice(1) })) return true;
+    }
+    hammerOverride = null;
+    const top = keyTopFront(sp.dEsc);
+    gaugeNow = { id: 'aftertouch', zero: top[1], x: top[0], truth: m.aftertouch, hide: new Set(['aftertouch']) };
+    sim.press(sim.dip, 6); await waitSim((sim.dip - sp.dEsc) / 6 + 0.5);
+    if (generation !== gen) return true;
+    if (!await gaugeRead('aftertouch', { zero: top[1], x: top[0], truth: m.aftertouch })) return true;
+    view(TESTS.slowPress.view);
+  } finally { hammerOverride = null; gaugeNow = null; S.setGauge(null); gaugeEl.hidden = true; }
+  return true;
+}
+function setGaugeMode(on) {
+  gaugeMode = on;
+  try { localStorage.setItem('regsim-gauges', on ? '1' : '0'); } catch {}
+  $('#gauges').checked = on; $('#gauge-note').hidden = !on;
+  refresh();
+}
+canvas.gauge = () => gaugeNow && !gaugeEl.hidden ? { id: gaugeNow.id, truth: gaugeNow.truth, units } : null;   // for the headless checks
+
 // ---------- visibility of readings ----------
 function revealed(id) {
+  if (gaugeNow?.hide.has(id)) return false;   // being read off the rule right now
+  // with the gauges on, a reading a rule takes shows once it has been called (or asked for), at every level
+  if (gaugeMode && Object.hasOwn(GAUGES, id)) return tested.has(id) || (mode === 'exam' && exam.done) || (mode === 'diagnose' && (gaveUp || (!!verdict && !verdict.bad.length)));
   if (mode === 'sandbox' || level().live) return true;
   if (mode === 'learn') return tested.has(id);
   if (mode === 'exam') return tested.has(id) || exam.done;
@@ -1087,7 +1210,7 @@ const LIMITS = {
     ['No sound.', 'Blocking, buzzing, bobbling and ringing strings are told in words, not heard. Nothing here trains the ear, and voicing and hammer-to-string mating are not modelled.'],
     ['One natural key.', 'No sharp: nothing on sharp height, sharp dip, or the damper and pedal settings the makers check on a sharp. The three-note model is three naturals.'],
     ['One note\'s geometry.', 'One place in the scale. No taper from bass to treble (let-off, springs, damper play), no bass dampers with springs.'],
-    ['Generic targets, or a maker\'s figures on a Boston.', 'The targets are textbook numbers unless you choose a maker\'s set (Specs graded against, at the top of the panel): Steinway New York, Steinway Hamburg or Kawai, from their service literature. On a real piano the maker\'s figures govern. The action underneath is still one measured Boston, so a maker\'s set shows the trade-offs, not that maker\'s piano: Steinway\'s set cannot be met on it, and says so.'],
+    ['Generic targets.', 'Textbook numbers, not one maker\'s specs. On a real piano the maker\'s figures govern, and Steinway\'s or Kawai\'s own regulation would fail some checks here.'],
     ['Every click is exact and instant.', 'No stripped screws, no bent wire springing back, no paper that is nearly right. The time a job takes here says nothing about the bench.'],
     ['No assembly, bedding, key squaring or spacing, hammer filing.', 'They are named in Learn so the order reads complete, but they are not done here.'],
   ],
@@ -1099,6 +1222,8 @@ const LIMITS = {
     ['A key with lost motion still sits up on its back rail.', 'By its measured weights this key is front-heavy without the hammer on it, so with the hammer down on the rest rail its front would hang low until the jack met the knuckle. The sim keeps it up, with free play at the top, as the lost-motion reading has it. Not checked on a bench.'],
     ['The repetition spring is graded by a number, not the eye.', 'The rise you watch is a simplified one, fitted to slow-motion video; the grade is the spring\'s net lift.'],
     ['Wear amounts are the sim\'s own estimates.', 'The directions are right; the sizes have no published source.'],
+    ['A maker\'s figures are laid on a Boston.', 'You can choose a maker\'s set to be graded against (Specs graded against, at the top of the panel): Steinway New York, Steinway Hamburg or Kawai, from their service literature. On a real piano the maker\'s figures govern. The action underneath is still one measured Boston, so a maker\'s set shows the trade-offs, not that maker\'s piano: Steinway\'s set cannot be met on it, and says so.'],
+    ['Measuring is one rule and a sight line.', 'With Read the gauges yourself on, blow, let-off, drop, dip and aftertouch are read off a rule laid on the action, with a fine line carried across from the part. On the bench there is no sight line, the rule has to be held square, and let-off, dip and aftertouch are usually judged with a gauge, a dip block and the feel of the key rather than a rule. Every other reading is still printed for you.'],
   ],
   upright: [
     ['No feel.', 'The key and its punchings are rigid, and the key moves at a set speed, not under a finger\'s weight. There is no touchweight, no let-off bump, no punching that squashes under pressure: dip and aftertouch read the same however the key is pressed.'],
@@ -2049,6 +2174,8 @@ $('#units').onclick = () => { units = units === 'in' ? 'mm' : 'in'; refresh(); }
 $('#level').value = Object.keys(LEVELS).find(k => LEVELS[k] === LEVEL);
 // a hint or a check was given at the old level's tolerances
 $('#level').onchange = e => { LEVEL = LEVELS[e.target.value]; hint = false; verdict = null; try { localStorage.setItem('regsim-level', e.target.value); } catch {} e.target.blur(); refresh(); };
+$('#gauges').onchange = e => setGaugeMode(e.target.checked);
+$('#gauges').checked = gaugeMode; $('#gauge-note').hidden = !gaugeMode;
 // the spec set graded against, remembered like the level (the keys already on the bench are kept and graded again)
 $('#specset').replaceChildren(...Object.entries(SPEC_SETS).map(([id, s]) => el('option', { value: id }, s.name)));
 $('#specset').onchange = e => { pickSpecSet(e.target.value); e.target.blur(); };
@@ -2324,17 +2451,18 @@ function frame(now) {
   NOTES.forEach((n, i) => { if (i === 0 || multi()) S.update(i, n.sim, eff(n.adj), i === cur ? hammerOverride : null, i === cur ? jackOverride : null, i === cur); });
   tickExam();
   if (mode !== 'tools') updateCallouts();
+  placeGauge();
   // a test that draws the key apart from the action (the stack lifted off it: the key drop, the wippen tilt) says where it is drawn
   const kd = sim.keyShown ?? sim.d, apart = sim.keyShown != null;
   const down = kd > 0.05 || (!apart && sim.dTarget > 0.05);
   const toLetoff = !cue ? '' : cue.run ? 'going to let-off · ' : frameNo < cue.letoff ? `let-off in ${frames(cue.letoff - frameNo)} · `
     : frameNo === cue.letoff ? 'let-off · ' : `${frames(frameNo - cue.letoff)} after let-off · `;
-  $('#keypos').textContent = `${paused ? 'paused · ' : ''}${toLetoff}key ${fmt(kd)} down`;
+  $('#keypos').textContent = gaugeNow ? 'read the rule' : `${paused ? 'paused · ' : ''}${toLetoff}key ${fmt(kd)} down`;
   // stepping through a stroke a frame at a time, the corner picture is the hammer at the string (where let-off and drop
   // happen), not the key front; the key's travel is still on the bar
   S.setInsetMode(stepping() ? 'crown' : 'key');
   S.setInsetText(stepping() ? `Hammer at the string${revealed('letoff') ? ` · ${fmt(G.stringY - crownY(sim.g))} away` : ''}`
-    : `Key front · ${fmt(kd)} down${kd >= sim.dip - 0.01 ? ' (dip)' : ''}`);
+    : gaugeNow ? 'Key front' : `Key front · ${fmt(kd)} down${kd >= sim.dip - 0.01 ? ' (dip)' : ''}`);
   $('#keystate').textContent = !down ? 'Key at rest' : apart ? 'Key down' : sim.dTarget > sim.d + 0.01 ? 'Key going down' : sim.dTarget > 0.05 ? 'Key held down' : sim.stuck && !sim.lifting ? 'Key stuck down' : 'Key coming up';
   $('#keystate').classList.toggle('down', down);
   $('#k-release').classList.toggle('attn', sim.dTarget > 0.05 && plan !== 'up' && plan !== 'all' && !busy);

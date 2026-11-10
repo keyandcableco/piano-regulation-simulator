@@ -317,6 +317,12 @@ tr.bad td:last-child { color: var(--bad); }
 .specs .band.src { font-style: italic; } .specs .band.src.fallback { opacity: .8; }
 #specset-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 13px; }
 #specset-row select { font-size: 13px; }
+#gauge-row { margin: 0 0 8px; font-size: 13px; } #gauge-row label { cursor: pointer; } #gauge-note { display: block; margin-top: 2px; } #gauge-note[hidden] { display: none; }
+/* the card that asks for a reading off the rule laid on the action: over the picture, above the key buttons */
+#gaugeask { position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%); z-index: 3; width: min(430px, calc(100% - 24px)); box-sizing: border-box;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; box-shadow: 0 4px 16px rgba(0,0,0,.18); }
+#gaugeask[hidden] { display: none; }
+#gaugeask p { margin: 4px 0 6px; } #gaugeask input { width: 8.5em; font: inherit; padding: 5px 7px; } #gaugeask .row { margin: 6px 0 0; }
 #specset-note { flex-basis: 100%; } #specset-note summary { cursor: pointer; }
 .steps { display: flex; gap: 3px; flex-wrap: wrap; margin-bottom: 6px; }
 .pip { width: 28px; height: 26px; padding: 0; font-size: 12px; }
@@ -453,6 +459,7 @@ a { color: var(--accent); }
       </div>
     </div>
     <div id="toasts"></div>
+    <div id="gaugeask" role="dialog" aria-label="Read the rule" hidden></div>
     <div id="examclock" hidden></div>
     <div id="popdot" hidden></div>
     <div id="partpop" hidden></div>
@@ -588,6 +595,10 @@ a { color: var(--accent); }
       <label for="specset" class="muted">Specs graded against</label>
       <select id="specset"><option value="generic">Generic textbook</option></select>
       <details id="specset-note" class="muted small" hidden><summary id="specset-sum"></summary><span id="specset-about"></span></details>
+    </div>
+    <div id="gauge-row" data-grand>
+      <label title="A test for blow, let-off, drop, dip or aftertouch lays a rule on the action and waits for you to read it, before it shows the model's number"><input type="checkbox" id="gauges"> Read the gauges yourself</label>
+      <span id="gauge-note" class="muted small" hidden>The tests for blow, let-off, drop, dip and aftertouch lay a rule on the action and wait for your reading; then they show the model's figure and how far off you were.</span>
     </div>
     <div class="tabs">
       <button class="tab" data-mode="learn">Learn</button>

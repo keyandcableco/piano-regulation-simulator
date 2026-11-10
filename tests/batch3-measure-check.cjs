@@ -139,6 +139,83 @@ const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if
     await page.context().close();
   }
 
+  // ---------- gauges laid on the action, the student calling the reading ----------
+  if (want.has('gauges')) {
+    const page = await open(), { tap, text, openFold, row } = tools(page);
+    const gauge = () => page.evaluate(() => document.querySelector('#c').gauge());
+    const asked = async id => { await page.waitForFunction(i => document.querySelector('#c').gauge()?.id === i, id, { timeout: 90000 }); await page.waitForTimeout(1600); return gauge(); };
+    const shot = name => page.locator('#stage').screenshot({ path: `${out}/gauge-${name}.png` });
+    const callouts = () => page.evaluate(() => [...document.querySelectorAll('.callout')].map(c => c.textContent).join(' | '));
+    const call = async v => { await page.fill('#gauge-in', v); await page.keyboard.press('Enter'); await page.waitForTimeout(400); return text('#gauge-result'); };
+    const goOn = async () => { await tap('#gauge-next'); await page.waitForTimeout(300); };
+    await openFold('^Hammer, blow'); await openFold('^Jack and rep'); await openFold('^Key');
+    check(/1 3\/4/.test((await row('Blow distance')).now), 'gauges off (the default): the Sandbox shows blow as it always did');
+    await page.locator('#gauges').check(); await page.waitForTimeout(300);
+    check(/blow, let-off, drop, dip and aftertouch/.test(await text('#gauge-note')), 'turning the gauges on says what changes');
+    for (const n of ['Blow distance', 'Let-off from string', 'Drop below let-off', 'Key dip', 'Aftertouch']) check(/not measured/.test((await row(n)).now), `gauges on: ${n} is not shown until it is read`);
+    check(!/not measured/.test((await row('Checking distance')).now), 'a reading no rule takes (checking) still shows');
+
+    // blow
+    await tap('[data-anchor="test:blowGauge"]');
+    let g = await asked('blow');
+    check(Math.abs(g.truth - 44.45) < 0.05 && !/blow/.test(await callouts()) && (await text('#keypos')) === 'read the rule', `blow: the rule is laid and the number is kept back (labels on the picture: ${await callouts() || 'none'})`);
+    check(/not measured/.test((await row('Blow distance')).now), 'blow: still not shown in the table while the rule waits');
+    await shot('blow-in');
+    let res = await call('1 23/32');   // a 32nd short
+    check(/You called 1 23\/32" \(43\.66 mm\)\. The model's figure is 1 3\/4" \(44\.4\d mm\)\. You were 1\/32" \(0\.79 mm\) under, about 2 graduations/.test(res), `blow called a 32nd short: ${res}`);
+    check(/1 3\/4/.test((await row('Blow distance')).now) && /blow 1 3\/4/.test(await callouts()), 'once called, the reading shows in the table and on the picture');
+    await goOn();
+    check((await gauge()) === null && await page.evaluate(() => document.querySelector('#gaugeask').hidden), 'Go on puts the rule away');
+    await page.waitForFunction(() => !document.querySelector('#c').bench().busy, null, { timeout: 20000 });
+    await tap('[data-anchor="test:blowGauge"]'); await asked('blow');
+    res = await call('1 3/4');
+    check(/Right on it|a good read/.test(res), `blow called right: ${res}`);
+    await goOn(); await page.waitForFunction(() => !document.querySelector('#c').bench().busy, null, { timeout: 20000 });
+
+    // the slow press: let-off, drop, aftertouch, one after another
+    await tap('[data-anchor="test:slowPress"]');
+    g = await asked('letoff');
+    check(Math.abs(g.truth - 1.58) < 0.03 && !/let-off|drop|aftertouch/.test(await callouts()), `let-off: the key stops on the brink of let-off and the rule waits (truth ${g.truth.toFixed(2)} mm kept back)`);
+    await shot('letoff-in');
+    await page.fill('#gauge-in', 'about a sixteenth'); await page.keyboard.press('Enter'); await page.waitForTimeout(300);
+    check(/Type it as you would say it/.test(await text('#gauge-err')) && (await gauge())?.id === 'letoff', 'a reading that can\'t be understood is asked for again');
+    await tap('#gauge-show'); await page.waitForTimeout(300);
+    check(/^It reads 1\/16" \(1\.5\d mm\)\.$/.test(await text('#gauge-result')), `Show me the number: ${await text('#gauge-result')}`);
+    check(/not measured/.test((await row('Drop below let-off')).now) && /not measured/.test((await row('Aftertouch')).now), 'drop and aftertouch are still kept back');
+    await goOn();
+    g = await asked('drop');
+    await shot('drop-in');
+    res = await call(`${(g.truth + 0.2).toFixed(2)} mm`);
+    check(/within one graduation \(a 64th\), a good read/.test(res), `drop called 0.2 mm over, typed in mm: ${res}`);
+    await goOn();
+    g = await asked('aftertouch');
+    check(Math.abs(g.truth - 1.53) < 0.03, `aftertouch: the key is at the bottom, the rule's zero on the let-off line (truth ${g.truth.toFixed(2)} mm kept back)`);
+    await shot('aftertouch-in');
+    res = await call('1/8');
+    check(/You called 1\/8" \(3\.1\d mm\).*over, about 4 graduations/.test(res), `aftertouch called 1/8 in: ${res}`);
+    await goOn(); await page.waitForFunction(() => !document.querySelector('#c').bench().busy, null, { timeout: 20000 });
+    for (const n of ['Let-off from string', 'Drop below let-off', 'Aftertouch']) check(!/not measured/.test((await row(n)).now), `${n} shows after its reading`);
+    await tap('#k-release'); await page.waitForTimeout(1500);
+
+    // dip, on a millimetre rule
+    await page.locator('#units').click(); await page.waitForTimeout(200);
+    await tap('[data-anchor="test:dipBlock"]');
+    g = await asked('dip');
+    check(g.units === 'mm' && Math.abs(g.truth - 9.53) < 0.03 && !/dip/.test(await callouts()) && !/\d/.test(await text('#keypos')), 'dip: the key is on its punching, and neither the picture nor the key bar gives the figure');
+    await shot('dip-mm');
+    res = await call('9,5');
+    check(/You called 9\.50 mm.*The model's figure is 9\.5\d mm.*(Right on it|a good read)/.test(res), `dip called 9,5 on the millimetre rule: ${res}`);
+    await goOn(); await page.waitForFunction(() => !document.querySelector('#c').bench().busy, null, { timeout: 30000 });
+    check(/9\.5/.test((await row('Key dip')).now), 'dip shows after its reading');
+
+    // off again: the number straight away, as before
+    await page.locator('#gauges').uncheck(); await page.waitForTimeout(300);
+    await tap('[data-anchor="test:dipBlock"]'); await page.waitForTimeout(1500);
+    check((await gauge()) === null, 'gauges off: the dip test asks nothing');
+    await page.waitForFunction(() => !document.querySelector('#c').bench().busy, null, { timeout: 30000 });
+    await page.context().close();
+  }
+
   check(errors.length === 0, `no page errors${errors.length ? ': ' + errors.join(' | ') : ''}`);
   await browser.close();
   console.log(failed ? `${failed} FAILED` : 'all ok');

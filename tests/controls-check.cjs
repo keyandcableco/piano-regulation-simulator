@@ -12,7 +12,7 @@ if (!out) { console.error('usage: node tests/controls-check.cjs <out_dir> [base_
 // (the short ones: a phone with its browser's own bars showing, an iPhone SE's 553 px the shortest)
 const SIZES = [['desktop', 1280, 800], ['phone360', 360, 740], ['phone375', 375, 812], ['phone390', 390, 844], ['phone360x640', 360, 640], ['phoneSE', 375, 553]];
 // the views only tests use, as app.js names them on the View button (TEST_VIEWS there; upright-app.js's too)
-const TEST_VIEW_NAMES = ['Traveling', 'Jack from the keys', 'Backcheck, end on', 'Backcheck, above', 'Damper heads', 'Three dampers', 'Key tops', 'Hammer head', 'Jack and hammer', 'Wippen'];
+const TEST_VIEW_NAMES = ['Traveling', 'Jack from the keys', 'Backcheck, end on', 'Backcheck, above', 'Damper heads', 'Three dampers', 'Key tops', 'Hammer head', 'Jack and hammer', 'Wippen', 'Reading the rule'];
 const GRAND_VIEWS = ['action', 'angle', 'keyfront', 'escapement', 'hammer', 'rails', 'hammerline', 'backcheck', 'dampers'];
 const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'keyfront', 'whole', 'wippen', 'butt', 'jackfront', 'check', 'damper'];
 
