@@ -68,12 +68,22 @@ if (Sim.prototype.push) {
 }
 
 const cases = [{ name: 'factory', adj: { ...FACTORY } }, ...scenarios().map(sc => ({ name: label(sc.faults), complaint: sc.complaint, adj: withFaults(sc.faults) }))];
+const touchOf = adj => { const t = M.touch(adj); return { down: r3(t.down), up: r3(t.up), peak: r3(t.peak), bottom: r3(t.bottom) }; };
+// REDO=touch: only the weigh-off readings again, into a record already made (they take no playing)
+if (process.env.REDO === 'touch') {
+  const old = JSON.parse(fs.readFileSync(out, 'utf8'));
+  old.cases.forEach((row, i) => { row.touch = touchOf(cases[i].adj); });
+  fs.writeFileSync(out, JSON.stringify(old, null, 1));
+  console.log(`weighed off again into ${out}`);
+  process.exit(0);
+}
 const result = { model: path.resolve(modelPath), dt: DT, programs: Object.keys(PROGRAMS), cases: [] };
 for (const c of cases) {
   const row = { name: c.name, complaint: c.complaint, runs: {} };
   for (const [id, p] of Object.entries(PROGRAMS)) row.runs[id] = play(c.adj, p.prog, p.T);
-  if (M.touch) { const t = M.touch(c.adj); row.touch = { down: r3(t.down), up: r3(t.up), peak: r3(t.peak) }; }
-  if (M.repeatCeiling) row.repeat = M.repeatCeiling(c.adj);
+  if (M.touch) row.touch = touchOf(c.adj);
+  if (M.keyReturn) { const k = M.keyReturn(c.adj); row.keyReturn = { keyMs: r3(k.keyMs), homeMs: r3(k.homeMs), resetUp: r3(k.resetUp), stuck: k.stuck }; }
+  if (M.repeatCeiling) row.repeat = { half: M.repeatCeiling(c.adj, { up: 0.5 }), full: M.repeatCeiling(c.adj, { up: 1 }) };
   result.cases.push(row);
   console.error(c.name);
 }

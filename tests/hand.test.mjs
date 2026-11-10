@@ -60,7 +60,7 @@ test('grand: the hammer lifted by hand moves nothing else, and falls back onto t
 });
 
 test('grand: a checked hammer lifted out by hand and set back down stays checked', () => {
-  const s = grand(); s.press(s.dip, 250); run(s, 0.6, G_DT);
+  const s = grand(); s.blow('mf'); run(s, 0.6, G_DT);   // the Strike and hold test's blow: a normal finger, which checks at the backcheck's face
   assert.ok(s.st.checked, 'checked after a strike and hold');
   const gc = s.g; s.grab('hammer', gc);
   run(s, 0.4, G_DT, t => { s.hand.q = ramp(gc, gc + 0.06, 0.3)(t); });

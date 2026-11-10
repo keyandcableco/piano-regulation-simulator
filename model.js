@@ -1,8 +1,9 @@
 // Grand action model: one key, side view, millimetres.
 // x runs toward the back of the piano (strings), y is up, keybed at y = 0.
 // Every moving part is a rigid lever on a pivot; regulation screws and
-// punchings set where the levers meet. No playing physics beyond what the
-// regulation tests need (hammer flight, rebound, checking, spring rise).
+// punchings set where the levers meet. The regulation readings (measure, grade)
+// are worked out from where the parts stand. The Sim plays the key: a finger's
+// force on a key with weight, the hammer thrown, caught and brought home.
 
 export const IN = 25.4;
 
@@ -273,6 +274,7 @@ export function eff(a) {
   // rounded top under a knuckle sitting a hair low shrinks with what is left (the sim's own scaling), and with nothing
   // left the jack doesn't come back at all
   const spring = dmg?.noJackSpring ? 0 : JACK_SPRING;
+  e.jackSpringT = spring;                                              // mm·g: what the key works against while the button holds the jack tripped
   e.noJackSpring = spring <= T.jack;
   e.wedge = G.wedge * Math.max(0, Math.min(1, (spring - T.jack) / (JACK_SPRING - CENTERS.jack.T)));
   e.wippenDrag = Math.max(0, T.wippen - CENTERS.wippen.T) * WIPPEN_TURN;   // g at the key front
@@ -292,7 +294,7 @@ export const KEY = {
   upweight: 24,                   // what brings the key up with the action on it (Stanwood's example, PTG 2022: down 50, up 24;
                                   // key patents give 19-29 as usual)
   frontWeight: 27,                // the key's front weight with the stack off (Stanwood, PTG 2022: 27 g is medium)
-  upSpeed: 60,                    // mm/s: a free key comes up as fast as the sim lets a key up
+  upSpeed: 60,                    // mm/s: how fast a hand lifts a key (one a tight bushing holds down, a part let go in Move parts)
   slowDrag: 3,                    // more extra friction than this, and the key visibly drops slowly (the sim's own)
 };
 // drag: friction a tight bushing adds at the key front (g). A key stays down once it passes the upweight, and hangs
@@ -340,8 +342,7 @@ export const CENTERS = {
 };
 // what the friction works against (Hirschkorn Table A.1 masses and centers of mass)
 // the hammer's weight about its pin: 11.74 g, 102 mm out (the sim's "hammer weight"). Its friction is used as a share of
-// that weight: the share is Hirschkorn's, the acceleration it makes follows the sim's own gravity GA (60 rad/s², where his
-// weight over inertia gives 76), as the hammer's weight does
+// that weight, and the hammer falls at that weight over his inertia for it (GA, 76 rad/s²)
 export const HAMMER_WT = 1199;
 export const JACK_SPRING = 430;  // the jack spring, about constant: 0.0042 N·m (Hirschkorn §A.4)
 const JACK_WT = 52;              // the jack's own weight about its pin, the arm level: 2.65 g, 19.5 mm out
@@ -416,11 +417,12 @@ export function keyRest(a) {
 }
 const keyFrontTop = (By, th) => By + rot([G.keyFrontLocal, G.keyThick + G.keyTopCap], th)[1];
 export const keyPt = (By, th, p) => add([G.balX, By], rot(p, th));
-export function keyAngle(a, d) {
+// soft: the front punching gives under a finger (Sim), so the key can go past the dip the regulation readings use
+export function keyAngle(a, d, soft = false) {
   const { By, th0, thMax } = keyRest(a);
   const y0 = keyFrontTop(By, th0);
   let th = solve(t => keyFrontTop(By, t), y0 - d, th0 - 0.05, th0 + 0.2);
-  return { By, th: Math.min(th, thMax), th0, thMax };
+  return { By, th: soft ? th : Math.min(th, thMax), th0, thMax };
 }
 export function dipOf(a) {
   const { By, th0, thMax } = keyRest(a);
@@ -430,9 +432,9 @@ export const keyHeightOf = a => { const { By, th0 } = keyRest(a); return keyFron
 
 // ---------- full pose for a key position and state ----------
 // st: { escaped, checked } carried between calls; g: hammer angle (rad)
-export function linkage(a, d) {
+export function linkage(a, d, soft = false) {
   wearNow = a.wear || 0;
-  const k = keyAngle(a, d);
+  const k = keyAngle(a, d, soft);
   const cap = keyPt(k.By, k.th, [G.capstanLocal, G.keyThick + a.capstan]);
   // wippen angle: the heel's arc rests on the capstan's dome (their centres a fixed distance apart)
   const dome = keyPt(k.By, k.th, [G.capstanLocal, G.keyThick + a.capstan - G.capDomeR]);
@@ -878,14 +880,89 @@ export function factory() {
   return a;
 }
 
+// ---------- the key under a finger: weights, inertias, felts ----------
+// The key is pushed at its front by a force (a finger, a gram weight) and comes back up under the action's own weight
+// and springs. Forces at the key front are in grams (a gram weight's worth), inertias in grams of effective mass
+// there, lengths in mm: acceleration = force x GRAV / mass.
+export const GRAV = 9810;   // mm/s^2
+// Masses (g), moments of inertia about each part's own centre of mass (g·mm²) and centres of mass (mm, from the part's
+// pin): Hirschkorn Table A.1, the Boston's parts weighed, hung and swung
+// (research/wippen/src/hirschkorn-boston-gp178-note52.json, mass_properties).
+const A1 = {
+  key: { m: 120.08, Icm: 2.75e6, cm: [51.4, 15.8] },      // its centre of mass is in front of the balance pin: the key is front-heavy
+  wippen: { m: 11.96, Icm: 1.69e4, cm: [50.2, -1.8] },
+  jack: { m: 2.65, Icm: 778, cm: [0.8, 19.5] },
+  rep: { m: 3.71, Icm: 4100, cm: [2.1, -1.2] },
+  hammer: { m: 11.74, Icm: 2.9e4, cm: [-102.2, 14.5] },
+};
+const aboutPin = b => b.Icm + b.m * (b.cm[0] ** 2 + b.cm[1] ** 2);
+export const I_HAM = aboutPin(A1.hammer);                 // the hammer about its centre pin, g·mm²
+const I_JACK = aboutPin(A1.jack);                         // the jack about its pin
+const KEY_ARM = -G.keyFrontLocal;                         // key front to the balance pin, mm
+export const KEY_FW = A1.key.m * A1.key.cm[0] / KEY_ARM;  // the key's own front weight, stack off: 26.3 g (Stanwood calls 27 medium)
+const M_KEY = aboutPin(A1.key) / KEY_ARM ** 2;            // the key's inertia as a mass at its front: 56 g
+// the wippen about its flange pin, carrying the jack and the repetition lever at their pins (their own turning on the
+// wippen left out)
+const I_WIP = aboutPin(A1.wippen) + A1.jack.Icm + A1.jack.m * (G.jackPivotW[0] ** 2 + G.jackPivotW[1] ** 2)
+  + A1.rep.Icm + A1.rep.m * (G.repPivotW[0] ** 2 + G.repPivotW[1] ** 2);
+// The felts the key lands on, as Hirschkorn loaded them in a press: force (N) = a x³ + b x² + c x for x m of squash,
+// times (1 + D × the squashing speed, m/s) (his Eqs. 2.4, 2.5; Table A.8 contact 2, "Key - Ground at Key Front", and
+// contact 3, "Key - Ground at Key Back"; the D's are his forte calibration). r: where the felt sits along the key, as a
+// share of the key front's arm (the sim's own rails: front pin 223 mm, back rail 220 mm from the balance pin).
+const FELT_FRONT = { a: 4.41e10, b: -1.02e7, c: 15700, D: 1.219, r: (G.balX - G.frontRailX) / KEY_ARM };
+const FELT_BACK = { a: 2.42e10, b: -1.11e7, c: 6540, D: 2.502, r: (G.backRailX - G.balX) / KEY_ARM };
+const N2G = 1e6 / GRAV;   // newtons to grams of force
+const feltG = (f, xmm) => { const x = xmm / 1000; return x <= 0 ? 0 : (f.a * x * x * x + f.b * x * x + f.c * x) * N2G; };
+const feltSquash = (f, grams) => grams <= 0 ? 0 : solve(x => feltG(f, x), grams, 0, 3);   // mm
+// The damper as the key end feels it: its weight about the underlever pin (DAMPER_WT, the sim's own estimate) taken at
+// the lift felt, 135 mm out where the wire is 98 (G.dmpRatio), and the mass that goes with the head's own fall
+// (G.dmpGravity, the sim's own too). Stand-ins, like every damper figure here: no published weight.
+const DMP_LIFT_ARM = 135, DMP_KEY = DAMPER_WT / DMP_LIFT_ARM;                                   // 11 g at the key's back end
+const DMP_M = DAMPER_WT / (DMP_LIFT_ARM * G.dmpRatio) * GRAV / G.dmpGravity * G.dmpRatio ** 2;   // about 16 g there
+// The finger. A blow is a steady push until the key is down, easing then to the weight of a resting hand; the forces
+// are the sim's own, picked so the factory key's hammer speeds land where Askenfelt and Jansson measured them (KTH,
+// "From touch to string vibrations": a mezzo forte key reaches 0.3-0.5 m/s, forte seldom over 1 m/s and its hammer
+// about 5 m/s). Staccato is a jab that lets go before the key is down. No source gives finger forces for this action.
+export const BLOWS = {
+  pp: { F: 100, name: 'pp', say: 'a soft blow (pp): a 100 g finger' },
+  mf: { F: 400, name: 'mf', say: 'a normal blow (mf): a 400 g finger' },
+  ff: { F: 1800, name: 'ff', say: 'a hard blow (ff): a 1.8 kg finger' },
+  staccato: { F: 1000, ms: 22, name: 'staccato', say: 'a staccato jab: 1 kg for 22 ms, then the finger is gone' },
+};
+export const HOLD_G = 150;       // a hand resting on a held key, g (the sim's own)
+const HOLD_EASE = 0.06;          // s over which a blow's push eases to that
+// A key thrown back up off its front punching meets the hand that is still coming down behind the finger: while the
+// finger pushes, it resists the key coming back up at it with this much more force for each mm/s (g), up to a limit.
+// The sim's own, sized so a held key stays down on its punching as a held key does; Hirschkorn's felt alone (measured
+// with no hand on it) throws a bare key back at about 0.6 of its speed.
+const FINGER_BACK = 2, FINGER_BACK_MAX = 1500;
+// Back at rest the key stops on its back rail cloth. Friction would leave it anywhere within a hundredth or two of a
+// millimetre of where the regulation readings put it; once it is that near and still, it is set there (the sim's own).
+const REST_NEAR = 0.03, REST_STILL = 2, REST_T = 0.004;   // mm, mm/s, s
+const KEY_HOME = 3;              // g: see keyLoads (a key with lost motion still comes home)
+// The jack top's path under the knuckle, eased (Sim.cam): tabulated every CAM_H mm of key travel from CAM_D0 (above
+// rest, for a key bouncing on its back rail) and averaged over CAM_EASE mm either side. CAM_EASE is the sim's own, of
+// the size the knuckle's felt gives under a blow (Hirschkorn's loading curve for it, Table A.8 contact 7, is about
+// 0.03 mm for each newton at first: a tenth of a millimetre of key travel under a firm blow's few newtons).
+const CAM_H = 0.02, CAM_D0 = -1.2, CAM_EASE = 0.1;
+const SUB = 0.0001;              // the Sim's own time step, s: every run is cut into these, whatever the screen does
+
 // ---------- time-stepped simulation (for watching it move) ----------
-const GA = 60;       // hammer free-fall, rad/s^2
-// Damping while the knuckle rides the repetition lever up. 20 fits Scott Murphy's high-speed videos (PTG Education Hub,
-// "High Speed Video of the Grand Piano Action"): the app's ease-up rises out of check at about 0.16 m/s at the crown,
+// The hammer's fall about its center pin, rad/s^2: its weight's moment over its inertia there, both Hirschkorn's
+// (Table A.1: 11.74 g, 102.2 mm out, 2.9e-5 kg·m² about its centre of mass): 76.3. (It was 60, with no source, until the
+// key was given weight: the hammer's load on the jack has to be the same weight the touchweight counts.)
+const GA = HAMMER_WT * GRAV / I_HAM;
+// The rest rail's felt gives back this share of the shank's landing speed: Scott Murphy's high-speed clips (PTG
+// Education Hub, "High Speed Video of the Grand Piano Action": about 0.6 after a quick release from check; "Double
+// striking hammer": 0.68). The middle of the two. A landing slower than RAIL_V (rad/s) just settles (the sim's own).
+const RAIL_E = 0.64, RAIL_V = 0.05;
+// Damping while the knuckle rides the repetition lever up. 23 fits Scott Murphy's high-speed videos (PTG Education Hub,
+// "High Speed Video of the Grand Piano Action"): the app's ease-up rises out of check at about 0.18 m/s at the crown,
 // floats 1.3 mm over the drop screw and dips 0.5 below where it then sits (his ease-up on a Steinway action model: about
-// 0.12 m/s, 1.2 mm, 0.45); on his grand the soft blows of "Hammer Bobbling" rise back at 0.18-0.28 m/s, and with
-// this the sim's give 0.15-0.22 (its catch stops the hammer a moment first).
-const DAMP = 20;
+// 0.12 m/s, 1.2 mm, 0.45); on his grand the soft blows of "Hammer Bobbling" rise back at 0.18-0.28 m/s.
+// Re-fitted when the hammer's fall went from 60 to 76 rad/s² (GA): it was 20, which with the heavier hammer floated
+// 1.6 mm and dipped 1.0. The float and the dip are back where they were; the rise is a tenth faster than before.
+const DAMP = 23;
 // Moving up faster than this (rad/s) when the lever stops at the drop screw, the hammer carries on and floats; slower,
 // it stays on the lever
 const FLOAT_W = 0.05;
@@ -917,11 +994,12 @@ const REST_E = 0.5;
 // The backcheck gives like a spring: a hammer coming down into it goes on by CHECK_TAU (s) times its speed, slowing
 // evenly, and is held where it stops. On the Shigeru model the check came 3.7 mm deeper for each m/s the hammer left the
 // string at (19.4 mm after p, 26.5 after ff), 13-36 ms after the strike. It starts to take the hammer CHECK_GIVE (mm at
-// the crown) above its face, the give of the Strike and hold test's blow (250 mm/s) at factory, so that blow stops at the
-// face and the check reading, the factory and the miss and scrape leans stay where they were. A softer blow is held short
-// of the face, a harder one past it; the drawn backcheck doesn't give.
+// the crown) above its face, the give of the Strike and hold test's blow (a normal blow, BLOWS.mf: 2.3 m/s at the string)
+// at factory, so that blow is held at the face once the hand has eased to its resting weight, and the check reading, the
+// factory and the miss and scrape leans stay where they were. A softer blow is held short of the face, a harder one past
+// it; the drawn backcheck doesn't give. (It was 2.2 for the old test blow of 1.4 m/s.)
 const CHECK_TAU = 0.0037;
-const CHECK_GIVE = 2.2;
+const CHECK_GIVE = 4.27;
 const STRIKE_R = Math.hypot(G.crownC[0], G.crownC[1] + G.crownR);   // centre pin to the felt that meets the string, mm
 // The backcheck only grips a tail that comes into it firmly. In Scott Murphy's "Hammer Bobbling" clips (PTG Education
 // Hub, a grand filmed at 1000 frames/s) every firm blow (1.2-1.5 m/s at the string) stayed checked and every soft one
@@ -934,10 +1012,10 @@ const STRIKE_R = Math.hypot(G.crownC[0], G.crownC[1] + G.crownR);   // centre pi
 // G.checkHold, as before. The app's Strike and hold (250 mm/s) catches at 0.51-0.71 on every fault case tried.
 const CHECK_HOLD_V = 0.42;
 const BOUNCE_V = 0.01;  // a knuckle landing on the jack slower than this (m/s) just settles
-// The fastest the jack can drive the hammer, rad/s: 5.6 m/s at the crown. The key here is moved at a set speed, not by
-// a force, so nothing else stops a faster key throwing the hammer faster; this stands in for the limit of a real blow.
+// The fastest the jack can drive the hammer when a hand moves the key at a set speed (Sim.press), rad/s: 5.6 m/s at the
+// crown. Nothing else stops a faster key throwing the hammer faster there; this stands in for the limit of a real blow.
 // Askenfelt and Jansson (KTH, "From touch to string vibrations"): a forte key seldom moves faster than about 1 m/s,
-// the hammer then reaching about 5 m/s. From about 1000 mm/s of key speed up, every strike here is 5.59 m/s.
+// the hammer then reaching about 5 m/s. A blow played by force (Sim.push, blow) needs no cap: the hammer's inertia is it.
 const JACK_DRIVE_W_MAX = 40;
 // A jack spring working the jack's rounded top back under a knuckle that sits a hair below where the jack would hold
 // it (up to G.wedge) doesn't snap the hammer up. At the reset the hammer stays where it is and keeps its speed, and
@@ -954,14 +1032,52 @@ const WEDGE_T = 0.05;
 const HAND_W = 35;
 
 export class Sim {
-  constructor(a) { this.setAdj(a); this.reset(); }
-  setAdj(a) { this.a = eff(a); this.dip = dipOf(this.a); }
+  constructor(a) { this.h = SUB; this.setAdj(a); this.reset(); }   // h: the time step (a test halves it to show the answer doesn't hang on it)
+  setAdj(a) { this.a = eff(a); this.dip = dipOf(this.a); this.gR = gRail(this.a); this.camT = null; }
+  // The hammer angle the jack top holds the knuckle at, against key travel, while the button alone has the jack: the
+  // parts' own path, with its corners eased over CAM_EASE mm of key travel either way. The rigid profiles meet at
+  // corners (the knuckle passing from the jack top's rounded corner to its face, the tender meeting the button) where
+  // the hammer's speed for a given key speed steps by 4 to 10%; a felt-and-buckskin knuckle can't pass a step on, it
+  // gives. Eased, the hammer's place moves by under 0.02 mm at the crown and its speed has no step. Worked out once
+  // for a regulation, the first time a finger plays it.
+  cam(d) {
+    let T = this.camT;
+    if (!T) {
+      const n = Math.ceil((this.dip + 2.8) / CAM_H) + 1, raw = new Float64Array(n), g = new Float64Array(n), k = Math.round(CAM_EASE / CAM_H);
+      for (let i = 0; i < n; i++) { const L = linkage(this.a, CAM_D0 + i * CAM_H, true); raw[i] = gOnJackAt(L, L.psiBtn); }
+      for (let i = 0; i < n; i++) {
+        let s = 0, wt = 0;
+        for (let j = -k; j <= k; j++) { const w = k + 1 - Math.abs(j), q = Math.max(0, Math.min(n - 1, i + j)); s += w * (raw[q] + (i + j - q) * (q ? raw[q] - raw[q - 1] : raw[1] - raw[0])); wt += w; }
+        g[i] = s / wt;
+      }
+      // (set so that at rest it is exactly where the parts put the hammer: a millionth of a radian, but the hammer
+      // must not start a hair off its jack)
+      T = this.camT = { g, n, off: 0 };
+      const L0 = linkage(this.a, 0, true);
+      T.off = gOnJackAt(L0, L0.psiBtn) - this.cam(0);
+    }
+    const x = Math.max(1, Math.min(T.n - 2.001, (d - CAM_D0) / CAM_H)), i = Math.floor(x), t = x - i, g = T.g;
+    const m0 = (g[i + 1] - g[i - 1]) / 2, m1 = (g[i + 2] - g[i]) / 2, t2 = t * t, t3 = t2 * t;   // (a smooth curve through the eased points)
+    return T.off + (2 * t3 - 3 * t2 + 1) * g[i] + (t3 - 2 * t2 + t) * m0 + (-2 * t3 + 3 * t2) * g[i + 1] + (t3 - t2) * m1;
+  }
   reset() {
     this.d = 0; this.dTarget = 0; this.keySpeed = 40;
+    // the key's speed (mm/s), the finger's force on it (g; null while a hand moves it at a set speed), a blow in
+    // progress, and the work the finger has done (g·mm)
+    this.v = 0; this.force = null; this.finger = null; this.lid = null; this.work = 0; this.acc = 0; this.stillT = 0; this.jamD = null;
     this.st = { escaped: false, checked: false, aboveCheck: false, dChecked: 0 };
-    const L = linkage(this.a, 0);
+    const L = linkage(this.a, 0, true);
     let g = gOnJack(L); for (let i = 0; i < 4; i++) g = staticHammer(this.a, L, this.st, g).g;
-    this.g = g; this.w = 0; this.psi = L.psiRest; this.L = L; this.events = [];
+    this.g = g; this.w = 0; this.psi = L.psiRest; this.L = L; this.dL = 0; this.events = [];
+    // how the hammer is carried: on the jack (and how fast the jack lifts it, rad per mm of key: gam), the load on the
+    // jack's top in hammer weights, and the damper riding on the key's back end
+    this.D = null; this.onJack = Math.abs(g - gOnJack(L)) < 2e-4; this.gam = null; this.jgPrev = null; this.jgD = 0;
+    this.psiNow = this.psi; this.psiW = 0;   // where the jack really is on its way back under, and how fast it is turning
+    this.jackLoad = this.onJack ? 1 : 0; this.dmpOnKey = false;
+    if (this.onJack) this.gam = this.jackRate(L, L.psiRest, g);
+    // the back rail cloth is already squashed by what rests on the key: x0 mm, so that at rest the forces balance where
+    // the regulation readings put the key
+    this.x0 = 0; this.onRep = knuckleBottom(g)[1] <= L.hornTop + 1e-6;
     this.blocked = false; this.scraped = false; this.jammed = false; this.bounceD = null; this.floatD = null; this.struckD = null; this.onBtn = false; this.onScrew = false;
     this.onRep = false;
     this.wedge0 = 0; this.wedgeT = 0;   // the gap a jack that has just reset still has to take up (rad), and for how long it has
@@ -975,6 +1091,80 @@ export class Sim {
     this.t = 0; this.pedal = this.pedal ?? 0; this.pedalTarget = this.pedalTarget ?? 0;
     this.yd = Math.min(this.pedal * this.a.pedalLift, this.a.damperStop); this.vd = 0;
     this.up = this.yd > 0.05; this.hitStop = false; this.liftedAt = this.up ? 0 : null;
+    this.x0 = feltSquash(FELT_BACK, Math.max(0, -(this.keyLoads().F - (this.onJack ? HAMMER_WT * this.gam : 0))) / FELT_BACK.r);
+  }
+  // how fast the jack lifts the hammer here, rad per mm of key travel (found by moving the key a hundredth of a mm on)
+  jackRate(L, psi, jackG) {
+    const L2 = linkage(this.a, this.d + 0.01, true);
+    return (gOnJackAt(L2, psi + (L2.psiBtn - L.psiBtn)) - jackG) / 0.01;
+  }
+  // how the linkage moves per mm of key travel at the key's present place: the wippen's turn (rad), the horn's rise
+  // free and as stopped (mm), the jack's turn on the button (rad), the key end's rise (mm) and the backcheck's (mm)
+  // Taken from the step the key has just made (L0 at d0, a moment ago), or, when it has barely moved, by moving it a
+  // hundredth of a millimetre on.
+  // (this.dL: the key travel this.L was worked out at, a hair off this.d after the jack has shared out a step's speed)
+  derivs(L0 = null, d0 = 0) {
+    if (this.D && this.D.d === this.d) return this.D;
+    const L = this.L, at = this.dL ?? this.d;
+    let L2 = L0, k = L0 ? 1 / (d0 - at) : 0;
+    if (!L0 || Math.abs(d0 - at) < 1e-5) { L2 = linkage(this.a, at + 0.01, true); k = 100; }
+    return this.D = { d: this.d, rise: (L.phi - L2.phi) * k, horn: (L2.hornFree - L.hornFree) * k, top: (L2.hornTop - L.hornTop) * k,
+      psi: Math.max(0, (L2.psiBtn - L.psiBtn) * k), end: (L2.keyEndRise - L.keyEndRise) * k, bc: (L2.bcCatchY - L.bcCatchY) * k };
+  }
+  // What bears on the key where it is, apart from its own friction: F (g at the key front, + pushing it down), the
+  // friction that resists its moving either way (fr, g) and its inertia there (m, g), with the wippen and whatever
+  // else moves with it. The hammer on the jack is not in here: step() couples it through the jack.
+  //   weights: the key's own front weight (A1) helps; the wippen with its jack and lever (WIPPEN_WT) resists
+  //   repetition spring: whenever the drop screw or the knuckle holds the lever down off its stop, the wippen works
+  //     against it (springF, Hirschkorn's spring law); a hammer resting on the lever weighs on the key through it
+  //   jack spring: while the let-off button holds the jack tripped (JACK_SPRING, Hirschkorn §A.4), and the knuckle's
+  //     drag on the jack top as it is pulled out from under it (G.jackMu, his Table A.8 contact 7)
+  //   friction: the key's (KEY.friction) and each center's (CENTERS, his Table A.9), a tight bushing's drag
+  //   the damper once the key's end has picked it up; a hammer held by the backcheck (it rides on the key)
+  //   the front punching and the back rail cloth (FELT_FRONT, FELT_BACK)
+  keyLoads(D = this.derivs()) {
+    const a = this.a, L = this.L, st = this.st;
+    let F = (this.force || 0) + KEY_FW - WIPPEN_WT * D.rise;
+    if (this.force > 0 && this.v < 0) F += Math.min(FINGER_BACK * -this.v, FINGER_BACK_MAX);   // the hand behind the finger
+    let m = M_KEY + I_WIP * D.rise * D.rise;
+    let fr = KEY.friction + (BUSHINGS[a.bushing]?.drag || 0) + a.centerT.wippen * Math.abs(D.rise);
+    const kz = knuckleBottom(this.g)[1], onRep = kz <= L.hornTop + 1e-6, pressing = onRep && kz < L.hornTop - 1e-6;
+    const z = onRep ? Math.min(kz, L.hornTop) : L.hornTop;
+    const arm = hamPt(this.g, G.knuckleC)[0] - G.H[0], hornG = HAMMER_WT / arm;   // the hammer's weight at its knuckle, g
+    const sF = springF(a, L, z), held = st.checked || st.catching;
+    if (held) {
+      // the backcheck is on the key: the hammer it holds rides up and down with it, the spring pushing under its knuckle
+      const gbc = D.bc / (hamPt(this.g, G.tail)[0] - G.H[0]);
+      F += HAMMER_WT * ((onRep ? sF : 0) - 1) * gbc; m += I_HAM * gbc * gbc;
+      if (onRep) F -= hornG * sF * D.horn;
+    } else {
+      if (onRep && !pressing && !this.onJack) F -= hornG * D.top;   // resting on the lever where its stop or the drop screw has it
+      if (z < L.hornFree - 1e-9) {
+        // how fast the spring is being wound per mm of key: the horn's free rise against where it is held, by the drop
+        // screw or its stop, or by the knuckle (which the jack may be lifting too: then the lever's push on the hammer
+        // is counted here, as the little the spring winds, and not again in the hammer's own motion)
+        const rate = D.horn - (pressing ? (this.onJack && !st.escaped ? arm * (this.gam || 0) : 0) : D.top);
+        F -= hornG * sF * rate; fr += a.centerT.rep * Math.abs(rate) / -G.horn[0];
+      }
+    }
+    if (L.psiBtn > L.psiRest + 1e-9 && this.psi <= L.psiBtn + 1e-9) {
+      F -= a.jackSpringT * D.psi; fr += a.centerT.jack * D.psi;
+      if (!st.escaped && this.onJack) fr += G.jackMu * hornG * Math.max(0, this.jackLoad) * Math.hypot(...G.jackTop) * D.psi;
+    }
+    if (this.onJack && !st.escaped) fr += a.centerT.hammer * Math.abs(this.gam || 0);
+    if (this.dmpOnKey) { F -= DMP_KEY * (1 + a.damperDrag) * D.end; m += DMP_M * D.end * D.end; }
+    // A hammer that has come down on the rest rail (lost motion) is off the key, and this key alone is front-heavy
+    // (KEY_FW 26 g against the wippen's 8.5: by Stanwood's balance it would hang with its front down until the jack
+    // met the knuckle again). The regulation readings have a key with lost motion sitting up on its back rail with
+    // free play at the top, so here a key let go still comes home: KEY_HOME g of return beyond its friction (the sim's
+    // own stand-in, flagged for a bench check).
+    if (!this.force && !this.onJack && !held && this.g <= this.gR + 1e-9) F = Math.min(F, -(fr + KEY_HOME));
+    if (this.d > this.dip) {
+      const r = FELT_FRONT.r; F -= feltG(FELT_FRONT, (this.d - this.dip) * r) * Math.max(0, 1 + FELT_FRONT.D * this.v * r / 1000) * r;
+    }
+    const xb = this.x0 - this.d * FELT_BACK.r;
+    if (xb > 0) F += feltG(FELT_BACK, xb) * Math.max(0, 1 - FELT_BACK.D * this.v * FELT_BACK.r / 1000) * FELT_BACK.r;
+    return { F, fr, m };
   }
   setPedal(down) { this.pedalTarget = down ? 1 : 0; }
   // damper head: pushed up by the key's underlever or the pedal's lift tray, capped by the stop rail,
@@ -985,7 +1175,17 @@ export class Sim {
     // the foot presses the pedal over about a tenth of a second; let go, the tray drops away faster than the dampers fall
     const rate = this.pedalTarget > this.pedal ? dt / 0.1 : dt / 0.02;
     this.pedal += Math.sign(this.pedalTarget - this.pedal) * Math.min(Math.abs(this.pedalTarget - this.pedal), rate);
-    const push = Math.max(damperKeyLift(a, this.L), this.pedal * a.pedalLift, this.hand?.hold === 'damper' ? Math.min(this.hand.at, a.damperStop) : 0);
+    const keyLift = damperKeyLift(a, this.L);
+    const push = Math.max(keyLift, this.pedal * a.pedalLift, this.hand?.hold === 'damper' ? Math.min(this.hand.at, a.damperStop) : 0);
+    // the key's end has the damper when it is what holds the head up (not the pedal's tray, not a head thrown clear by a
+    // hard blow); picking it up on the way down, the key gives it some of its speed
+    const onKey = keyLift > 0 && keyLift >= push - 1e-9 && keyLift >= this.yd - 1e-6;
+    if (onKey && !this.dmpOnKey && this.v > 0 && this.force !== null) {
+      const riding = this.onJack && !this.st.escaped, m = this.keyLoads().m + (riding ? I_HAM * (this.gam || 0) ** 2 : 0);
+      this.v *= m / (m + DMP_M);
+      if (riding) this.w *= m / (m + DMP_M);   // (the hammer on the jack slows with the key)
+    }
+    this.dmpOnKey = onKey;
     // free flight first (rising after a hard blow, or falling); the underlever or tray takes over
     // whenever it is at or above where the head would be
     const gEff = G.dmpGravity * (this.vd > 0 ? 1 + a.damperDrag : 1 - Math.min(0.95, a.damperDrag));
@@ -1003,13 +1203,39 @@ export class Sim {
     }
     this.yd = y; this.vd = v;
   }
-  emit(type, data = {}) { this.events.push({ type, d: this.d, g: this.g, ...data }); }
+  emit(type, data = {}) { this.events.push({ type, t: this.t, d: this.d, g: this.g, ...data }); }
+  // A hand moving the key to a place at a set speed, whatever resists it: the slow presses of the regulation tests
+  // (to the bottom at 6 or 12 mm/s, a little way down at 2), easing a held key up a little, a part dragged in Move
+  // parts, a stuck key lifted. Those are motions a hand makes on purpose and slowly. Everything played is a finger's
+  // force (push, blow), and a key let go (press(0, ...) or release) comes up on its own.
   press(target, speed) {
-    // letting a key up again once it has stuck down: the hand lifts it. Pressed and let go instead, it stays down,
-    // and says so again. Pressed down, a tight key binds again.
-    if (target > this.d) this.lifting = false;
-    else if (this.stuck && target < this.d) { if (target === 0 && this.dTarget === 0) this.lifting = true; else this.emit('keystuck'); }
+    if (target <= 0) return this.release(speed);
+    this.lifting = false; this.finger = null; this.force = null; this.lid = null;
     this.dTarget = Math.max(0, Math.min(target, this.dip + 1)); this.keySpeed = speed;
+  }
+  // The finger pushing down on the key front with a force, in grams (a gram weight set on the key is the same thing)
+  push(grams) {
+    this.finger = null; this.lifting = false; this.lid = null;
+    this.force = Math.max(0, grams); this.dTarget = grams > 0 ? this.dip : 0; this.keySpeed = 999;
+  }
+  // a blow from BLOWS: pushed until the key is down, then eased to a resting hand's weight (or, staccato, let go)
+  blow(kind = 'mf') {
+    const b = typeof kind === 'string' ? BLOWS[kind] : kind;
+    this.push(b.F);
+    this.finger = { F: b.F, hold: Math.min(b.F, b.hold ?? HOLD_G), ms: b.ms ?? null, t: 0, downAt: null };
+  }
+  // The finger gone: the key comes up under the action's weight and springs, against its friction. A key a tight
+  // bushing holds down stays down (and says so); let go again, a hand lifts it at liftSpeed.
+  // The finger coming up at a set speed (mm/s) as far as `to` mm of key travel and waiting there: the key follows as
+  // fast as the action brings it up, and no faster than the finger lets it (a repeated note's part release)
+  ease(to, speed) {
+    this.finger = null; this.lifting = false; this.force = 0; this.keySpeed = 999;
+    this.dTarget = Math.max(0, to); this.lid = { d: Math.max(this.d, this.dTarget), to: this.dTarget, v: speed };
+  }
+  release(liftSpeed = KEY.upSpeed) {
+    this.finger = null; this.dTarget = 0; this.lid = null;
+    if (this.stuck && this.force === 0) { this.lifting = true; this.keySpeed = liftSpeed; return; }
+    this.force = 0; this.keySpeed = liftSpeed;
   }
   // A hand on one part (the app's Move parts), holding it at q and moved by setting hand.q: 'key' (q: key travel, mm; the
   // app's wippen is held this way too, the key following a lifted wippen since it is heavier at the front), 'jack' (its
@@ -1026,25 +1252,62 @@ export class Sim {
       st.checked = true; st.catching = false; st.give = gTake - this.g; st.dChecked = this.d; this.w = 0;
     }
   }
+  // Move the action on by dt seconds. It is always worked in the Sim's own steps of SUB, the time left over carried
+  // to the next call, so a run comes out the same however the caller cuts it up (screen frames, playback speed).
   step(dt) {
+    this.acc += dt;
+    for (let n = Math.floor(this.acc / this.h + 1e-9); n > 0; n--) { this.acc -= this.h; this.sub(this.h); }
+    if (this.acc < 0) this.acc = 0;
+  }
+  sub(dt) {
     const a = this.a, st = this.st;
     const dPrev = this.d;
     const h = this.hand;
     if (h) { h.v += (HAND_W * HAND_W * (h.q - h.at) - 2 * HAND_W * h.v) * dt; h.at += h.v * dt; }
-    if (h?.hold === 'key') { this.d = this.dTarget = Math.max(0, Math.min(h.at, this.dip)); this.keySpeed = Math.abs(h.v); }
-    const dir = Math.sign(this.dTarget - this.d);
-    // the action's weight brings a key up; a tight bushing's friction slows it, or holds it down
-    let speed = this.keySpeed;
-    if (dir < 0 && !this.lifting && (BUSHINGS[a.bushing]?.drag || a.wippenDrag > 0)) {
-      speed = Math.min(speed, KEY.upSpeed * keyUpShare(a));
-      if (speed <= 0 && !this.stuck) { this.stuck = true; this.emit('keystuck'); }
+    // a blow in progress: the push, then the resting hand (or the finger gone)
+    const fin = this.finger;
+    if (fin) {
+      fin.t += dt;
+      if (fin.ms !== null) { if (fin.t >= fin.ms / 1000) this.release(); }
+      else {
+        if (fin.downAt === null && (this.d >= this.dip || this.blocked || this.jamD !== null)) fin.downAt = fin.t;
+        if (fin.downAt !== null) this.force = fin.hold + (fin.F - fin.hold) * Math.max(0, 1 - (fin.t - fin.downAt) / HOLD_EASE);
+      }
     }
-    this.d += dir * Math.min(Math.abs(this.dTarget - this.d), speed * dt);
-    this.d = Math.max(0, Math.min(this.d, this.dip));
+    const handKey = h?.hold === 'key';
+    const forced = this.force !== null && !this.lifting && !handKey;
+    // forced: the key moves as the forces on it and its inertia have it. K: those forces; vF: the speed the key alone
+    // would have after this step; vUsed: the speed it is moved at (with the hammer's load, if the jack has it)
+    let K = null, vF = 0, vUsed = 0;
+    const shrink = (v, dv) => Math.abs(v) <= dv ? 0 : v - Math.sign(v) * dv;
+    if (forced) {
+      K = this.keyLoads();
+      vF = this.v + K.F * GRAV / K.m * dt;
+      let M = K.m; vUsed = vF;
+      if (this.onJack && !st.escaped && this.gam !== null) {
+        // (with the hammer's own fall this step; the lever's push on its knuckle, if any, is already in K: keyLoads)
+        M = K.m + I_HAM * this.gam * this.gam;
+        vUsed = (K.m * vF + I_HAM * this.gam * (this.w - GA * dt)) / M;
+      }
+      vUsed = shrink(vUsed, K.fr * GRAV / M * dt);
+      if (this.jamD !== null && vUsed > 0) vUsed = 0;   // a jack jammed on its stop felt stops the key
+      this.d = Math.max(CAM_D0 + 0.1, Math.min(this.d + vUsed * dt, this.dip + 1.5));
+      // a finger easing the key up: it can't come up past the finger
+      const lid = this.lid;
+      if (lid) { lid.d = Math.max(lid.to, lid.d - lid.v * dt); if (this.d < lid.d) { this.d = lid.d; lid.on = true; } else lid.on = false; }
+      this.work += this.force * (this.d - dPrev);
+    } else {
+      if (handKey) { this.dTarget = Math.max(0, Math.min(h.at, this.dip)); this.keySpeed = Math.abs(h.v) + 1e-9; this.force = null; this.finger = null; }
+      const dir = Math.sign(this.dTarget - this.d);
+      this.d += dir * Math.min(Math.abs(this.dTarget - this.d), (handKey ? Infinity : this.keySpeed * dt));
+      this.d = Math.max(0, Math.min(this.d, this.jamD ?? Infinity, this.dip));
+      this.v = (this.d - dPrev) / dt;
+    }
+    if (this.jamD !== null && this.d < this.jamD - 0.05) this.jamD = null;
     if (this.d === 0) this.stuck = this.lifting = false;
     // a worn bushing lets the key knock on its pins as a blow bottoms it
-    if (BUSHINGS[a.bushing]?.clicks && dPrev < this.dip && this.d >= this.dip && this.keySpeed >= 100) this.emit('keyclick');
-    let L = linkage(a, this.d);
+    if (BUSHINGS[a.bushing]?.clicks && dPrev < this.dip && this.d >= this.dip && (forced ? vUsed : this.keySpeed) >= 100) this.emit('keyclick');
+    let L = linkage(a, this.d, true), dAt = this.d;
     // the jack's tender reaching the let-off button, and the repetition lever the drop screw: in a well-regulated
     // action the two meet together
     const onBtn = L.psiBtn > L.psiRest + 1e-9, onScrew = L.rhoDrop < L.rhoStop;
@@ -1057,12 +1320,38 @@ export class Sim {
     if (h?.hold === 'rep') L.hornTop = Math.min(L.hornTop, h.at);
     const wasEsc = st.escaped;
     this.psi = updateJack(a, L, st, this.g);
+    // The jack swings back toward the knuckle no faster than its spring can turn it against its center's friction
+    // (JACK_SPRING, CENTERS.jack and the jack's inertia about its pin, all Hirschkorn's: about 9 ms for a healthy
+    // jack to come home from a full trip, half as long again for the tight one). Until it is there it isn't under.
+    const pull = a.jackSpringT - a.centerT.jack;
+    if (this.psi < this.psiNow - 1e-9 && pull > 0 && !handTrip && h?.hold !== 'jack') {
+      this.psiW += pull * GRAV / I_JACK * dt;
+      this.psiNow = Math.max(this.psi, this.psiNow - this.psiW * dt);
+      if (this.psiNow > this.psi + 1e-9) { if (wasEsc) st.escaped = true; this.psi = this.psiNow; } else this.psiW = 0;
+    } else { this.psiNow = this.psi; this.psiW = 0; }
     if (!wasEsc && st.escaped) this.emit('letoff', { dist: G.stringY - crownY(this.g), hand: handTrip });
     // the jack back under the knuckle drives the next strike: a new blow, not a bobble off the lever
     if (wasEsc && !st.escaped) { this.emit('reset'); this.struckD = this.floatD = null; }
-    if (st.jammed && !this.jammed && !handTrip) this.emit('jackjam');   // (a hand pushing it there isn't a regulation fault)
-    this.jammed = st.jammed;
-    let jackG = st.escaped ? -Infinity : gOnJackAt(L, this.psi);
+    // (a hand pushing it there isn't a regulation fault, nor is a hard blow squashing the punching until the jack meets its felt)
+    if (st.jammed && !this.jammed && !handTrip && this.d <= this.dip + 0.02) this.emit('jackjam');
+    // a jack on its stop felt can turn no further, so the button can push its tender no further: the key stops there
+    // (until it has come back up a little)
+    if (st.jammed && !handTrip && this.jamD === null && this.d > dPrev) { this.jamD = this.d; if (forced) vF = Math.min(vF, 0); this.dTarget = Math.min(this.dTarget, this.d); }
+    this.jammed = st.jammed || this.jamD !== null;
+    // where the jack would have the hammer: under a finger's force, with the jack where the button has it, read off the
+    // jack top's path with its corners eased (cam()); otherwise from the parts as they stand
+    const onCam = forced && !st.escaped && !handTrip && h?.hold !== 'jack' && Math.abs(this.psi - L.psiBtn) < 1e-9;
+    let jackG = st.escaped ? -Infinity : onCam ? this.cam(this.d) : gOnJackAt(L, this.psi);
+    let carried = false;   // the jack carried the hammer through this step (under a finger's force)
+    // how fast the jack is lifting the hammer per mm of key, from the step just made; found afresh when the jack has
+    // just come back under
+    if (st.escaped) { this.gam = null; this.jgPrev = null; }
+    else {
+      if (this.jgCam !== onCam) this.jgPrev = null;
+      if (this.jgPrev !== null && Math.abs(this.d - this.jgD) > 1e-7) this.gam = (jackG - this.jgPrev) / (this.d - this.jgD);
+      else if (this.gam === null || this.jgPrev === null) this.gam = this.jackRate(L, this.psi, onCam ? gOnJackAt(L, this.psi) : jackG);
+      this.jgPrev = jackG; this.jgD = this.d; this.jgCam = onCam;
+    }
     const gHorn = gFromKnuckle(L.hornTop);
     const kz = knuckleBottom(this.g)[1];
     const onRep = kz <= L.hornTop + 1e-6;
@@ -1071,10 +1360,13 @@ export class Sim {
     // the healthy action with the hammer's own friction folded in, so there only a center tighter than healthy adds its
     // extra (a.hammerFrX, a.centerFrX), and the lever's brake goes with its center's torque (a.repFr).
     let acc = -GA;
-    if (!onRep) acc -= Math.sign(this.w) * GA * a.hammerFr;
+    // (a hammer the jack is carrying under a finger's force: its center's friction is counted with the key's, keyLoads)
+    if (!onRep && !(forced && this.onJack)) acc -= Math.sign(this.w) * GA * a.hammerFr;
     // the lever damps the hammer's rise; a falling hammer compresses the spring against the lever's friction
     const sF = onRep ? springF(a, L, kz) : 0;
-    if (onRep) acc += GA * sF - (this.w > 0 ? DAMP * this.w : 0);
+    // (while the jack is carrying the hammer under a finger's force, the lever's push on the knuckle is part of the
+    // key's load, keyLoads, and its damping, fitted on the lever lifting the hammer by itself, has no part)
+    if (onRep && !(forced && this.onJack)) acc += GA * sF - (this.w > 0 ? DAMP * this.w : 0);
     let w = this.w + acc * dt;
     // rising on the lever (or about to), a tight center's extra friction slows it, or holds it if the lift can't beat it
     if (onRep && this.w >= 0 && w > 0) w = Math.max(0, w - GA * a.centerFrX * dt);
@@ -1127,12 +1419,30 @@ export class Sim {
         w = Math.sqrt(Math.max(0, (Math.max(0, 1 - 2 / 3 * G.jackD * vk) * this.w) ** 2 - 2 * GA * Math.max(0, jackG - g)));
         this.bounceD = this.d;   // a strike before the key comes back up is a bobble
       }
-      // otherwise the jack drives it (one slipping back under lifts it gently: WEDGE_T)
-      else w = Math.max(w, Math.min(JACK_DRIVE_W_MAX, (jackG - this.g) / dt));
+      // otherwise the jack has it. Moved by a hand at a set speed, the jack simply drives it (one slipping back under
+      // lifts it gently: WEDGE_T). Under a finger's force the key and the hammer share their momentum through the
+      // jack: the hammer takes the speed that keeps its knuckle on the jack top, and the key gives up (or gains) what
+      // that takes, each by its inertia. Nothing here can hand the hammer a step in speed for free: where the jack
+      // top's path has a corner (the tender meeting the button), the key slows instead, which is the bump of let-off.
+      else if (!forced) w = Math.max(w, Math.min(JACK_DRIVE_W_MAX, (jackG - this.g) / dt));
+      else {
+        const c = (jackG - this.g) / dt, gp = this.gam, I = I_HAM, M = K.m + I * gp * gp;
+        let vNew = shrink((K.m * vF + I * gp * (w - c) + I * gp * gp * vUsed) / M, K.fr * GRAV / M * dt);
+        if (this.jamD !== null && vNew > 0) vNew = 0;
+        const wNew = c + gp * (vNew - vUsed);
+        // the load on the jack's top, in hammer weights (smoothed over a millisecond): the knuckle's drag on a tripping jack
+        this.jackLoad += (I * (wNew - w) / (dt * GRAV * HAMMER_WT) - this.jackLoad) * Math.min(1, dt / 0.001);
+        // the key ends the step where its speed after the sharing puts it, the jack top (and the hammer on it) with it
+        const dd = (vNew - vUsed) * dt;
+        this.d += dd; jackG += gp * dd; this.work += this.force * dd;
+        vF = vNew; w = wNew; carried = true;
+      }
       g = jackG;
     }
-    const gR = gRail(a);
-    if (g < gR) { g = gR; w = Math.max(0, w); }
+    const gR = this.gR;
+    // The shank lands on the rest rail's felt and comes back off it: Scott Murphy's high-speed clips (PTG Education
+    // Hub) show about 0.6 of the landing speed after a quick release, and 0.68 in his double-strike clip.
+    if (g < gR) { g = gR; w = w < -RAIL_V ? -RAIL_E * w : Math.max(0, w); if (w * STRIKE_R / 1000 > 0.05) this.emit('railbounce', { v: w * STRIKE_R / 1000 }); }
     // backcheck. A jack that hasn't let off and rises above where the backcheck has the hammer lifts it off and carries
     // it on (gFree, wFree: the step without the backcheck); it doesn't build up under a held hammer and fire it when the
     // check lets go.
@@ -1143,7 +1453,7 @@ export class Sim {
     if (catchActive && w > 0 && g < gC && a.backcheck > G.bcScrapeLean && !this.scraped) { this.scraped = true; this.emit('scrape'); }
     // the hammer falls past where the backcheck takes it, or a key still going down carries that point up past the
     // hammer within the step (so the hammer was above where it stood a step ago)
-    let caughtNow = false;
+    let caughtNow = false, catchF = 1;
     // the spring's lift on a knuckle at height z, as the backcheck judges it; none while a finger holds the lever down clear of it
     const liftAt = z => h?.hold === 'rep' && z > L.hornTop ? 0 : springF(a, L, Math.min(z, L.hornTop));
     if (held) {
@@ -1153,9 +1463,11 @@ export class Sim {
       if (catchActive && st.aboveCheck && g < floor) { g = floor; w = Math.max(0, w); }
     }
     if (!held && !st.checked && !st.catching && catchActive && st.aboveCheck && g < gTake && w < 0 &&
-        (this.g >= gTake || this.g >= gFromTail(this.L.bcCatchY) + CHECK_GIVE / STRIKE_R)) {
-      // the tail meets the backcheck, which takes up the hammer's speed over CHECK_TAU x that speed
+        (this.g >= gTake || this.g >= (this.gCwas ?? gFromTail(this.L.bcCatchY)) + CHECK_GIVE / STRIKE_R)) {
+      // the tail meets the backcheck, which takes up the hammer's speed over CHECK_TAU x that speed, from where they met
+      // inside this step (catchF: the share of the step that comes after)
       st.catching = true; st.dChecked = this.d; st.wCatch = -this.w; caughtNow = true;
+      catchF = this.g >= gTake && this.g > g ? Math.max(0, Math.min(1, (gTake - g) / (this.g - g))) : 1;
       g = this.g; w = this.w;
     }
     if (st.catching) {
@@ -1163,8 +1475,9 @@ export class Sim {
       if (this.d < st.dChecked - 0.8 || !catchActive) { st.catching = false; st.aboveCheck = false; this.emit('uncheck'); }
       else {
         st.dChecked = Math.max(st.dChecked, this.d);
-        w = Math.min(0, this.w + st.wCatch / (2 * CHECK_TAU) * dt);
-        g = this.g + w * dt;
+        const dtc = dt * catchF, gFrom = catchF < 1 ? gTake : this.g;
+        w = Math.min(0, this.w + st.wCatch / (2 * CHECK_TAU) * dtc);
+        g = gFrom + (this.w + w) / 2 * dtc;
         if (jackG > g + 1e-6) { st.catching = false; st.aboveCheck = false; if (!caughtNow) this.emit('uncheck'); g = gFree; w = wFree; }
         else if (w >= 0) {
           st.catching = false; w = 0;
@@ -1190,8 +1503,9 @@ export class Sim {
     if (g > gString()) {
       if (jackG >= gString() - 1e-9 && !st.escaped) {
         g = gString(); w = 0; this.d = dPrev; this.dTarget = Math.min(this.dTarget, dPrev);
+        if (forced) { vF = Math.min(vF, 0); carried = true; }   // the string stops the hammer, the jack under it and the key
         if (!this.blocked) this.emit('blocked'); this.blocked = true;
-        L = linkage(a, this.d);
+        L = linkage(a, this.d, true); dAt = this.d;
       } else if (w > STRIKE_W) {
         this.strikes = (this.strikes || 0) + 1;
         this.emit('strike', { v: a.power * w * STRIKE_R / 1000 });
@@ -1213,10 +1527,150 @@ export class Sim {
     // the hammer can still float up off the lever and strike again
     if (this.d < 0.5) this.struckD = this.floatD = null;
     if (g < gString() - 1e-4) { this.blocked = false; this.buzzing = false; }   // off the string: a new blow can block or buzz again
-    this.g = g; this.w = w; this.L = L;
+    this.onJack = !st.escaped && Math.abs(g - jackG) < 1e-9;
+    const Lwas = this.L, dWas = this.dL ?? dPrev; this.gCwas = gC;
+    this.g = g; this.w = w; this.L = L; this.dL = dAt;
+    if (forced) this.derivs(Lwas, dWas);
+    if (forced) {
+      // the key's speed after this step: with the hammer's share if the jack carried it, less friction (which can hold
+      // it still), and none at all into a jammed jack
+      if (!carried) { vF = shrink(vF, K.fr * GRAV / K.m * dt); this.jackLoad = 0; }
+      if (this.jamD !== null && vF > 0) vF = 0;
+      if (this.lid?.on) vF = Math.max(vF, this.lid.d > this.lid.to ? -this.lid.v : 0);   // up against the easing finger
+      this.v = vF;
+      // let go and all but back at rest: the key is set where the regulation has it (REST_NEAR)
+      const still = this.force === 0 && Math.abs(this.v) < REST_STILL;
+      this.stillT = still ? this.stillT + dt : 0;
+      if (still && this.stillT >= REST_T) {
+        if (Math.abs(this.d) < REST_NEAR) { this.d = 0; this.v = 0; this.L = linkage(a, 0, true); this.dL = 0; if (this.onJack) { this.g = this.jgCam ? this.cam(0) : gOnJackAt(this.L, this.psi); this.w = 0; this.jgPrev = null; } }
+        // or a tight bushing holds it down: it stays there until a hand lifts it
+        else if (this.d > 0.5 && this.v === 0 && this.stillT >= 0.05 && !this.stuck && (BUSHINGS[a.bushing]?.drag || a.wippenDrag > 0)) { this.stuck = true; this.emit('keystuck'); }
+      }
+    } else this.jackLoad = this.onJack ? 1 : 0;
     this.stepDamper(dt);
   }
-  run(seconds, dt = 0.0002) { for (let t = 0; t < seconds; t += dt) this.step(dt); }
+  run(seconds, dt = SUB) { this.step(seconds); }
+}
+
+// ---------- touchweight ----------
+// What the key front weighs through a slow press, in grams, worked out from the same weights, springs and frictions the
+// Sim moves the key by (Sim.keyLoads; the tests check the two agree): the force that balances the action at each point
+// of the stroke (bal) and the friction that has to be overcome either way (fr). Going down the finger needs bal + fr;
+// coming up the key lifts bal - fr.
+//   down, up: weighed off as a technician does it, the damper lifted off by the pedal: the gram weight that just takes
+//     the key down from rest to where let-off begins to resist (the most the stroke asks for on the way), and the
+//     weight the key will just lift all the way back from there (the least it offers on the way)
+//   balance, friction: half their sum and half their difference (Stanwood's balance weight and friction weight)
+//   peak: the most the key asks for getting through let-off (the drop screw winding up the repetition spring, the
+//     button tripping the jack against its spring and the knuckle's drag); bottom: what it takes to hold it down
+//   trace: [{ d, down, up, damper, state }] for drawing force against travel; damper is what the damper adds once the
+//     key has picked it up (pedal up)
+// Left out: sliding friction at the capstan and the knuckle before let-off, so the friction is a floor.
+export function touch(a, { step = 0.02 } = {}) {
+  a = eff(a);
+  const dip = dipOf(a), h = 0.01, st = { escaped: false, checked: false }, trace = [];
+  let g = rest(a).g;
+  const pose = (d, s, gIn) => {
+    const L = linkage(a, d), r = staticHammer(a, L, s, gIn), kz = knuckleBottom(r.g)[1];
+    return { L, g: r.g, psi: r.psi, z: kz <= L.hornTop + 1e-6 ? Math.min(kz, L.hornTop) : L.hornTop };
+  };
+  for (let d = 0; d <= dip - h + 1e-9; d += step) {
+    const p = pose(d, st, g); g = p.g;
+    const st2 = { ...st }, q = pose(d + h, st2, g);
+    if (st2.escaped !== st.escaped) continue;   // the jack lets go inside this hundredth of a millimetre: nothing steady to read
+    const k = 1 / h, rise = (p.L.phi - q.L.phi) * k, gd = (q.g - p.g) * k, psid = (q.psi - p.psi) * k;
+    const comp = p.L.hornFree - p.z, compd = ((q.L.hornFree - q.z) - comp) * k;
+    const hornG = HAMMER_WT / (hamPt(p.g, G.knuckleC)[0] - G.H[0]);
+    const onBtn = p.L.psiBtn > p.L.psiRest + 1e-9, onScrew = p.L.rhoDrop < p.L.rhoStop;
+    let bal = HAMMER_WT * gd + WIPPEN_WT * rise - KEY_FW, fr = KEY.friction + (BUSHINGS[a.bushing]?.drag || 0) + a.centerT.hammer * Math.abs(gd) + a.centerT.wippen * Math.abs(rise);
+    if (comp > 1e-9 || compd > 1e-9) { bal += hornG * springF(a, p.L, p.z) * compd; fr += a.centerT.rep * Math.abs(compd) / -G.horn[0]; }
+    if (onBtn) {
+      bal += a.jackSpringT * Math.max(0, psid); fr += a.centerT.jack * Math.abs(psid);
+      if (!st.escaped) fr += G.jackMu * hornG * Math.hypot(...G.jackTop) * Math.max(0, psid);
+    }
+    const damper = p.L.keyEndRise > a.damperGap ? DMP_KEY * (1 + a.damperDrag) * (q.L.keyEndRise - p.L.keyEndRise) * k : 0;
+    // lost: the hammer still on the rest rail, the key going down with nothing on it (lost motion)
+    trace.push({ d, bal, fr, down: bal + fr, up: bal - fr, damper, lost: Math.abs(gd) < 1e-9, btn: onBtn, state: st.escaped ? 'escaped' : onBtn ? 'tender' : onScrew ? 'screw' : '' });
+  }
+  // where let-off begins to resist: the drop screw or the button, whichever the key meets first; but a drop screw the
+  // lever meets long before the button (set far too low) is part of the stroke, and its weight part of the downweight
+  const dScrew = trace.find(r => r.state)?.d ?? dip, dBtn = trace.find(r => r.btn || r.state === 'escaped')?.d ?? dip, dBump = dBtn - dScrew > 1.5 ? dBtn : dScrew;
+  const dLost = Math.max(-1, ...trace.filter(r => r.lost && r.d < dBump).map(r => r.d));   // lost motion at the top is no part of it
+  const pre = trace.filter(r => r.d < dBump && r.d > dLost + 0.03 && r.d >= 0.1), ok = pre.length > 0;
+  const down = ok ? Math.max(...pre.map(r => r.down)) : null, up = ok ? Math.min(...pre.map(r => r.up)) : null;
+  const bump = trace.filter(r => r.state && r.state !== 'escaped');
+  const last = trace[trace.length - 1];
+  return { down, up, balance: ok ? (down + up) / 2 : null, friction: ok ? (down - up) / 2 : null,
+    peak: bump.length ? Math.max(...bump.map(r => r.down)) : null, bottom: last ? last.up : null, bottomDown: last ? last.down : null,
+    returns: up !== null && up > 0, trace };
+}
+// Key dip under a finger's weight: the front punching squashes (FELT_FRONT) under what the finger presses with beyond
+// what the action pushes back with at the bottom. dipOf() is the dip with the key just touching the punching.
+export function dipAt(a, grams, t = touch(a)) {
+  return dipOf(eff(a)) + feltSquash(FELT_FRONT, Math.max(0, grams - (t.bottomDown ?? 0)) / FELT_FRONT.r) / FELT_FRONT.r;
+}
+
+// ---------- playing it: key return, repetition ----------
+// run a Sim through a finger program [[t, sim => ...], ...] for T seconds; returns the Sim and its events
+export function playKey(a, prog, T) {
+  const s = new Sim(a), ev = [];
+  let pi = 0;
+  for (let i = 0, n = Math.round(T / SUB); i < n; i++) {
+    while (pi < prog.length && i * SUB >= prog[pi][0] - 1e-12) prog[pi++][1](s);
+    s.events.length = 0; s.sub(SUB);
+    for (const e of s.events) ev.push(e);
+  }
+  return { s, ev };
+}
+// A normal blow held for 0.3 s and let go: how long the key takes to come back up (ms), how long the hammer takes to be
+// back at rest and still, and how far up the key was when the jack got back under the knuckle
+export function keyReturn(a, blow = 'mf') {
+  const s = new Sim(a), g0 = s.g, T0 = 0.3;
+  let keyMs = null, homeMs = null, resetUp = null;
+  s.blow(blow);
+  for (let i = 0, n = Math.round(1.5 / SUB); i < n; i++) {
+    const t = i * SUB;
+    if (i === Math.round(T0 / SUB)) s.release();
+    s.events.length = 0; s.sub(SUB);
+    if (t < T0) continue;
+    for (const e of s.events) if (e.type === 'reset' && resetUp === null) resetUp = 1 - e.d / s.dip;
+    if (keyMs === null && s.d <= 0.05) keyMs = 1000 * (t - T0);
+    if (keyMs !== null && homeMs === null && s.d === 0 && Math.abs(s.g - g0) < 2e-4 && Math.abs(s.w) < 1e-6) { homeMs = 1000 * (t - T0); break; }
+  }
+  return { keyMs, homeMs, resetUp, stuck: s.stuck };
+}
+// Repeated blows: the finger pushes with F grams for the first half of each beat and eases up over the second half, n
+// times, at `rate` blows a second. A blow from a part release is a shorter stroke and softer for it; it counts as
+// sounding if the hammer struck in its beat at no less than a third of the first blow's speed (the sim's own line).
+// REPEAT_F is a firm finger, the sim's own.
+export const REPEAT_F = 600, REPEAT_SOUNDS = 1 / 3;
+// one beat of a repeated note on a Sim: pushed with F for the first half, the finger easing up to `up` (a share of the
+// dip) over the second half. Returns the fastest strike in the beat (m/s, 0: none) and how far up the key got.
+export function repeatBeat(s, rate, { F = REPEAT_F, up = 0.5 } = {}) {
+  const per = Math.round(1 / rate / SUB), on = Math.round(per / 2), to = s.dip * (1 - up);
+  let v = 0, rose = 0;
+  s.push(F);
+  for (let i = 0; i < per; i++) {
+    if (i === on) s.ease(to, Math.max(1, s.d - to) / ((per - on) * SUB));
+    s.events.length = 0; s.sub(SUB);
+    for (const e of s.events) if (e.type === 'strike') v = Math.max(v, e.v);
+    if (i >= on) rose = Math.max(rose, 1 - s.d / s.dip);
+  }
+  return { v, rose };
+}
+export function repeatTest(a, rate, { n = 5, F = REPEAT_F, up = 0.5 } = {}) {
+  const s = new Sim(a), blows = [];
+  for (let b = 0; b < n; b++) blows.push(repeatBeat(s, rate, { F, up }));
+  const v0 = blows[0].v, good = b => v0 > 0 && b.v >= REPEAT_SOUNDS * v0;
+  return { rate, up, blows: blows.map(b => ({ ...b, ok: good(b) })), ok: blows.every(good), sounded: blows.filter(good).length };
+}
+// The fastest this key repeats, the finger letting it up by `up` of its dip each time (a half by default): the rate
+// (whole blows a second) up to which every blow of repeatTest sounds, counting up from 3 a second until one fails
+// (0: it doesn't repeat that way at all)
+export function repeatCeiling(a, opts = {}) {
+  let best = 0;
+  for (let r = 3; r <= 30; r++) { if (repeatTest(a, r, opts).ok) best = r; else break; }
+  return best;
 }
 
 // Factory regulation solved offline with factory() (node), so the page loads fast.
