@@ -4,6 +4,7 @@ import { hand, GRAND_HOLD, HOLD_NAMES, dragTo } from './hand.js';
 import { createScene, NOTE_Z, BASS } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
+import { examMark, PASS, OP_NEEDS } from './examscore.js';
 import { TOOLBAG } from './toolbag.js';
 import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F, touch, dipAt, repeatRun } from './model.js';
 import { initControls, markView, closeMenu } from './controls.js';
@@ -1548,11 +1549,9 @@ function examScore() {
     const t = EXAM_ORDER.map(i => NOTES[i].m.fallMs), spread = Math.max(...t) - Math.min(...t);
     even.push({ id: 'damperFall', ok: spread <= 5, spread, ms: true });
   }
-  const items = rows.flatMap(r => r.cells.filter(c => !c.skip).map(c => c.ok)).concat(even.map(e => e.ok));
-  let pct = Math.round(100 * items.filter(Boolean).length / items.length);
+  // a damaged part left in the action fails the exam, and so does an operation left out (examscore.js)
   const missed = NOTES.some(n => n.adj.damage || n.adj.center);
-  if (missed) pct = Math.min(pct, 79);   // a damaged part left in the action fails the exam
-  return { rows, even, pct, missed };
+  return { rows, even, missed, ...examMark(rows, even, { missed }) };
 }
 function renderExam(p) {
   if (!exam.started) {
@@ -1566,7 +1565,7 @@ function renderExam(p) {
           : 'Adjust by clicking the part of the action you would turn: its controls come up beside it. The panel lists the tests, not the adjustments; knowing which part to turn is part of the exam.'),
         el('li', {}, 'Assembly is skipped, but aligning is in: travel, space and square each hammer, center each jack and backcheck. The real 50 minutes include assembling the model, so you can set a shorter clock to leave yourself that time.'),
         LEVEL.damage ? el('li', {}, 'At Exam level one note may also have a damaged part to find and repair (on the real exam, repairs are a separate section).') : null,
-        el('li', {}, 'Scoring: each spec on each note, plus how even the three notes are. 80% is this practice\'s pass mark, not PTG\'s.')),
+        el('li', {}, `Scoring: each spec on each note, plus how even the three notes are. ${PASS}% is this practice\'s pass mark, not PTG\'s, and no operation may be left out: a check that is out of tolerance on more than one of the three notes (let-off never set, say) caps the mark below a pass.`)),
       el('label', { class: 'row small' }, el('input', { type: 'checkbox', ...(examDampers ? { checked: '' } : {}), onchange: e => { examDampers = e.target.checked; } }),
         ' Include dampers and pedal (lift timing, stop rail, pedal lift, falling together). PTG\'s grand section may not include them.'),
       el('label', { class: 'row small' }, 'Clock: ',
@@ -1589,12 +1588,15 @@ function renderExam(p) {
     el('button', { class: 'primary', onclick: () => { if (confirm('Hand in your exam model now?')) handIn(); } }, 'Hand it in'));
 }
 function renderExamResult(p) {
-  const sc = examScore(), pass = sc.pct >= 80;
+  const sc = examScore(), pass = sc.pass;
   const cell = c => el('td', { class: c.ok ? 'okc' : 'badc' }, c.skip ? null : mark(c.ok), c.txt);
   put(p, el('div', { class: 'verdict ' + (pass ? 'ok' : 'bad') },
       el('h2', {}, `${sc.pct}%: ${pass ? 'pass' : 'not yet'}`),
       el('p', { class: 'muted small' }, `${exam.level.name} level · time used ${clock(exam.used)} of ${exam.minutes}:00 · ${testsUsed} tests run`),
-      sc.missed ? el('p', {}, 'A damaged part was left unrepaired, so this practice caps the score below a pass.') : null),
+      sc.missed ? el('p', {}, 'A damaged part was left unrepaired, so this practice caps the score below a pass.') : null,
+      sc.skipped.length ? el('p', { id: 'exam-skipped' }, `Left out: ${sc.skipped.map(id => SHORT[id] || SPEC[id].name).join('; ')}. `
+        + `Each of these is out of tolerance on more than one note, so the operation counts as not done and this practice caps the score below a pass${sc.raw > sc.pct ? ` (the items alone come to ${sc.raw}%)` : ''}. `
+        + `Every check has to be in on at least ${OP_NEEDS} of the three notes.`) : null),
     el('table', { class: 'specs score' },
       el('thead', {}, el('tr', {}, el('th', {}, 'Check'), el('th', {}, 'Note 1'), el('th', {}, 'Note 2'), el('th', {}, 'Note 3'))),
       el('tbody', {}, sc.rows.map(r => el('tr', {}, el('td', {}, SPEC[r.id].name), r.cells.map(cell))))),
