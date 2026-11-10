@@ -144,6 +144,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     plan = null; idle = false;
     if (kind !== 'up') testEvents = [];   // the callouts read this press's events
     if (kind === 'up') { keyUp(); return; }
+    releasedAt = null;   // a new press: a landing after it isn't timed from the last release
     if (kind === 'slow') { sim.press(sim.dip, SLOW); return; }
     sim.press(sim.dip, STRIKE);
     if (kind === 'play') plan = 'up';
@@ -511,7 +512,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       ctx.say(home ? `${c.label}: the hammer was home ${drillTimes[key]} ms after the key was let go (filmed: ${Math.round(c.filmRailMs)} ms)` : `${c.label}: the hammer didn't get home in 400 ms`);
       await ctx.run(0.1); await ctx.pause(0.8);
     } catch (err) { console.error(err); }
-    delete a.noStrap; delete a.noSpring; m = measure(a); sim = new Sim(a);
+    delete a.noStrap; delete a.noSpring; m = measure(a); sim = new Sim(a); sim.setSoft(softOn); sim.setPedal(sustainOn); sim.soft = softOn ? 1 : 0; sim.pedal = sustainOn ? 1 : 0;
     testRun = null; busy = false; idle = false; refresh();
   }
   function drawEllis(cv) {

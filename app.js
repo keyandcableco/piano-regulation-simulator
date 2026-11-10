@@ -1421,8 +1421,10 @@ function examScore() {
     notScored(id, i) ? { txt: '—', ok: true, skip: true } : { ...reading(id, NOTES[i].m), ok: gradeL(id, NOTES[i].m).ok }) }));
   const even = EVEN.concat(exam.dampers ? ['damperTiming'] : []).map(id => {
     const vals = EXAM_ORDER.map(i => gradeL(id, NOTES[i].m).v);
-    const [lo, hi] = band(id, exam.level.tolK);   // even: within the spec's tolerance of each other (half its band)
-    const ok = vals.every(v => v != null) && Math.max(...vals) - Math.min(...vals) <= (hi - lo) / 2 + 1e-9;
+    // even: within the spec's tolerance of each other (half its band). The level scales this for every spec, a maker's
+    // printed band too: the band's edges don't move at Exam level, but how alike three notes must be does.
+    const [lo, hi] = band(id, 1);
+    const ok = vals.every(v => v != null) && Math.max(...vals) - Math.min(...vals) <= (hi - lo) / 2 * exam.level.tolK + 1e-9;
     return { id, ok, spread: vals.every(v => v != null) ? Math.max(...vals) - Math.min(...vals) : null };
   });
   if (exam.dampers) {

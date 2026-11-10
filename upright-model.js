@@ -290,7 +290,7 @@ export const SPEC = {
   // escapement at 1.1, both short of their sources; at 0.400 in of dip a blow of 1-5/8 to 1-11/16 in brings both in.
   // The band is his window and the target, a scant 1-11/16 in, his. (Those figures counted let-off late: see FACTORY.
   // Counted from where the hammer drops, 1-3/4 in gives 0.64 and 1.07, still short; 42.5 mm gives 1.36 and 2.97, and
-  // both are inside their bands from about 42.4 to 43.5 mm, the middle near a full 1-11/16 in.)
+  // both are inside their bands from about 42.3 to 43.4 mm (with checking reset to 9/16 in; tests/upright-content.test.mjs), the middle near a full 1-11/16 in.)
   blow: { target: 42.5, lo: 1.625 * IN, hi: 1.6875 * IN, src: 'Greg 2026-11-08: 1-5/8 to 1-11/16 in, for aftertouch and escapement at 0.400 in dip. The sources: 1-3/4 in [S2]; 1-3/4 to 1-7/8 in studio uprights [S3]; Steinway about 1-7/8 [S1]' },
   // lo is functional: below JACK_CLEAR the jack can't get back under the cushion on a slow release [S2's test]. hi is
   // Igrec's figure for a worn action (double the new action's 0.1 mm), which is also where Spurlock's wholesale check
