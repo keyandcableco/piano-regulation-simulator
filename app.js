@@ -1882,7 +1882,8 @@ function say(text, kind = '') {
 let letoffMark = null, checkMark = null, letoffD = null, contactD = {};
 function handleEvents() {
   for (const e of sim.events) {
-    const show = id => revealed(id);
+    // (reading the gauges yourself, the status line gives no figures: the dip test's press would hand over let-off)
+    const show = id => revealed(id) && !gaugeMode;
     if (e.type === 'letoff' && e.hand) say('Jack tripped by hand: the knuckle slips off it');
     else if (e.type === 'letoff') {
       // let-off is judged on a slow press; a hard blow trips at a slightly different point
@@ -2478,7 +2479,11 @@ const grandBench = {
     NOTES.forEach((n, i) => { if (i !== cur) { n.adj = { ...st.notes[i] }; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); } });
     adj = { ...st.notes[cur] }; unsolve(); applyAdj();
   },
-  notes: st => (multi() ? st.notes : [st.notes[cur]]),
+  // (Find the fault's neighbors are for comparing, not part of the work: the customer's key alone is saved and printed)
+  notes: st => (multi() && !neighborsOn() ? st.notes : [st.notes[cur]]),
+  // a save is a difference from the regulated key, and that key follows the spec set: the set travels with it
+  set: () => specSet(),
+  useSet: id => { if (specSet() !== id) pickSpecSet(id); return specSet() === id || !Object.hasOwn(SPEC_SETS, id); },
   fault: () => (mode === 'diagnose' && scenario ? { c: scenario.complaint, w: scenario.answer + (scenario.second ? ` Also: ${scenario.second.answer}` : '') } : null),
   draft: st => {
     const parts = Object.entries(diffAdj(st.notes[cur], BENCH_RULES)).map(([k, v]) => {
@@ -2512,9 +2517,9 @@ const grandBench = {
   readings: st => { const mm = benchMeasure(st.notes[cur]); return benchIds().map(id => ({ name: SHORT[id] || SPEC[id].name, ...reading(id, mm), shown: revealed(id) })); },
   record: () => {
     store();
-    const meta = [{ learn: 'Learn', diagnose: 'Find the fault', sandbox: 'Sandbox', exam: 'Exam practice' }[mode], `${level().name} level`];
+    const meta = [{ learn: 'Learn', diagnose: 'Find the fault', sandbox: 'Sandbox', exam: 'Exam practice' }[mode], `${level().name} level`, `graded against ${SPEC_SETS[specSet()].name}`];
     if (mode === 'exam' && exam.done) return { title: 'Grand action regulation: exam practice', meta, tables: [], copy: $('#mode') };
-    const slots = multi() ? EXAM_ORDER : [cur], one = slots.length === 1;
+    const slots = multi() && !neighborsOn() ? EXAM_ORDER : [cur], one = slots.length === 1;
     const cell = (id, n) => (shownIn(id, n) ? reading(id, n.m) : { txt: 'not measured', ok: null });
     const rows = benchIds().map(id => { const cells = slots.map(sl => cell(id, NOTES[sl]));
       return [SPEC[id].name, [specTarget(id), mode === 'exam' && id === 'keyHeight' ? '' : specBand(id)].filter(Boolean).join('; passes '), ...cells,

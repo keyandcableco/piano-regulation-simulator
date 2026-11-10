@@ -98,7 +98,7 @@ export function mountBench({ el, toast, adapter, refresh }) {
   // the state in hand as a code: a fault stays a fault (its complaint and answer travel with it)
   function codeNow(A, asFault = null) {
     const s = A.snap(), f = asFault ?? A.fault();
-    return encodeState({ k: f ? 'fault' : 'save', a: A.name, n: A.notes(s).map(a => diffAdj(a, A.rules)), ...(f ? { c: f.c.slice(0, MAX_TEXT), w: f.w.slice(0, MAX_TEXT) } : {}) });
+    return encodeState({ k: f ? 'fault' : 'save', a: A.name, ...(A.set && A.set() !== 'generic' ? { s: A.set() } : {}), n: A.notes(s).map(a => diffAdj(a, A.rules)), ...(f ? { c: f.c.slice(0, MAX_TEXT), w: f.w.slice(0, MAX_TEXT) } : {}) });
   }
   const linkOf = code => location.origin + location.pathname + location.search + HASH + code;
   async function copy(text, note) {
@@ -145,6 +145,8 @@ export function mountBench({ el, toast, adapter, refresh }) {
     if (!st) { if (!quiet) toast('That isn\'t a link or code from this page (or part of it is missing)', 'warn'); return false; }
     const A = adapter();
     if (!A || st.a !== A.name) { toast(`That one is for the ${st.a} action: switch to the ${st.a === 'upright' ? 'Upright' : 'Grand'} piano first`, 'warn'); return false; }
+    // (the set first: the differences are from that set's regulated key)
+    if (A.useSet && A.useSet(st.s || 'generic') === false) { toast('Not just now: finish what is running first', 'warn'); return false; }
     const ok = A.open({ k: st.k, notes: st.n.map(d => applyDiff(d, A.rules)), c: st.c || 'Something isn\'t right with this key.', w: st.w });
     if (ok === false) { toast('Not just now: finish what is running first', 'warn'); return false; }
     open = null; linkBox = null;
@@ -165,7 +167,7 @@ export function mountBench({ el, toast, adapter, refresh }) {
       ...(r.copy ? [printable(r.copy)] : []),
       ...r.tables.flatMap(t => [t.caption ? el('h2', {}, t.caption) : null,
         el('table', {}, el('thead', {}, el('tr', {}, t.head.map(h => el('th', {}, h)))), el('tbody', {}, t.rows.map(row => el('tr', {}, row.map(cellOf)))))]).filter(Boolean),
-      el('p', { class: 'meta' }, '✓ in spec, ✗ out of spec, at the level and targets named above. A practice record from regulation.keyandcable.com: generic textbook targets, not a maker\'s, and not an exam result.'));
+      el('p', { class: 'meta' }, '✓ in spec, ✗ out of spec, at the level and targets named above. A practice record from regulation.keyandcable.com: not an exam result.'));
     window.print();
   }
   // a copy of what the panel shows (the exam's score sheet), without its buttons

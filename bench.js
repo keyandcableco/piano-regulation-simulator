@@ -81,7 +81,8 @@ function mix(bytes) {
 const sum = bytes => bytes.reduce((s, b) => (s * 31 + b) & 255, 7);
 const VERSION = '1';
 export const MAX_TEXT = 1600, MAX_CODE = 9000;
-// state: { k: 'save' | 'fault', a: 'grand' | 'upright', n: [diff, ...] (one note or three), c: complaint, w: what was wrong }
+// state: { k: 'save' | 'fault', a: 'grand' | 'upright', n: [diff, ...] (one note or three), c: complaint, w: what was wrong,
+//          s: spec set, when it isn't the generic one }
 export function encodeState(state) {
   const bytes = new TextEncoder().encode(JSON.stringify(state));
   return VERSION + toB64(mix(Uint8Array.from([...bytes, sum(bytes)])));
@@ -98,7 +99,8 @@ export function decodeState(code) {
   if (!st || typeof st !== 'object' || !['save', 'fault'].includes(st.k) || !['grand', 'upright'].includes(st.a)) return null;
   if (!Array.isArray(st.n) || ![1, 3].includes(st.n.length) || st.n.some(d => !d || typeof d !== 'object' || Array.isArray(d))) return null;
   const text = v => typeof v === 'string' ? v.slice(0, MAX_TEXT) : '';
-  return { k: st.k, a: st.a, n: st.n, c: text(st.c), w: text(st.w) };
+  // s: the spec set the action was regulated against (a diff is taken from that set's regulated key); none is the generic set
+  return { k: st.k, a: st.a, n: st.n, c: text(st.c), w: text(st.w), s: typeof st.s === 'string' ? st.s.slice(0, 24) : '' };
 }
 // the code in an address (…#r=CODE), and an address or a bare code as someone pastes it
 export const HASH = '#r=';

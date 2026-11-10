@@ -62,7 +62,8 @@ test('a code from outside can\'t put the model where a knob couldn\'t', () => {
 test('the code: a state goes in and comes out, three notes and long words too', () => {
   const diff = diffAdj({ ...FACTORY, drop: FACTORY.drop + 2, center: 'repTight' }, GRAND);
   const save = { k: 'save', a: 'grand', n: [diff, {}, { letoff: -0.5 }] };
-  assert.deepEqual(decodeState(encodeState(save)), { ...save, c: '', w: '' });
+  assert.deepEqual(decodeState(encodeState(save)), { ...save, c: '', w: '', s: '' });
+  assert.equal(decodeState(encodeState({ ...save, s: 'kawai' })).s, 'kawai', 'the spec set travels with a save');
   const fault = { k: 'fault', a: 'upright', n: [{ capstan: 0.1 }], c: 'It “clicks”, naïvely — ♪', w: 'x'.repeat(MAX_TEXT + 50) };
   const back = decodeState(encodeState(fault));
   assert.equal(back.c, fault.c); assert.equal(back.w.length, MAX_TEXT); assert.deepEqual(back.n, fault.n);
