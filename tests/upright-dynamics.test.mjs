@@ -46,14 +46,14 @@ test('S15: the strap\'s gain, and the spring\'s: neither is slowest, then spring
   const t = Object.fromEntries(Object.entries(RUNS).map(([k, r]) => [k, r.railMs]));
   assert.ok(t['0'] > t.s && t['0'] > t.b && t.s > t.bs, JSON.stringify(t));
 });
-test('S15: the spring speeds up the strap\'s return (strap only 118 ms, both 110)', { todo: 'the sim has strap only at 107 ms, both at 112: the fit trades strap only\'s landing for the strap\'s slack and taut window' }, () => {
+test('S15: the spring speeds up the strap\'s return (strap only 118 ms, both 110)', () => {
   assert.ok(RUNS.bs.railMs < RUNS.b.railMs, `both ${RUNS.bs.railMs.toFixed(1)} ms, strap only ${RUNS.b.railMs.toFixed(1)}`);
 });
 
-// The rail is a hard stop with a fixed restitution: the filmed head sinks up to 2 degrees into the cloth. After a
-// staccato the hammer comes back from the strings unchecked, lands at about 440 deg/s, rises about 10 degrees off the
-// rail and holds the jack out until it lands again 200 ms later.
-test('the hammer lands faster than filmed (the rail cloth\'s give is not modelled)', { todo: 'model lands at 160-280 deg/s; S15 59-151' }, () => {
+// The rail is a hard stop: the filmed head sinks up to 2 degrees into the cloth. Its rebound's speed stops growing past
+// DYN.railSoft (300 deg/s), so a hammer back from the strings unchecked rises about 4 degrees off the rail, not 10, and
+// never reaches the strings again (tests/upright-faults.test.mjs).
+test('the hammer lands faster than filmed (the rail cloth\'s give is not modelled)', { todo: 'model lands at 135-225 deg/s; S15 59-151' }, () => {
   for (const [k, r] of Object.entries(RUNS)) {
     const land = r.ev.find(e => e.type === 'rail');
     within(land.v * 180 / Math.PI, S15.cases[k].landingDegS, 0.15, `${k} landing speed`);

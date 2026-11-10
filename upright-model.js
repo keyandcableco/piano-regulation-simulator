@@ -288,11 +288,15 @@ export const SPEC = {
   dip: { target: 0.400 * IN, tol: 0.4, src: 'Steinway .400 in [S1]; 3/8 in+ consoles and larger [S2]' },
   // Greg's call, 2026-11-08 ("Shorter blow"): at the textbook 1-3/4 in this geometry leaves aftertouch at 0.44 mm and
   // escapement at 1.1, both short of their sources; at 0.400 in of dip a blow of 1-5/8 to 1-11/16 in brings both in.
-  // The band is his window. The target, a scant 1-11/16 in, is where both sit furthest inside their bands: they pull
-  // opposite ways, and at 42.5 mm aftertouch reads 1.04 mm and escapement 3.04, each about 8% of its band in from an edge.
+  // The band is his window and the target, a scant 1-11/16 in, his. (Those figures counted let-off late: see FACTORY.
+  // Counted from where the hammer drops, 1-3/4 in gives 0.64 and 1.07, still short; 42.5 mm gives 1.36 and 2.97, and
+  // both are inside their bands from about 42.4 to 43.5 mm, the middle near a full 1-11/16 in.)
   blow: { target: 42.5, lo: 1.625 * IN, hi: 1.6875 * IN, src: 'Greg 2026-11-08: 1-5/8 to 1-11/16 in, for aftertouch and escapement at 0.400 in dip. The sources: 1-3/4 in [S2]; 1-3/4 to 1-7/8 in studio uprights [S3]; Steinway about 1-7/8 [S1]' },
-  // lo is functional: below JACK_CLEAR the jack can't get back under the cushion on a slow release [S2's test]
-  lostMotion: { target: 0.08, lo: 0.05, hi: 0.13, src: 'the least that lets the jack return [S2]; under 0.004 in (0.1 mm) on a new action [S3]' },
+  // lo is functional: below JACK_CLEAR the jack can't get back under the cushion on a slow release [S2's test]. hi is
+  // Igrec's figure for a worn action (double the new action's 0.1 mm), which is also where Spurlock's wholesale check
+  // sits: a hammer following a pulled rail 1/16 in has 0.19 mm at the jack here; Steinway's 1/64 in of follow is 0.047.
+  // Both must pass (critique 2026-11-09, U5).
+  lostMotion: { target: 0.08, lo: 0.04, hi: 0.2, src: 'the least that lets the jack return [S2]; the hammer follows a pulled rail about 1/64 in [S1] to 1/16 in [S2]; under 0.004 in (0.1 mm) on a new action, up to double that on a worn one [S3]' },
   letoff: { target: 0.125 * IN, tol: 0.8, src: '1/8 in [S2]; Steinway 1/16 in [S1]' },
   check: { target: 0.5625 * IN, lo: 0.5 * IN, hi: 0.625 * IN, src: '5/8 in [S2, S11]; Steinway 1/2 in [S1]: graded 1/2 to 5/8, both pass at every level' },
   damperTiming: { target: 0.5, tol: 0.1, src: 'the damper starts with the hammer about halfway [S1, S2]' },
@@ -314,8 +318,10 @@ export const SPEC = {
 // a spec's pass band, [lo, hi]
 export const band = s => s.lo !== undefined ? [s.lo, s.hi] : [s.target - s.tol, s.target + s.tol];
 // the room (mm) the jack needs between its top and the cushion to get back under the butt at rest: below it a slow
-// release leaves the jack hanging on the butt leather [T: the sim's own figure, inside Igrec's "under 0.1 mm" new]
-export const JACK_CLEAR = 0.05;
+// release leaves the jack hanging on the butt leather [T: the sim's own figure, set just under what Steinway's 1/64 in
+// of rail follow leaves at the jack here (0.047 mm): "less means the jack may hang" [S1]]
+export const JACK_CLEAR = 0.04;
+const EDGE = 0.05;   // mm: a jack held out by the cushion's player-side end stands this far off it
 
 // ---------- the key (stand-in geometry, KEY) ----------
 // Its frame: origin on the underside at the balance pin, drawn level; it rests on its back rail cloth at the back end.
@@ -379,7 +385,12 @@ const BUTTON_Y = Math.min(...TRACE.letoffFelt.map(p => p[1]));   // the button f
 const BUTTON_X = [Math.min(...TRACE.letoffFelt.map(p => p[0])), Math.max(...TRACE.letoffFelt.map(p => p[0]))];
 // the cushion's underside, butt frame: flat (its traced rounded ends left out) [e]
 const CUSH_FACE = { y: Math.min(...TRACE.buttCushion.map(p => p[1])), x: [Math.min(...TRACE.buttCushion.map(p => p[0])), Math.max(...TRACE.buttCushion.map(p => p[0]))] };
-// the toe's highest point under the button's face (as the toe tilts it moves along the toe's top)
+// The toe's highest point under the button's face (as the toe tilts it moves along the toe's top), taken at 17 points
+// along the toe's top. So the jack's angle steps a little where the contact moves from one point to the next, and the
+// jack's top with it (a few hundredths of a millimetre): the Sim keeps those steps from throwing the hammer (LIFT_RATIO).
+// The exact edge would be smooth, but it turns the jack a hair farther at the bottom of the key: the jack's clearance
+// reads 0.22 mm more, which at the 42.5 mm blow puts the factory regulation over the top of Spurlock's 1/8 in. Left
+// sampled until the blow target is looked at again (critique 2026-11-09, U1: the factory sits at the window's edge).
 const TOE_SAMPLES = Array.from({ length: 17 }, (_, i) => [TOE_TOP[0][0] + (TOE_TOP[1][0] - TOE_TOP[0][0]) * i / 16, TOE_TOP[0][1] + (TOE_TOP[1][1] - TOE_TOP[0][1]) * i / 16]);
 function toeHigh(phi, psi) {
   let y = -Infinity;
@@ -506,13 +517,20 @@ export const strapEnds = (a, phi, g) => [turn(STRAP[0], CENTER.butt, -g), wipPt(
 // slack: how much longer the strap is than the distance between its ends (negative: it would have to stretch)
 export function strapSlack(a, phi, g) { const [f, k] = strapEnds(a, phi, g); return STRAP_LEN - Math.hypot(...sub(f, k)); }
 
+// The slack the factory leaves in the strap with the soft pedal down, mm [T: the sim's figure for Ellis's "just enough
+// slack to pass the soft pedal test" [S14]: three steps of the bridle wire short of lifting the wippen]. With it the
+// strap goes taut for a moment on a quick release from check and brings the hammer home sooner, as S15 filmed: at the
+// factory regulation 111 ms against 125 without the strap (film 110 and 126). Until 2026-11-09 the factory wire stood
+// at its traced place, 1.5 mm of soft-pedal slack, and the strap never pulled (critique, U9).
+export const BRIDLE_SOFT_SLACK = 0.75;
+
 // ---------- one pose ----------
 // The key held at depth d on a slow press (or held down after a blow, held: true: the jack has escaped and the hammer
 // sits where the backcheck caught it). soft: the soft pedal down.
 export function pose(a, d, { soft = false, held = false } = {}) {
   const k = keyAngle(a, d), phi = wippenOn(capstanTop(a, k)), gr = gRail(a, soft);
   const c = contactOn(gr, restPlace(a.balPunch, a.capstan, gr));  // the corner's place under the butt, key at rest
-  let psi, g = gr, on = 'rail', check = null;
+  let psi, g = gr, on = 'rail', check = null, rests = false;
   // through the lost motion the jack rises in place; past it the jack carries the butt round
   if (phi > c.phiC) { ({ g, psi } = chain(phi, c)); on = 'jack'; if (g < gr) { g = gr; on = 'rail'; } }
   else psi = psiAtX(phi, gr, c.q[0]);
@@ -538,10 +556,18 @@ export function pose(a, d, { soft = false, held = false } = {}) {
     check = gCheck(a, phi);
     g = gr; on = 'rail';
     if (check.g !== null && check.g > g) { g = check.g; on = 'backcheck'; }
-    // a jack still under the cushion holds the hammer up (no escapement: it blubbers)
-    if (!escaped(phi, psi, g) && jackGap(phi, psi, g) < 0) { g = Math.min(gs, gOnJack(phi, psi)); on = 'jack'; }
+    // a jack that hasn't let off still stands under the cushion: the hammer comes down on it, short of the backcheck
+    // (no escapement: it blubbers there). The Sim's own test for let-off, so the two agree.
+    const gc = gOnJack(phi, psi);
+    if (!escaped(phi, psi, gc) && gc > g) { g = Math.min(gs, gc); on = 'jack'; check = null; }
+    // let off, but the button hasn't yet turned the jack clear of the cushion where the hammer now sits: the cushion's
+    // player-side end holds the jack out (it rests against the butt leather), as in the Sim
+    else if (cornerInButt(phi, psi, g)[1] > CUSH_FACE.y - JACK_CLEAR) {
+      const pe = psiAtX(phi, g, CUSH_FACE.x[0] - EDGE);
+      if (pe > psi && !jammed) { psi = pe; rests = true; }
+    }
   }
-  return { d, th: k.th, bal: k.bal, phi, psi, g, dl: damperAngle(a, phi), on, jammed, blocked, check, soft, gRail: gr,
+  return { d, th: k.th, bal: k.bal, phi, psi, g, dl: damperAngle(a, phi), on, jammed, blocked, check, soft, gRail: gr, rests,
     slack: strapSlack(a, phi, g) };
 }
 
@@ -549,22 +575,28 @@ export function pose(a, d, { soft = false, held = false } = {}) {
 // A slow press from rest to the bottom: where the hammer starts, where the damper starts, where the jack lets off.
 export function slowPress(a, step = 0.02) {
   const dip = dipOf(a), rest = pose(a, 0);
-  let moveAt = null, damperAt = null, letoffAt = null, letoffGap = null, lastOnJack = null;
+  let moveAt = null, damperAt = null, letoffAt = null, letoffGap = null, lastOnJack = null, blockAt = null, closest = Infinity;
   for (let d = 0; d <= dip + 1e-9; d += step) {
     const p = pose(a, d);
+    // blocked: the jack presses the hammer on the strings before it lets off, and the key stops there
+    if (p.blocked) { blockAt = d; break; }
     if (moveAt === null && p.on === 'jack') moveAt = d;
     // the hammer's share of its travel when the damper starts; after let-off the hammer has fallen back, so a damper
     // that only starts then counts as late (1)
     if (damperAt === null && p.dl > 1e-4) damperAt = { d, share: letoffAt === null ? (stringGap(rest.g) - stringGap(p.g)) / stringGap(rest.g) : 1 };
-    if (p.on === 'jack') lastOnJack = p;
-    else if (lastOnJack && letoffAt === null) { letoffAt = d; letoffGap = stringGap(lastOnJack.g); }
+    // let-off is the hammer's closest approach to the strings while the jack still carries it (with a very close let-off
+    // the hammer sinks a little before the jack slips out)
+    if (p.on === 'jack') { lastOnJack = p; closest = Math.min(closest, stringGap(p.g)); }
+    else if (lastOnJack && letoffAt === null) { letoffAt = d; letoffGap = closest; }
   }
-  return { dip, moveAt, damperAt, letoffAt, letoffGap };
+  return { dip, moveAt, damperAt, letoffAt, letoffGap, blockAt };
 }
 // the gap (mm) between the jack and the butt cushion: at rest it is the lost motion; held down, the escapement
 const jackCushionGap = p => polyGap(TRACE.jack.map(q => jackPt(p.phi, p.psi, q)), TRACE.buttCushion.map(q => turn(q, CENTER.butt, -p.g)));
 export function measure(a0) {
-  const a = eff(a0), sp = slowPress(a), rest = pose(a, 0), bottom = pose(a, sp.dip, { held: true }), soft = pose(a, 0, { soft: true });
+  const a = eff(a0), sp = slowPress(a), rest = pose(a, 0), soft = pose(a, 0, { soft: true });
+  // the key held down after a blow; a key that blocks stops where the hammer meets the strings
+  const bottom = sp.blockAt !== null ? pose(a, sp.blockAt) : pose(a, sp.dip, { held: true });
   const blow = stringGap(rest.g), lostMotion = jackGap(rest.phi, 0, rest.gRail);
   return {
     keyHeight: keyHeightOf(a) - NEIGHBOR_H, dip: sp.dip, blow,   // key height: mm above its neighbours
@@ -575,9 +607,11 @@ export function measure(a0) {
     // (none if the jack already holds the hammer off the rail) [S1 about 1/64 in; S2 about 1/16 in, wholesale]
     railFollow: lostMotion > 0 ? stringGap(gOnJack(rest.phi, rest.psi)) - blow : 0,
     letoff: sp.letoffGap, letoffDepth: sp.letoffAt,
+    blocks: sp.blockAt !== null, blockDepth: sp.blockAt,   // the jack never lets off and jams the hammer on the strings
     aftertouch: sp.letoffAt === null ? null : sp.dip - sp.letoffAt,
     check: bottom.on === 'backcheck' ? stringGap(bottom.g) : null, checkScrapes: !!bottom.check?.scrapes,
-    escapement: jackCushionGap(bottom),                    // key held after the blow, the hammer on the backcheck
+    // key held after the blow, the hammer on the backcheck: 0 when the jack rests against the butt leather
+    escapement: bottom.rests || bottom.on === 'jack' ? 0 : jackCushionGap(bottom), jackRests: bottom.rests,
     damperTiming: sp.damperAt?.share ?? null, damperDepth: sp.damperAt?.d ?? null,
     damperLift: bottom.dl * Math.hypot(...sub(TRACE.damperFelts[0][2], CENTER.damper)),   // the felt off the strings, mm
     softBlow: stringGap(soft.g), softPedal: 1 - stringGap(soft.g) / blow,
@@ -616,6 +650,8 @@ export function factory(a0 = {}) {
       SPEC.check.target, -15, 6, 40);
     a.spoon = solve(v => slowPress({ ...a, spoon: v }, 0.05).damperAt?.share ?? 1, SPEC.damperTiming.target, -4, 4, 30);
     a.softFelt = solve(v => 1 - stringGap(gRail({ ...a, softFelt: v }, true)) / SPEC.blow.target, SPEC.softPedal.target, 0, 30);
+    // the bridle wire last: just enough slack that the soft pedal doesn't lift the wippen (Ellis's setting [S14])
+    a.bridle = solve(v => { const b = { ...a, bridle: v }, p = pose(b, 0, { soft: true }); return strapSlack(b, p.phi, p.g); }, BRIDLE_SOFT_SLACK, 8, -8);
   }
   for (const k of Object.keys(a)) a[k] = +a[k].toFixed(4);
   return a;
@@ -626,8 +662,11 @@ export function factory(a0 = {}) {
 // (dyn, a factor on DYN). Sizes are the sim's own [T], set so the action shows the customer's complaint and nothing
 // bigger (protocol 3.4; tests/upright-scenarios.test.mjs). spec: the condition check that finds it.
 export const DAMAGE = {
+  // modelled as the groove's depth at the jack, nothing more: 0.23 mm more lost motion (as the capstan 0.5 mm lower)
   buttLeather: { spec: 'buttLeather', name: 'Butt leather worn', adj: { capstan: -0.5 }, part: 'cushion', repair: 'Re-cover the butt: new felt and buckskin',
     signs: 'a groove worn in the butt leather where the jack lifts it' },
+  // modelled as the thickness the buckskin has lost, nothing more: the backcheck meets the catcher 0.45 mm later. The
+  // slick leather sliding through the check on a hard blow is not modelled (the backcheck is a rigid outline: U4)
   catcherLeather: { spec: 'catcherLeather', name: 'Catcher buckskin worn', adj: { backcheck: -0.45 }, part: 'catcher', repair: 'Re-cover the catcher with new buckskin',
     signs: 'the catcher\'s buckskin worn thin and slick' },
   jackSpringWeak: { spec: 'jackSpring', name: 'Jack spring weak', dyn: { jackRate: 0.12 }, part: 'jackspring', repair: 'Replace the jack spring',
@@ -638,8 +677,10 @@ export const DAMAGE = {
     signs: 'the damper drifts back to the strings' },
   damperSpringBroken: { spec: 'damperSpring', name: 'Damper spring broken', dyn: { damperAlpha: 0 }, part: 'dspring', repair: 'Replace the damper spring',
     signs: 'the damper stays off the strings: its spring is broken' },
-  // (a broken butt spring waits for the C3 gap: in the Sim the spring slows the strap's return, so without it the hammer
-  // comes back faster, not slower: tests/upright-dynamics.test.mjs todo)
+  // without its spring the hammer comes home on its weight alone (and the strap's tug): slower in every case, as S15
+  // filmed (118 ms against 110 with the strap, 218 against 126 without)
+  buttSpringBroken: { spec: 'buttSpring', name: 'Butt spring broken', adj: { noSpring: true }, part: 'buttspring', repair: 'Replace the butt spring',
+    signs: 'the butt spring is broken: nothing but its own weight brings the hammer back' },
   buttCenterTight: { spec: 'buttCenter', name: 'Butt center tight', dyn: { frictionT: 6 }, part: 'hcenter', repair: 'Ease or repin the butt center',
     signs: 'the hammer drags on its center pin' },
   strapBroken: { spec: 'strap', name: 'Bridle strap broken', adj: { noStrap: true }, part: 'strap', repair: 'Replace the bridle strap',
@@ -667,7 +708,8 @@ export function grade(id, m, k = 1) {
   }
   if (id === 'bridle') return m.softLifts ? { ok: false, v: m.strapSlack, note: 'soft pedal down, the strap lifts the wippen: the key goes out of level' }
     : { ok: true, v: m.strapSlack, note: '' };
-  if (id === 'letoff' && v == null) return { ok: false, v: null, note: 'blocks: the jack never lets off' };
+  if (id === 'letoff' && v == null) return { ok: false, v: null, note: m.blocks ? 'blocks: the jack never lets off and jams the hammer on the strings'
+    : 'no let-off: the key bottoms before the jack trips out' };
   if ((id === 'aftertouch' || id === 'escapement') && m.letoff == null) return { ok: false, v: null, note: 'no let-off' };
   if (id === 'aftertouch' && m.jammed) return { ok: false, v, note: 'the jack jams against the jack stop at the bottom' };
   if (id === 'check' && m.letoff == null) return { ok: false, v: null, note: 'the jack never lets off, so the hammer is never checked' };
@@ -678,7 +720,7 @@ export function grade(id, m, k = 1) {
   if (id === 'blow' && m.lostMotion <= 0 && (v < band(s)[0] || v > band(s)[1])) return { ok: false, v, note: 'the jack holds the hammer off its rail, so the rail can\'t set it: turn the capstan down first' };
   if (id === 'lostMotion' && v <= 0) return { ok: false, v, note: 'none: the jack holds the hammer off its rail' };
   if (id === 'lostMotion' && !m.jackReturns) return { ok: false, v, note: 'too little: the jack can\'t get back under the butt on a slow release' };
-  if (id === 'escapement' && v <= 0.05) return { ok: false, v, note: 'the jack rests against the butt leather: the hammer blubbers' };
+  if (id === 'escapement' && v <= 0.05) return { ok: false, v, note: 'the jack rests against the butt leather: it gets in the way of the checking' };
   let [lo, hi] = band(s);
   if (s.lo === undefined) { lo = s.target - s.tol * k; hi = s.target + s.tol * k; }
   else if (k > 1) { const c = (lo + hi) / 2, h = (hi - lo) / 2 * k; [lo, hi] = id === 'lostMotion' ? [lo, s.target + (hi - s.target) * k] : [c - h, c + h]; }
@@ -696,6 +738,22 @@ const HIGH = {
   aftertouch: 'too much', escapement: 'too much: the key has to come up farther to repeat', check: 'checks too far from the strings',
   damperTiming: 'lifts late', softPedal: 'the soft pedal moves the hammers too far',
 };
+// Exam evenness (upright-app.js): how far a reading may spread across the three notes. One note's own tolerance (half
+// its band, scaled by the level), but never finer than one step of a paper front punching or of the capstan moves that
+// reading on this action: at the top level checking's 1.19 mm was less than the 1.7 mm one .002 in punching moves it
+// (critique 2026-11-09, U17; the size of that move is the rigid backcheck's, U4).
+let STEP_MOVES = null;
+export function evenTol(id, k = 1) {
+  if (!STEP_MOVES) {
+    const base = measure(FACTORY); STEP_MOVES = {};
+    for (const knob of ['frontPunch', 'capstan']) for (const dir of [-1, 1]) {
+      const m = measure({ ...FACTORY, [knob]: FACTORY[knob] + dir * ADJ.find(d => d.id === knob).step });
+      for (const key of Object.keys(SPEC)) if (typeof m[key] === 'number' && typeof base[key] === 'number') STEP_MOVES[key] = Math.max(STEP_MOVES[key] ?? 0, Math.abs(m[key] - base[key]));
+    }
+  }
+  const s = SPEC[id], own = (s.lo !== undefined ? (s.hi - s.lo) / 2 : s.tol) * k;
+  return Math.max(own, STEP_MOVES[id] ?? 0);
+}
 // the crown's point nearest the strings at hammer angle g, action frame (where a blow or let-off callout starts)
 export function crownAt(g) {
   let best = null, gap = Infinity;
@@ -704,8 +762,10 @@ export function crownAt(g) {
 }
 
 // The factory regulation, as factory() solves it (tests/upright-kinematics.test.mjs checks they agree), at the shorter
-// blow Greg chose (SPEC.blow): aftertouch 1.04 mm, escapement 3.04. At the textbook 1-3/4 in it was 0.44 and 1.1.
-export const FACTORY = {"balPunch":1.5,"frontPunch":1.5522,"railShim":0.5587,"capstan":0.7933,"letoff":0.0438,"backcheck":-6.9339,"spoon":-1.6704,"bridle":0,"softFelt":9.7695};
+// blow Greg chose (SPEC.blow): aftertouch 1.36 mm, escapement 2.97. At the textbook 1-3/4 in they are 0.64 and 1.07.
+// (Until 2026-11-09 let-off was counted from where the jack stood clear of the cushion with the hammer in check, 0.34 mm
+// of key later than where the hammer drops off the jack: aftertouch then read 1.04 and 0.44. See pose().)
+export const FACTORY = {"balPunch":1.5,"frontPunch":1.5522,"railShim":0.5587,"capstan":0.7933,"letoff":0.0314,"backcheck":-6.9339,"spoon":-1.6704,"bridle":0.9719,"softFelt":9.7695};
 
 // =====================================================================================================================
 // Dynamics (C3): one note stepped in time.
@@ -717,23 +777,40 @@ export const FACTORY = {"balPunch":1.5,"frontPunch":1.5522,"railShim":0.5587,"ca
 // =====================================================================================================================
 const GRAV = 9810;
 const DEG = Math.PI / 180;
+const LIFT_RATIO = 3;     // the hammer turns at most this many times faster than the wippen lifting it (about 2.3 at its fastest here)
+const BLOCK_TOL = 1e-4;   // rad: how far past the strings the jack may ask the hammer to be before the key stops (0.014 mm at the crown)
 const HAND_W = 35;   // rad/s: how fast a hand holding a part eases to where it is moved (model.js HAND_W)
 export const DYN = {
   hammerI: 175000,       // [T] g·mm²: head 8 g at 142 mm, shank 2 g, butt 4 g, catcher 1.5 g (Greg's scale: protocol 1.4 D)
-  hammerLean: 16.2 * DEG, // [T] how far the hammer's centre of mass leans toward the player at rest, from those masses
-  hammerMR: 2174,        // [fit] g·mm: mass times the CG's distance from the pin (S15, strap and spring both off). Only
-                         //   its ratio to hammerI shows in the clips: 2174 against 175000 is 1360 against 110000 (a
-                         //   lighter head, CG at 88 mm) as well
-  springT0: 287,         // [fit] gf·mm: the butt spring's push toward the rail at rest (S15, spring only)
+  hammerLean: 22.3 * DEG, // [S15 m, e] how far the hammer's centre of mass leans toward the player at rest: taken as the
+                         //   shank's own lean, so it still leans 4.7 degrees at the strings and gravity pulls toward the
+                         //   rail through the whole stroke, as S15 found (findings.md item 7). It was 16.2 [T, from the
+                         //   stand-in masses], which put the centre of mass 1.4 degrees over centre at the strings: with
+                         //   no butt spring the hammer hung there (critique 2026-11-09, U12). Where the real centre of
+                         //   mass lies along the hammer is still [T]: Greg's bench (balance a hammer on its pin)
+  hammerMR: 1047,        // [fit] g·mm: mass times the CG's distance from the pin (S15, strap and spring both off). Only
+                         //   its ratio to hammerI shows in the clips
+  springT0: 301,         // [fit] gf·mm: the butt spring's push toward the rail at rest (S15, spring only)
   springK: 0,            // gf·mm per radian toward the strings: fitted with the preload it comes out about 0 (-16), so
                          //   left at 0 (tests/upright-fit.mjs fits the preload alone)
   frictionT: 60,         // [S3] gf·mm: the butt centre, Igrec's 1.5-4.0 g at 25 mm (37-100)
   railE: 0.5,            // [S15 m] rebound over landing speed on the hammer rail cloth (0.45-0.52). The rail is a hard
-                         //   stop here: the filmed hammers land at 59-151 deg/s, the model's at 160-280 on the same
+                         //   stop here: the filmed hammers land at 59-151 deg/s, the model's at 135-220 on the same
                          //   timing, the cloth's give (the head runs 0.5-2 degrees past rest) not modelled
+  railSoft: 5.2,         // [T] rad/s (300 deg/s): past this landing speed the cloth takes the rest, so the rebound's
+                         //   speed stops growing (railE times this: a rise of about 4 degrees, S15's highest filmed
+                         //   rebound was 5.6). S15 has no landing faster than 151 deg/s; a hard stop with railE at every
+                         //   speed threw an unchecked ff hammer 42 mm back onto the strings (critique 2026-11-09, U14)
+  jackE: 0.3,            // [T] rebound of the butt's leather landing on the top of a jack that hasn't escaped (the
+                         //   bobble: no film of one)
   stringE: 0.4,          // [S15 m] off the filmed model's wire "string" after a firm blow
-  strapK: 300,           // [fit] gf per mm the strap is stretched past its length (S15, strap on), fitted with the filmed
+  strapK: 100,           // [fit] gf per mm the strap is stretched past its length (S15, strap on), fitted with the filmed
                          //   strap's slack (tests/upright-fit.mjs): its slack decides more than its stiffness
+  strapGive: 1.1,        // [T] mm: that soft stretch is the tape's first give (and its wire's); past it the tape is taut cloth
+  strapK2: 5000,         //   [T] gf per mm. The filmed returns stretch it 0.6 to 1.0 mm, so they don't reach this; a strap
+                         //   too tight for the soft pedal does, and lifts the wippen. (One less than about 1 mm too tight
+                         //   only stretches here, though its reading already fails: the wippen is held down by
+                         //   wippenDownT's one constant, far more than its weight at rest)
   strapC: 0.5,           // [T] gf per mm/s of stretching (cloth: a little damping)
   wippenI: 20000,        // [T] g·mm²: wippen with its jack, backcheck and wires
   wippenDownT: 18500,    // [S15 ff, e] gf·mm holding the wippen down on its capstan: its weight, the damper spring
@@ -760,7 +837,7 @@ export class Sim {
     this.jack = p.on === 'off' || p.on === 'backcheck' ? 'off' : 'under';
     this.strapLen = STRAP_LEN;
     this.taut = false; this.checked = false; this.onRail = p.on === 'rail'; this.seated = p.dl <= 1e-6; this.events = [];
-    this.strapD = undefined; this.dPeak = 0; this.blocked = false;
+    this.strapD = undefined; this.dPeak = 0; this.blocked = false; this.gJ = undefined; this.struck = false; this.near = Infinity;
     this.hand = null;
   }
   // held down after a blow: the key at depth d, the hammer where the backcheck holds it, the jack let off
@@ -786,7 +863,7 @@ export class Sim {
   railShim() { return this.a.railShim + this.soft * this.a.softFelt; }
 
   step(dt) {
-    const a = this.a, gPrev = this.g, phiPrev = this.phi;
+    const a = this.a, gPrev = this.g, phiPrev = this.phi, dPrev = this.d, psiPrev = this.psi;
     this.t += dt;
     // pedals: a foot presses over about a tenth of a second and lets go faster
     for (const [k, tk] of [['soft', 'softTarget'], ['pedal', 'pedalTarget']]) {
@@ -807,7 +884,7 @@ export class Sim {
     const [F, K] = strapEnds(a, this.phi, this.g), u = sub(K, F), D = Math.hypot(...u);
     const stretch = D - this.strapLen, rate = (D - (this.strapD ?? D)) / dt;
     this.strapD = D;
-    let T = stretch > 0 ? GRAV * Math.max(0, DYN.strapK * stretch + DYN.strapC * rate) : 0;
+    let T = stretch > 0 ? GRAV * Math.max(0, DYN.strapK * Math.min(stretch, DYN.strapGive) + DYN.strapK2 * Math.max(0, stretch - DYN.strapGive) + DYN.strapC * rate) : 0;
     if (a.noStrap) T = 0;
     if ((T > 0) !== this.taut) { this.taut = T > 0; this.emit(this.taut ? 'straptaut' : 'strapslack'); }
     const cross = (r, f) => r[0] * f[1] - r[1] * f[0];
@@ -827,27 +904,48 @@ export class Sim {
     const x0 = restPlace(a.balPunch, a.capstan, gr), c = contactOn(gr, x0);
     const handTrip = h?.hold === 'jack' && h.at > jackPsi(a, phi);
     const pb = handTrip ? h.at : jackPsi(a, phi);                    // a hand trips it as the button does
+    const gs = gString();
     let gJack = -Infinity;                                          // where the jack holds the hammer up from
+    let keyBlocked = false;
     if (this.jack === 'under') {
       const ch = chain(phi, c), psiFree = psiAtX(phi, this.g, x0);
       if (pb > Math.max(ch.psi, psiFree)) {
-        // the button trips it: its top slides toward the player along the cushion
+        // The button trips it: its top slides toward the player along the cushion. It has let off once the butt, were
+        // it sitting on the jack, would miss its top (pose()'s own test, so a slow press and measure() agree): until
+        // then a hammer coming back from the strings lands on the jack again, wherever the hammer is meanwhile.
         this.psi = pb;
-        if (escaped(phi, pb, this.g)) { this.jack = 'off'; this.emit('letoff', { dist: stringGap(this.g), hand: handTrip }); }
-        else gJack = gOnJack(phi, pb);
+        const gc = gOnJack(phi, pb);
+        if (escaped(phi, pb, gc)) {
+          // dist is the let-off distance only while the hammer still sits on the jack: in a blow it has flown on and
+          // struck by now (flown), and dist is just where it happens to be
+          const carried = !this.struck && this.g <= (this.gJ ?? -Infinity) + 7e-3;   // not struck, and within 1 mm at the crown
+          this.jack = 'off'; this.emit('letoff', { dist: carried ? Math.min(stringGap(this.g), this.near) : stringGap(this.g), flown: !carried, hand: handTrip });
+        } else gJack = gc;
       } else if (this.g <= ch.g + 1e-6) { this.psi = ch.psi; gJack = ch.g; }   // carrying the butt
       else this.psi = psiFree;                                      // the hammer above it: the jack keeps its place
+      // Blocking: a jack that hasn't let off would push the hammer through the strings. Nothing here gives (the sim's
+      // felts and rails don't: the Let-off card), so the key stops where the hammer meets the strings, and the jack
+      // holds it there for as long as the key is pressed.
+      if (gJack > gs + BLOCK_TOL && Number.isFinite(this.gJ ?? NaN) && !handTrip) {
+        keyBlocked = true;
+        this.d = dPrev; phi = phiPrev; v = 0; this.phi = phi; this.v = 0; this.psi = psiPrev; gJack = Math.min(this.gJ, gs + BLOCK_TOL);
+        if (h?.hold === 'key') { h.at = Math.min(h.at, dPrev); h.v = Math.min(h.v, 0); }
+      }
     } else {
       // let off: its spring swings it back toward its place under the butt, unless the cushion's player-side end is in
       // the way (the corner still above the cushion's underside) or the button holds it out
       const psiHome = psiAtX(phi, this.g, x0), q = cornerInButt(phi, psiHome, this.g);
       const clear = q[1] < CUSH_FACE.y - JACK_CLEAR;
-      const psiTo = Math.max(pb, clear ? psiHome : psiAtX(phi, this.g, CUSH_FACE.x[0] - 0.05));
+      // (the button holds it only while the toe touches it: jackPsi's 0 is "not touching", not a stop. Taken as one, it
+      // kept a slow jack from getting home under a hammer still on its way back, whose place for it is a hair past 0:
+      // a weak jack spring then lost notes at 4 to 6 a second and none at 8 to 10. Critique 2026-11-09, U11)
+      const hold = pb > 0 ? pb : -Infinity;
+      const psiTo = Math.max(hold, clear ? psiHome : psiAtX(phi, this.g, CUSH_FACE.x[0] - EDGE));
       this.psi += Math.sign(psiTo - this.psi) * Math.min(Math.abs(psiTo - this.psi), DYN.jackRate * (this.k.jackRate ?? 1) * dt);
-      if (clear && pb <= psiHome && Math.abs(this.psi - psiHome) < 1e-6) {
+      if (clear && hold <= psiHome && Math.abs(this.psi - psiHome) < 1e-6) {
         this.jack = 'under';
         const share = this.dPeak > 0 ? 1 - this.d / this.dPeak : null;   // how far the key had come back up
-        this.emit('reset', { keyShare: share });
+        this.emit('reset', { keyShare: share }); this.struck = false;
       }
     }
 
@@ -858,8 +956,19 @@ export class Sim {
     let w = this.w + acc * dt, g = this.g + w * dt;
     // a hand holding the hammer puts it where it is held; the jack, the backcheck and the rail still stop it
     if (h?.hold === 'hammer') { g = Math.min(h.at, gString()); w = (g - gPrev) / dt; }
-    // the jack carries it (a hammer it meets falling is taken at the jack's own speed: no snap)
-    if (g < gJack) { w = Math.max(w, (gJack - gPrev) / dt); g = gJack; }
+    // The jack carries it. A hammer that falls back onto the top of a jack that hasn't let off bounces there (the bobble
+    // that, near the strings, blubbers); one the jack meets slowly is taken at the jack's own speed: no snap.
+    if (g < gJack) {
+      // (falling itself, and faster than the jack top is going down: a hammer riding a jack down with the key is neither)
+      // The speed it takes from the jack is never more than the wippen's own rise could give it (LIFT_RATIO): where the
+      // toe's contact on the button steps along the toe, the jack's top steps a few hundredths of a millimetre, which
+      // taken as a speed threw a slowly pressed hammer at the strings.
+      const wJ = Number.isFinite(this.gJ ?? NaN) ? (gJack - this.gJ) / dt : 0;
+      const lift = Math.min((gJack - gPrev) / dt, LIFT_RATIO * Math.max(0, phi - phiPrev) / dt);
+      if (w < -0.5 && wJ - w > 0.5) { this.emit('bobble', { v: -w }); w = Math.max(-DYN.jackE * w, lift); }
+      else w = Math.max(w, lift);
+      g = gJack;
+    }
     // The backcheck: the catcher coming back meets its felt and is held there, the felt taking its speed. It only ever
     // stops the hammer: a backcheck that rises into a hammer (the wippen overshooting at the key's bottom, as S15's ff
     // blow shows) moves it out of the way, at no speed of its own, and never throws it.
@@ -877,19 +986,24 @@ export class Sim {
     } else if (this.checked) { this.checked = false; this.emit('uncheck'); }
     // the rail
     if (g < gr) {
-      if (w < -0.5) { this.emit('rail', { v: -w }); w = -DYN.railE * w; } else w = Math.max(0, w);
+      // the cloth returns railE of a landing's speed, up to railSoft: a faster landing comes back no faster
+      if (w < -0.5) { this.emit('rail', { v: -w }); w = DYN.railE * Math.min(-w, DYN.railSoft); } else w = Math.max(0, w);
       g = gr;
     }
-    // the strings
-    const gs = gString();
+    // the strings: a hammer in flight strikes and comes back; one the jack still holds is pressed there (blocked)
     if (g > gs) {
-      if (gJack >= gs) { if (!this.blocked) this.emit('blocked'); this.blocked = true; w = 0; }
-      else { this.emit('strike', { v: w * 142.6 / 1000 }); w = -DYN.stringE * Math.abs(w); }
+      if (gJack >= gs) w = 0;
+      else { this.emit('strike', { v: w * 142.6 / 1000 }); w = -DYN.stringE * Math.abs(w); this.struck = true; }
       g = gs;
-    } else this.blocked = false;
-    this.g = g; this.w = w;
+    }
+    const blocked = keyBlocked || (gJack >= gs && g >= gs);
+    if (blocked && !this.blocked) this.emit('blocked');
+    this.blocked = blocked;
+    this.g = g; this.w = w; this.gJ = gJack;
+    // the closest the hammer has come to the strings while the jack carried it, this press (the let-off distance)
+    if (this.jack !== 'under' || this.d === 0) this.near = Infinity; else if (g <= gJack + 1e-6) this.near = Math.min(this.near, stringGap(g));
     this.dPeak = Math.max(this.dPeak ?? 0, this.d);
-    if (this.d === 0 && this.g <= gr + 1e-6) this.dPeak = 0;
+    if (this.d === 0 && this.g <= gr + 1e-6) { this.dPeak = 0; this.struck = false; }
 
     // ---- the damper: the spoon or the lift rod holds it off; else its spring brings it back to the strings ----
     const dlSpoon = damperAngle(a, phi), dlPedal = this.pedal * DAMPER_PEDAL_LIFT;
@@ -904,7 +1018,7 @@ export class Sim {
   // where everything is now, as pose() gives it (for the drawing), but soft is the pedal's share of its travel (0-1)
   pose() {
     return { d: this.d, th: keyAngle(this.a, this.d).th, bal: keyRest(this.a).bal, phi: this.phi, psi: this.psi, g: this.g, dl: this.dl,
-      soft: this.soft, slack:this.strapLen - Math.hypot(...sub(...strapEnds(this.a, this.phi, this.g))), on: this.jack };
+      soft: this.soft, slack:this.strapLen - Math.hypot(...sub(...strapEnds(this.a, this.phi, this.g))), on: this.jack, blocked: this.blocked };
   }
 }
 // the sustain pedal lifts every damper about as far as its spoon does at the bottom of the key (S2) [T: its lost motion

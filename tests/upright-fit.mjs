@@ -40,7 +40,7 @@ if (only !== 'strap') {
 // of the strap itself: about 6.5 mm of slack at rest [e] and taut from about 55 to 68 ms with the spring in [m]. On its
 // path and landing alone the fit takes the slack out altogether (taut at rest), which the film contradicts.
 let best = null;
-for (const br of [-3, -2, -1, 0, 1, 2, 3]) for (const K of [100, 300, 800, 2000, 6000]) {
+for (const br of [-1, 0, 0.6, 0.8, 1, 1.2, 1.4, 1.6, 1.8, 2, 3]) for (const K of [50, 100, 150, 300, 800, 2000]) {
   FILMED.bridle = br; DYN.strapK = K;
   const a = regulationFor('b'), rest = pose(a, 0), slack = strapSlack(a, rest.phi, rest.g);
   const rb = runEllis('b', { ms: 220 }), rbs = runEllis('bs', { ms: 200 }), win = rbs.ev.filter(e => /strap/.test(e.type));

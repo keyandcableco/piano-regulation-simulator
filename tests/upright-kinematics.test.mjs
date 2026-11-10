@@ -126,8 +126,8 @@ test('a slow press: the wippen stays on its capstan, nothing passes through anyt
 
 test('the strap is the traced one and slack at rest by S15\'s 6-7 mm', () => {
   near(STRAP_LEN, 58.7, 0.5, 'strap length');
-  const p = pose({ ...FACTORY, railShim: 0, capstan: 0 }, 0);
-  near(strapSlack(FACTORY, p.phi, p.g), 6.5, 0.6, 'slack at the traced rest');
+  const traced = { ...FACTORY, railShim: 0, capstan: 0, bridle: 0 }, p = pose(traced, 0);
+  near(strapSlack(traced, p.phi, p.g), 6.5, 0.6, 'slack at the traced rest');
 });
 
 test('the slow press against S15: hammer swing to the strings, crown per key travel, the jack\'s escape', () => {
