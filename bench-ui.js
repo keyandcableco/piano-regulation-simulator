@@ -39,6 +39,9 @@ export function mountBench({ el, toast, adapter, refresh }) {
       const ctx = A.context(), s = A.snap();
       if (ctx !== P.ctx) { P.ctx = ctx; P.hist.reset(s); if (!P.bases.has(ctx)) P.bases.set(ctx, { state: s, at: Date.now() }); }
       else P.hist.note(s);
+      // what has been measured while the action still stands as it did at "before"
+      const base = P.bases.get(P.ctx);
+      if (A.blind?.() && base && JSON.stringify(base.state) === JSON.stringify(s)) { base.seen ??= new Set(); for (const r of A.readings(s)) if (r.shown) base.seen.add(r.name); }
     }
     B.undo.disabled = !c.edit || !P.hist.canUndo; B.redo.disabled = !c.edit || !P.hist.canRedo;
     B.compare.disabled = B.save.disabled = !c.edit; B.print.disabled = !c.print;
@@ -81,6 +84,8 @@ export function mountBench({ el, toast, adapter, refresh }) {
   function compare(A) {
     const P = mine(A), base = P.bases.get(P.ctx), now = A.readings(A.snap()), was = A.readings(base.state);
     const same = JSON.stringify(base.state) === JSON.stringify(A.snap());
+    // (where readings have to be measured, a "before" figure shows only if it was measured before the work began)
+    if (A.blind?.()) was.forEach(r => { r.shown &&= !!base.seen?.has(r.name); });
     const cell = r => el('td', { class: r.shown ? (r.ok ? 'okc' : 'badc') : 'muted' }, r.shown ? [mark(r.ok), r.txt] : 'not measured');
     const moved = i => now[i].shown && was[i].txt !== now[i].txt, any = now.some((r, i) => moved(i)), rows = now.map((r, i) => i).filter(i => !movedOnly || !any || moved(i));
     return [
@@ -93,7 +98,7 @@ export function mountBench({ el, toast, adapter, refresh }) {
       el('p', { class: 'muted small' }, 'A reading shows here once you have measured it, as in the rest of the panel. Rows in bold have moved.'),
       el('div', { class: 'row' },
         el('button', { disabled: same ? '' : false, onclick: () => { if (A.restore(base.state) !== false) toast('Back as it was before. Undo brings your work back'); } }, 'Put it back as it was'),
-        el('button', { disabled: same ? '' : false, onclick: () => { P.bases.set(P.ctx, { state: A.snap(), at: Date.now() }); refresh(); } }, 'Call this the new "before"'))];
+        el('button', { disabled: same ? '' : false, onclick: () => { P.bases.set(P.ctx, { state: A.snap(), at: Date.now(), seen: new Set(now.filter(r => r.shown).map(r => r.name)) }); refresh(); } }, 'Call this the new "before"'))];
   }
   // the state in hand as a code: a fault stays a fault (its complaint and answer travel with it)
   function codeNow(A, asFault = null) {
@@ -144,13 +149,16 @@ export function mountBench({ el, toast, adapter, refresh }) {
     const st = decodeState(codeFrom(text));
     if (!st) { if (!quiet) toast('That isn\'t a link or code from this page (or part of it is missing)', 'warn'); return false; }
     const A = adapter();
-    if (!A || st.a !== A.name) { toast(`That one is for the ${st.a} action: switch to the ${st.a === 'upright' ? 'Upright' : 'Grand'} piano first`, 'warn'); return false; }
+    if (!A) { toast('Open Learn, Find the fault or the Sandbox first', 'warn'); return false; }
+    if (st.a !== A.name) { toast(`That one is for the ${st.a} action: switch to the ${st.a === 'upright' ? 'Upright' : 'Grand'} piano first`, 'warn'); return false; }
     // (the set first: the differences are from that set's regulated key)
+    const set0 = A.set?.();
     if (A.useSet && A.useSet(st.s || 'generic') === false) { toast('Not just now: finish what is running first', 'warn'); return false; }
     const ok = A.open({ k: st.k, notes: st.n.map(d => applyDiff(d, A.rules)), c: st.c || 'Something isn\'t right with this key.', w: st.w });
-    if (ok === false) { toast('Not just now: finish what is running first', 'warn'); return false; }
+    if (ok === false) { if (A.useSet && A.set() !== set0) A.useSet(set0); toast('Not just now: finish what is running first', 'warn'); return false; }
     open = null; linkBox = null;
-    toast(st.k === 'fault' ? 'A fault set up for you: find it and put it right' : 'Loaded into the Sandbox');
+    const setNote = A.set && A.set() !== set0 ? `. It is graded against ${A.setName()}: the specs have been switched to match` : '';
+    toast((st.k === 'fault' ? 'A fault set up for you: find it and put it right' : 'Loaded into the Sandbox') + setNote);
     refresh();
     return true;
   }

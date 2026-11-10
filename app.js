@@ -606,10 +606,11 @@ async function runTest(id) {
   if (mode === 'diagnose' || examActive()) testsUsed++;
   forcedScale = t.scale ?? 1;
   refresh();
+  const mode0 = mode, set0 = tested;   // (a rule put away by a change of tab marks nothing measured)
   try { await t.run(); } finally { busy--; forcedScale = null; }
   // sighting the hammer line shows every hammer's height at once
   // (with the gauges on, sighting the line shows which hammer is high or low, not the blow distance: that is read off the rule)
-  if (gen === generation && !(gaugeMode && id === 'hammerLine')) (id === 'hammerLine' ? NOTES.map(n => n.tested) : [tested]).forEach(set => t.specs.forEach(s => set.add(s)));
+  if (gen === generation && mode === mode0 && tested === set0 && !(gaugeMode && id === 'hammerLine')) (id === 'hammerLine' ? NOTES.map(n => n.tested) : [tested]).forEach(set => t.specs.forEach(s => set.add(s)));
   store();
   refresh();
 }
@@ -2456,8 +2457,16 @@ const BENCH_RULES = { factory: FACTORY, limits: { ...Object.fromEntries(ADJ.map(
   enums: { damage: Object.keys(DAMAGE), bushing: Object.keys(BUSHINGS), center: Object.keys(CENTER_FAULTS) } };
 // (a part mended reads null, one never broken isn't there: the same regulation)
 const tidyAdj = a => Object.fromEntries(Object.entries(a).filter(([, v]) => v != null).sort(([x], [y]) => (x < y ? -1 : 1)));
+// the key the work is on: with Find the fault's neighbors showing it is the customer's (note 0), whichever is being looked at
+const workIx = () => (neighborsOn() ? 0 : cur);
 const benchIds = () => (mode === 'exam' ? examSpecs() : Object.keys(SPEC));
-const shownIn = (id, n) => mode === 'sandbox' || level().live || n.tested.has(id) || (mode === 'exam' ? !!exam.done : mode === 'diagnose' && (gaveUp || (!!verdict && !verdict.bad.length)));
+const shownIn = (id, n) => {
+  const over = mode === 'exam' ? !!exam.done : mode === 'diagnose' && (gaveUp || (!!verdict && !verdict.bad.length));
+  if (gaugeNow?.hide.has(id)) return false;
+  // (as revealed(): with the gauges on, a reading a rule takes shows once it has been called)
+  if (gaugeMode && Object.hasOwn(GAUGES, id)) return n.tested.has(id) || over;
+  return mode === 'sandbox' || level().live || n.tested.has(id) || over;
+};
 // a state's readings, measured once (and the model's wear put back to the key in hand: measuring sets it)
 const benchMeasured = new Map();
 function benchMeasure(a) {
@@ -2476,17 +2485,21 @@ const grandBench = {
   // (the readings already measured stay measured: they are read again from the action as it now stands)
   restore: st => {
     if (busy) return false;
-    NOTES.forEach((n, i) => { if (i !== cur) { n.adj = { ...st.notes[i] }; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); } });
-    adj = { ...st.notes[cur] }; unsolve(); applyAdj();
+    // Find the fault's neighbors stay the regulated key of the set in force: only the customer's key goes back
+    const nb = neighborsOn();
+    NOTES.forEach((n, i) => { if (i !== cur && (!nb || i === 0)) { n.adj = { ...st.notes[i] }; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); } });
+    if (!nb || cur === 0) { adj = { ...st.notes[cur] }; unsolve(); applyAdj(); } else { unsolve(); refresh(); }
   },
   // (Find the fault's neighbors are for comparing, not part of the work: the customer's key alone is saved and printed)
-  notes: st => (multi() && !neighborsOn() ? st.notes : [st.notes[cur]]),
+  notes: st => (multi() && !neighborsOn() ? st.notes : [st.notes[workIx()]]),
+  // where readings must be measured to be seen, "before" shows only what was measured before the work began
+  blind: () => gaugeMode || !(mode === 'sandbox' || level().live),
   // a save is a difference from the regulated key, and that key follows the spec set: the set travels with it
-  set: () => specSet(),
+  set: () => specSet(), setName: () => SPEC_SETS[specSet()].name,
   useSet: id => { if (specSet() !== id) pickSpecSet(id); return specSet() === id || !Object.hasOwn(SPEC_SETS, id); },
   fault: () => (mode === 'diagnose' && scenario ? { c: scenario.complaint, w: scenario.answer + (scenario.second ? ` Also: ${scenario.second.answer}` : '') } : null),
   draft: st => {
-    const parts = Object.entries(diffAdj(st.notes[cur], BENCH_RULES)).map(([k, v]) => {
+    const parts = Object.entries(diffAdj(st.notes[workIx()], BENCH_RULES)).map(([k, v]) => {
       if (typeof v === 'string') return (damageLabel(v) || BUSHINGS[v]?.name || CENTER_FAULTS[v]?.name || v).toLowerCase();
       if (k === 'wear') return `felt and cloth wear, about ${Math.round(v * 10)} years of playing`;
       const d = ADJ.find(x => x.id === k);
@@ -2519,7 +2532,7 @@ const grandBench = {
     store();
     const meta = [{ learn: 'Learn', diagnose: 'Find the fault', sandbox: 'Sandbox', exam: 'Exam practice' }[mode], `${level().name} level`, `graded against ${SPEC_SETS[specSet()].name}`];
     if (mode === 'exam' && exam.done) return { title: 'Grand action regulation: exam practice', meta, tables: [], copy: $('#mode') };
-    const slots = multi() && !neighborsOn() ? EXAM_ORDER : [cur], one = slots.length === 1;
+    const slots = multi() && !neighborsOn() ? EXAM_ORDER : [workIx()], one = slots.length === 1;
     const cell = (id, n) => (shownIn(id, n) ? reading(id, n.m) : { txt: 'not measured', ok: null });
     const rows = benchIds().map(id => { const cells = slots.map(sl => cell(id, NOTES[sl]));
       return [SPEC[id].name, [specTarget(id), mode === 'exam' && id === 'keyHeight' ? '' : specBand(id)].filter(Boolean).join('; passes '), ...cells,
@@ -2535,7 +2548,11 @@ bench = mountBench({ el, toast, refresh, adapter: () => (action === 'upright' ? 
 function openCode(code) {
   const to = bench.actionOf(code);
   return Promise.resolve(to === action ? null : setAction(to)).then(() => {
-    if (action === to && bench.load(code) && action === 'grand') history.replaceState(null, '', location.pathname + location.search);
+    if (action !== to) return;
+    if (action === 'grand' && (mode === 'drills' || mode === 'tools')) $('.tab[data-mode=sandbox]').click();   // (those tabs have no key to load into)
+    bench.load(code);
+    // loaded or refused, the code leaves the address: a reload shouldn't try it again
+    if (action === 'grand') history.replaceState(null, '', location.pathname + location.search);
   });
 }
 window.addEventListener('hashchange', () => { const code = bench.fromAddress(); if (code) openCode(code); });

@@ -80,7 +80,7 @@ function mix(bytes) {
 }
 const sum = bytes => bytes.reduce((s, b) => (s * 31 + b) & 255, 7);
 const VERSION = '1';
-export const MAX_TEXT = 1600, MAX_CODE = 9000;
+export const MAX_TEXT = 1600, MAX_CODE = 20000;   // (two full texts in a script of three bytes a letter, as base64, fit)
 // state: { k: 'save' | 'fault', a: 'grand' | 'upright', n: [diff, ...] (one note or three), c: complaint, w: what was wrong,
 //          s: spec set, when it isn't the generic one }
 export function encodeState(state) {

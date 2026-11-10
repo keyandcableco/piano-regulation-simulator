@@ -731,6 +731,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       setRegulation({ damage: null, ...st.notes[0] }, { keepTested: false, replace: true });
     },
     readings: st => benchRows(measure(st.notes[0])),
+    blind: () => !(mode === 'sandbox' || level().live),
     record: () => {
       const meta = [{ learn: 'Learn', diagnose: 'Find the fault', sandbox: 'Sandbox', exam: 'Exam practice' }[mode], `${level().name} level`];
       if (mode === 'exam' && exam.done) return { title: 'Upright action regulation: exam practice', meta, tables: [], copy: document.getElementById('mode') };
