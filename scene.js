@@ -1100,12 +1100,39 @@ export function createScene(canvas, overlay) {
     for (const c of callouts.values()) c.line.visible = calloutsOn;
     renderer.render(scene, camera);
     renderInset();
-    const w = canvas.clientWidth, h = canvas.clientHeight;
+    placeCallouts();
+  }
+  // A label whose box falls on the inset hides (the inset box is see-through: its picture is drawn in the canvas under
+  // it, and the labels are placed for the main view). Labels that would land on one another (the dip and aftertouch at
+  // the key front) keep last frame's row while it's free, else take the nearest free row below, or above when the inset
+  // or the picture's edge is in the way, in the order they appeared, so they don't swap rows while the key moves; one
+  // with no free row hides. Same as scene-upright.js.
+  function placeCallouts() {
+    const w = canvas.clientWidth, h = canvas.clientHeight, on = [], placed = [];
+    const ins = insetBox.hidden ? null : insetAt;
+    // the label's box is right of and a little above its point (the .callout margins: 6px across, 10px up)
+    const onInset = (c, y) => ins && c.x + 6 < ins.x + ins.w && ins.x < c.x + 6 + c.w && y - 10 < ins.top + ins.h && ins.top < y - 10 + c.h;
+    const across = (c, o) => c.x < o.x + o.w && o.x < c.x + c.w;
+    const clash = (c, y) => onInset(c, y) || placed.some(o => across(c, o) && y < o.y + o.h + 2 && o.y < y + c.h + 2);
     for (const c of callouts.values()) {
       const cut = !inClip(v3.set(...c.mid));   // its line is cut away in a clipped view: hide the label too
       v3.project(camera);
-      c.el.style.transform = `translate(${(v3.x * 0.5 + 0.5) * w}px, ${(-v3.y * 0.5 + 0.5) * h + c.dy}px)`;
-      c.el.style.display = calloutsOn && v3.z < 1 && !cut ? '' : 'none';
+      c.x = (v3.x * 0.5 + 0.5) * w; c.y = (-v3.y * 0.5 + 0.5) * h + c.dy;
+      const show = calloutsOn && v3.z < 1 && !cut;
+      c.el.style.display = show ? '' : 'none';
+      if (show) on.push(c); else c.shift = 0;   // out of the picture: it comes back on its own row
+    }
+    for (const c of on) { c.w = c.el.offsetWidth; c.h = c.el.offsetHeight; }   // read after the writes: one layout
+    for (const c of on) {
+      const y0 = c.y;
+      if (onInset(c, y0)) { c.el.style.display = 'none'; c.shift = 0; continue; }
+      // the rows just under and over the labels in its way (not ones off to the side, which would carry it off its line)
+      const rows = placed.filter(o => across(c, o)).flatMap(o => [o.y + o.h + 2, o.y - c.h - 2]).filter(y => y >= 10 && y - 10 + c.h <= h);
+      const last = c.shift ? [y0 + c.shift].filter(y => y >= 10 && y - 10 + c.h <= h && rows.some(r => Math.abs(r - y) < 3)) : [];
+      const y = [y0, ...last, ...rows.filter(y => y >= y0).sort((p, q) => p - q), ...rows.filter(y => y < y0).sort((p, q) => q - p)].find(y => !clash(c, y));
+      if (y === undefined) { c.el.style.display = 'none'; c.shift = 0; continue; }
+      c.shift = y - y0; c.y = y; placed.push(c);
+      c.el.style.transform = `translate(${c.x}px, ${c.y}px)`;
     }
   }
 

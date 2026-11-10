@@ -651,18 +651,18 @@ export function createUprightScene(canvas, overlay) {
       c.x = (cv.x * 0.5 + 0.5) * w; c.y = (-cv.y * 0.5 + 0.5) * h;
       const show = cv.z < 1 && !cut;
       c.el.style.display = show ? '' : 'none';
-      if (show) on.push(c);
+      if (show) on.push(c); else c.shift = 0;   // out of the picture: it comes back on its own row
     }
     for (const c of on) { c.w = c.el.offsetWidth; c.h = c.el.offsetHeight; }   // read after the writes: one layout
     for (const c of on) {
       const y0 = c.y;
-      if (onInset(c, y0)) { c.el.style.display = 'none'; c.dy = 0; continue; }
+      if (onInset(c, y0)) { c.el.style.display = 'none'; c.shift = 0; continue; }
       // the rows just under and over the labels in its way (not ones off to the side, which would carry it off its line)
       const rows = placed.filter(o => across(c, o)).flatMap(o => [o.y + o.h + 2, o.y - c.h - 2]).filter(y => y >= 10 && y - 10 + c.h <= h);
-      const last = c.dy ? [y0 + c.dy].filter(y => y >= 10 && y - 10 + c.h <= h && rows.some(r => Math.abs(r - y) < 3)) : [];
+      const last = c.shift ? [y0 + c.shift].filter(y => y >= 10 && y - 10 + c.h <= h && rows.some(r => Math.abs(r - y) < 3)) : [];
       const y = [y0, ...last, ...rows.filter(y => y >= y0).sort((p, q) => p - q), ...rows.filter(y => y < y0).sort((p, q) => q - p)].find(y => !clash(c, y));
-      if (y === undefined) { c.el.style.display = 'none'; c.dy = 0; continue; }
-      c.dy = y - y0; c.y = y; placed.push(c);
+      if (y === undefined) { c.el.style.display = 'none'; c.shift = 0; continue; }
+      c.shift = y - y0; c.y = y; placed.push(c);
       c.el.style.transform = `translate(${c.x}px, ${c.y}px)`;
     }
   }
