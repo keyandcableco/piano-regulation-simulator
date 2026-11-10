@@ -332,6 +332,36 @@ summary { cursor: pointer; font-weight: 600; }
 .foot { margin-top: 18px; }
 a { color: var(--accent); }
 .fallback { padding: 40px 24px; max-width: 520px; }
+/* the bench bar under the tabs: undo, before and after, save and share, print */
+.benchbar { display: flex; flex-wrap: wrap; gap: 4px; margin: -6px 0 10px; }
+.benchbar[hidden], #benchpanel[hidden] { display: none; }
+.benchbar button { flex: 1 1 auto; padding: 3px 6px; font-size: 12px; white-space: nowrap; }
+#benchpanel { margin: 0 0 12px; }
+#benchpanel .benchin { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; min-width: 0; flex: 1 1 120px; }
+#benchpanel textarea.benchin { display: block; width: 100%; resize: vertical; margin: 2px 0 6px; }
+#benchpanel .linkbox { font-size: 12px; word-break: break-all; }
+#benchpanel label { display: block; }
+#benchpanel .saves { list-style: none; margin: 6px 0; padding: 0; }
+#benchpanel .saves li { display: flex; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+table.compare tr > :nth-child(1) { width: 30%; } table.compare tr > :nth-child(2) { width: 35%; }
+table.compare tr.moved td { font-weight: 600; }
+/* the printed record: the page's own picture and panel are left out, the record is all there is */
+#printout { display: none; }
+@media print {
+  html, body { height: auto; background: #fff; color: #000; }
+  #app, noscript { display: none !important; }
+  #printout { display: block; font: 10.5pt/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #000; }
+  #printout h1 { font-size: 16pt; margin: 0 0 4pt; } #printout h2, #printout h3 { font-size: 12pt; margin: 12pt 0 4pt; }
+  #printout .meta { margin: 2pt 0; color: #333; }
+  #printout table { width: 100%; border-collapse: collapse; margin: 8pt 0; table-layout: auto; font-size: 9.5pt; }
+  #printout th, #printout td { text-align: left; vertical-align: top; border-bottom: 0.5pt solid #999; padding: 3pt 4pt; color: #000; }
+  #printout th { border-bottom: 1pt solid #000; }
+  #printout tr { break-inside: avoid; }
+  #printout td.badc, #printout .badc { font-weight: 700; color: #000; } #printout td.muted, #printout .muted { color: #555; }
+  #printout .mark { width: auto; margin-right: 3pt; color: #000; }
+  #printout .verdict { border: 1pt solid #000; padding: 4pt 8pt; margin: 6pt 0; }
+  @page { margin: 14mm; }
+}
 /* phones: the action stays on screen above the panel, which scrolls on its own. A phone on its side is usually wider
    than 820px but under 500px tall: it gets the same compact bars, beside the panel (below) */
 @media (max-width: 820px), (orientation: landscape) and (max-height: 500px) {
@@ -587,6 +617,15 @@ a { color: var(--accent); }
       <button class="tab" data-mode="drills">Drills</button>
       <button class="tab" data-mode="tools">Tools</button>
     </div>
+    <!-- the work in hand (bench-ui.js): take a change back, see it against where it started, keep it, hand it on, print it -->
+    <div id="benchbar" class="benchbar" role="toolbar" aria-label="Your work" hidden>
+      <button id="b-undo" title="Take back the last change to the action (Ctrl+Z)" disabled>↶ Undo</button>
+      <button id="b-redo" title="Put back the change just undone (Ctrl+Shift+Z)" disabled>↷ Redo</button>
+      <button id="b-compare" aria-expanded="false" aria-controls="benchpanel" title="The readings now beside the readings you started from">Before / after</button>
+      <button id="b-save" aria-expanded="false" aria-controls="benchpanel" title="Keep this regulation in this browser, share it as a link, or set it up as a fault for a student">Save / share</button>
+      <button id="b-print" title="Print a record: readings, targets, in or out of spec, the date">Print</button>
+    </div>
+    <div id="benchpanel" class="wear" hidden></div>
     <div id="mode"><p class="muted">Loading the action… If nothing appears, this simulator needs a current browser: Chrome, Edge, Firefox, or Safari 16.4 or newer.</p></div>
     <p class="muted small foot">Targets are generic textbook numbers, not one maker's specs. Hover a part to name it, and click it to test or adjust it; press and hold on the key to strike it. Drag to turn the view, Shift-drag (or right-drag) to slide it, and roll the wheel to zoom, or use the buttons at the right of the picture. With ✋&nbsp;Move parts on, drag a part to move it by hand.</p>
     <p class="muted small"><a href="#" id="limits">What this model doesn't do</a> · <a href="#" id="credits">From the bench: tips, tools and credits</a></p>
@@ -594,6 +633,8 @@ a { color: var(--accent); }
     <div id="actionbar" class="actionbar"></div>
   </aside>
 </div>
+<!-- the printed record (bench-ui.js fills it): the only thing on the page when it is printed -->
+<div id="printout"></div>
 <script type="module" src="./app.js"></script>
 </body>
 </html>

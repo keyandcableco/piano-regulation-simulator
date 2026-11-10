@@ -7,6 +7,8 @@ import { mountSwingDrill } from './drills.js';
 import { TOOLBAG } from './toolbag.js';
 import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F, touch, dipAt, repeatRun, pedalFor } from './model.js';
 import { initControls, markView, closeMenu } from './controls.js';
+import { mountBench } from './bench-ui.js';
+import { diffAdj } from './bench.js';
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -94,6 +96,8 @@ let simTime = 0;
 const waits = [];
 const waitSim = s => new Promise(r => waits.push({ at: simTime + s, r }));
 let busy = 0;
+let bench = null;   // the bench bar (bench-ui.js), mounted below once the action is up
+const benchEpoch = { learn: 0, diagnose: 0, sandbox: 0 };   // keys dealt, by mode: a new one is a new piece of work
 let forcedScale = null; // tests run at their own speed
 // How hard the finger plays (the Touch menu): Play, Strike & hold, Loop, Space and a press on the key all strike with
 // it. A blow is a finger's force on the key front (model.js BLOWS), not a key moved at a set speed.
@@ -862,6 +866,7 @@ const SCENARIOS = [
     answer: 'A tight balance rail bushing: the key still has its side play at the front, but twisted at its front it has none at the balance pin, and with the stack off it drops slowly. Let go after a blow it takes about twice as long to come back up, and weighed off it takes about 12 g more to go down and lifts 12 g less: all friction. Ease the balance bushing with key easing pliers.' },
 ];
 function newScenario() {
+  benchEpoch.diagnose++;
   const pool = [...SCENARIOS].sort(() => Math.random() - 0.5);
   const s = pool[0];
   scenario = { ...s, faults: { ...s.faults } };
@@ -895,6 +900,7 @@ function deregulated() {
   return a;
 }
 function messUp() {
+  benchEpoch.learn++;
   adj = deregulated();
   // in Learn, one key in three also has a key bushing to ease or rebush, and one in four a center to ease, repin or rebush
   if (mode === 'learn' && Math.random() < 1 / 3) { const k = Object.keys(BUSHINGS); adj.bushing = k[Math.floor(Math.random() * k.length)]; }
@@ -928,6 +934,7 @@ function holdPressed(redraw) {
 }
 function refresh() { holdPressed(redraw); }
 function redraw() {
+  bench?.sync();
   if (action === 'upright') {
     for (const b of document.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.mode === U.mode);
     const p = $('#mode');
@@ -2210,6 +2217,93 @@ const stageColor = () => getComputedStyle(document.documentElement).getPropertyV
 function applyTheme() { S.setBackground(stageColor()); U?.S.setBackground(stageColor()); }
 mq.addEventListener('change', applyTheme);
 
+// ---------- the bench bar: undo and redo, before and after, save and load, print (bench-ui.js, bench.js) ----------
+// The grand's side of it. A piece of work (this Learn key, this customer, this exam) has a key: a new one starts the
+// undo list afresh, and "before" is how the action stood when that work was first seen. benchEpoch counts the keys dealt.
+const BENCH_RULES = { factory: FACTORY, limits: { ...Object.fromEntries(ADJ.map(d => [d.id, [d.min, d.max]])), wear: [0, 1] },
+  enums: { damage: Object.keys(DAMAGE), bushing: Object.keys(BUSHINGS), center: Object.keys(CENTER_FAULTS) } };
+// (a part mended reads null, one never broken isn't there: the same regulation)
+const tidyAdj = a => Object.fromEntries(Object.entries(a).filter(([, v]) => v != null).sort(([x], [y]) => (x < y ? -1 : 1)));
+const benchIds = () => (mode === 'exam' ? examSpecs() : Object.keys(SPEC));
+const shownIn = (id, n) => mode === 'sandbox' || level().live || n.tested.has(id) || (mode === 'exam' ? !!exam.done : mode === 'diagnose' && (gaveUp || (!!verdict && !verdict.bad.length)));
+// a state's readings, measured once (and the model's wear put back to the key in hand: measuring sets it)
+const benchMeasured = new Map();
+function benchMeasure(a) {
+  const k = JSON.stringify(a);
+  if (!benchMeasured.has(k)) { if (benchMeasured.size > 12) benchMeasured.clear(); benchMeasured.set(k, measure(a)); eff(adj); }
+  return benchMeasured.get(k);
+}
+const grandBench = {
+  name: 'grand', rules: BENCH_RULES,
+  can: () => {
+    const work = mode === 'learn' || mode === 'sandbox' || (mode === 'diagnose' && !!scenario) || (mode === 'exam' && exam.started && !exam.done);
+    return { edit: work && !showCredits && !showLimits, print: (work || (mode === 'exam' && !!exam.done)) && !showCredits && !showLimits };
+  },
+  context: () => `${mode}|${benchEpoch[mode] ?? ''}|${mode === 'exam' ? exam.t0 ?? '' : ''}|${multi()}`,
+  snap: () => { store(); return { notes: NOTES.map(n => tidyAdj(n.adj)) }; },
+  // (the readings already measured stay measured: they are read again from the action as it now stands)
+  restore: st => {
+    if (busy) return false;
+    NOTES.forEach((n, i) => { if (i !== cur) { n.adj = { ...st.notes[i] }; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); } });
+    adj = { ...st.notes[cur] }; unsolve(); applyAdj();
+  },
+  notes: st => (multi() ? st.notes : [st.notes[cur]]),
+  fault: () => (mode === 'diagnose' && scenario ? { c: scenario.complaint, w: scenario.answer + (scenario.second ? ` Also: ${scenario.second.answer}` : '') } : null),
+  draft: st => {
+    const parts = Object.entries(diffAdj(st.notes[cur], BENCH_RULES)).map(([k, v]) => {
+      if (typeof v === 'string') return (damageLabel(v) || BUSHINGS[v]?.name || CENTER_FAULTS[v]?.name || v).toLowerCase();
+      if (k === 'wear') return `felt and cloth wear, about ${Math.round(v * 10)} years of playing`;
+      const d = ADJ.find(x => x.id === k);
+      return `${d.name.toLowerCase()} ${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}${d.unit === 'mm' ? ' mm' : d.unit} from factory`;
+    });
+    return parts.length ? `Set up with: ${parts.join('; ')}.` : 'Nothing is out: this action is at its factory regulation.';
+  },
+  open: st => {
+    if (busy || (mode === 'exam' && exam.started && !exam.done)) return false;
+    const tab = name => $(`.tab[data-mode=${name}]`).click();
+    showCredits = showLimits = false;
+    if (st.k === 'fault') {
+      // through the tab's own way back to a customer kept while another tab was open
+      if (mode === 'diagnose') tab('sandbox');
+      kept.diagnose = { adj: { ...st.notes[0] }, tested: new Set(), scenario: { complaint: st.c, answer: st.w || 'No note was left with it.', faults: {}, alone: true, custom: true },
+        testsUsed: 0, verdict: null, checks: 0, gaveUp: false, hint: false };
+      benchEpoch.diagnose++;
+      tab('diagnose');
+    } else {
+      if (mode !== 'sandbox') tab('sandbox');
+      setThreeKeys(st.notes.length === 3);
+      if (st.notes.length === 3) for (const i of [1, 2]) putNote(NOTES[i], { ...st.notes[i] });
+      benchEpoch.sandbox++;   // (counted here, so the work's "before" is the regulation loaded, whole)
+      adj = { ...st.notes[0] }; applyAdj();
+    }
+    $('aside').scrollTop = 0;
+  },
+  readings: st => { const mm = benchMeasure(st.notes[cur]); return benchIds().map(id => ({ name: SHORT[id] || SPEC[id].name, ...reading(id, mm), shown: revealed(id) })); },
+  record: () => {
+    store();
+    const meta = [{ learn: 'Learn', diagnose: 'Find the fault', sandbox: 'Sandbox', exam: 'Exam practice' }[mode], `${level().name} level`];
+    if (mode === 'exam' && exam.done) return { title: 'Grand action regulation: exam practice', meta, tables: [], copy: $('#mode') };
+    const slots = multi() ? EXAM_ORDER : [cur], one = slots.length === 1;
+    const cell = (id, n) => (shownIn(id, n) ? reading(id, n.m) : { txt: 'not measured', ok: null });
+    const rows = benchIds().map(id => { const cells = slots.map(sl => cell(id, NOTES[sl]));
+      return [SPEC[id].name, [specTarget(id), mode === 'exam' && id === 'keyHeight' ? '' : specBand(id)].filter(Boolean).join('; passes '), ...cells,
+        ...(one ? [cells[0].ok === null ? '' : cells[0].ok ? 'pass' : 'OUT'] : [])]; });
+    const cells = rows.flatMap(r => r.slice(2, 2 + slots.length)), seen = cells.filter(c => c.ok !== null);
+    meta.push(`${seen.filter(c => c.ok).length} of ${seen.length} measured readings in spec${seen.length < cells.length ? `, ${cells.length - seen.length} not measured` : ''}`);
+    if (mode === 'diagnose' && scenario) meta.push(`the customer said: “${scenario.complaint}”`);
+    return { title: 'Grand action regulation record', meta, tables: [{ head: ['Check', 'Target; passes', ...(one ? ['Reading', 'In spec'] : slots.map((sl, i) => `Note ${i + 1}`))], rows }] };
+  },
+};
+bench = mountBench({ el, toast, refresh, adapter: () => (action === 'upright' ? U?.bench : mode === 'drills' || mode === 'tools' ? null : grandBench) });
+// a link followed here, or pasted into the address of the page already open: its code names the action it is for
+function openCode(code) {
+  const to = bench.actionOf(code);
+  return Promise.resolve(to === action ? null : setAction(to)).then(() => {
+    if (action === to && bench.load(code) && action === 'grand') history.replaceState(null, '', location.pathname + location.search);
+  });
+}
+window.addEventListener('hashchange', () => { const code = bench.fromAddress(); if (code) openCode(code); });
+
 // ---------- loop ----------
 // one frame of the action: every note moved on by dtSim of action time, and the panel told what happened.
 // Returns what the note being worked on did in it.
@@ -2337,5 +2431,6 @@ for (const b of document.querySelectorAll('#action-switch button')) b.onclick = 
   let start = 'grand';
   try { start = localStorage.getItem('regsim-action') || 'grand'; } catch {}
   if (location.hash === '#upright') start = 'upright';
-  if (start === 'upright') setAction('upright');
+  const code = bench.fromAddress();
+  if (code) openCode(code); else if (start === 'upright') setAction('upright');
 }
