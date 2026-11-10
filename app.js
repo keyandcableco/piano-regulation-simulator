@@ -910,6 +910,8 @@ function pickSpecSet(id) {
   setSpecSet(id);
   try { localStorage.setItem('regsim-specset', specSet()); } catch {}
   hint = false; verdict = null;   // given against the other set's bands
+  // Find the fault's neighbors are the regulated key: dealt again as this set regulates it (the customer's key is kept)
+  if (neighborsOn()) { store(); seatNeighbors(); ({ adj, sim, m, tested } = NOTES[cur]); }
   showSpecSet(); refresh();
 }
 function measureTable(ids, { head = true, short = false } = {}) {
