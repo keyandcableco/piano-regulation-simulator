@@ -1302,6 +1302,7 @@ function ratioBlock() {
     el('div', { class: 'knob-head' }, el('b', {}, 'Action ratio'), el('span', { class: 'muted small' }, m.ratio > 0.05 ? `${m.ratio.toFixed(1)} : 1` : 'none: the hammer isn\'t lifted')),
     el('div', { class: 'muted small' }, `The hammer rises ${fmtBoth(m.ratio * m.ratioOver)} for the first ${fmtBoth(m.ratioOver)} of key dip. `
       + `At rest the levers are: key ${x(m.ratioKey)} (capstan rise per unit at the key front) × wippen ${x(m.ratioWippen)} (knuckle per unit at the capstan) × shank ${x(m.ratioShank)} (hammer per unit at the knuckle). `
+      + 'These are rises, straight up, at rest, where the shank slopes down and the knuckle sits close in under its centre. Arm lengths taken with a rule split differently (a longer wippen arm, a shorter shank ratio) and come to about the same product. '
       + 'The ratio falls a little through the stroke. Dip = (blow − let-off) ÷ ratio + aftertouch (Yuji Nakamura).'));
 }
 function renderSandbox(p) {
