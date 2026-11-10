@@ -1,0 +1,2983 @@
+{
+ "model": "/home/gregory/worktrees/piano-vet2-physics/model.js",
+ "dt": 0.0002,
+ "programs": [
+  "slow6",
+  "set60",
+  "set250",
+  "set600"
+ ],
+ "cases": [
+  {
+   "name": "factory",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.33,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "letoff +0.2",
+   "complaint": "Soft notes on this key feel uneven and hard to control next to its neighbors.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 0.504,
+     "tLetoff": 1.368,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.297
+     ],
+     "tStrike": 0.138,
+     "letoff": 0.415,
+     "tLetoff": 0.137,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.145,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.418
+     ],
+     "tStrike": 0.033,
+     "letoff": 0.351,
+     "tLetoff": 0.033,
+     "check": 14.348,
+     "tCheck": 0.06,
+     "resetUp": 0.331,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.337
+     ],
+     "tStrike": 0.014,
+     "letoff": 0.592,
+     "tLetoff": 0.014,
+     "check": 17.82,
+     "tCheck": 0.029,
+     "resetUp": 0.38,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "letoff -1",
+   "complaint": "I can't play this note quietly, it either thumps or misses.",
+   "runs": {
+    "slow6": {
+     "order": "letoff jackjam",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 6.867,
+     "tLetoff": 1.154,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike jackjam reset",
+     "strikes": [
+      0.112
+     ],
+     "tStrike": 0.146,
+     "letoff": 6.901,
+     "tLetoff": 0.115,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.28,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike jackjam checked uncheck reset",
+     "strikes": [
+      1.27
+     ],
+     "tStrike": 0.033,
+     "letoff": 6.963,
+     "tLetoff": 0.028,
+     "check": 14.023,
+     "tCheck": 0.062,
+     "resetUp": 0.326,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 166,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike jackjam checked uncheck reset",
+     "strikes": [
+      2.952
+     ],
+     "tStrike": 0.014,
+     "letoff": 7.269,
+     "tLetoff": 0.012,
+     "check": 17.077,
+     "tCheck": 0.03,
+     "resetUp": 0.369,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 172,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "frontPunch +1",
+   "complaint": "The key feels shallow, and soft notes are hard to control.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 8.47,
+     "dip": 8.47,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 2.716,
+     "endD": 8.47
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.064,
+     "maxD": 8.47,
+     "dip": 8.47,
+     "keyUpMs": 140,
+     "homeMs": 141,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 15.288,
+     "tCheck": 0.061,
+     "resetUp": 0.293,
+     "maxD": 8.47,
+     "dip": 8.47,
+     "keyUpMs": 140,
+     "homeMs": 151,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 18.806,
+     "tCheck": 0.03,
+     "resetUp": 0.354,
+     "maxD": 8.47,
+     "dip": 8.47,
+     "keyUpMs": 140,
+     "homeMs": 157,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "frontPunch -0.8",
+   "complaint": "The key feels deep and mushy at the bottom.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 10.369,
+     "dip": 10.369,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 0.898,
+     "endD": 10.369
+    },
+    "set60": {
+     "order": "letoff strike buzz reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.235,
+     "maxD": 10.369,
+     "dip": 10.369,
+     "keyUpMs": 172,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 13.531,
+     "tCheck": 0.059,
+     "resetUp": 0.351,
+     "maxD": 10.369,
+     "dip": 10.369,
+     "keyUpMs": 172,
+     "homeMs": 179,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 16.861,
+     "tCheck": 0.029,
+     "resetUp": 0.392,
+     "maxD": 10.369,
+     "dip": 10.369,
+     "keyUpMs": 172,
+     "homeMs": 185,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "frontPunch +1.7",
+   "complaint": "Played firmly, this note sometimes sounds twice, like a stutter.",
+   "runs": {
+    "slow6": {
+     "order": "",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": null,
+     "tLetoff": null,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 7.732,
+     "dip": 7.732,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 2.77,
+     "endD": 7.732
+    },
+    "set60": {
+     "order": "strike",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": null,
+     "tLetoff": null,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 7.732,
+     "dip": 7.732,
+     "keyUpMs": 128,
+     "homeMs": 129,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "strike strike bobble strike bobble",
+     "strikes": [
+      1.4,
+      0.473,
+      0.151
+     ],
+     "tStrike": 0.033,
+     "letoff": null,
+     "tLetoff": null,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 7.732,
+     "dip": 7.732,
+     "keyUpMs": 128,
+     "homeMs": 129,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "strike strike bobble strike bobble",
+     "strikes": [
+      3.236,
+      0.57,
+      0.197
+     ],
+     "tStrike": 0.014,
+     "letoff": null,
+     "tLetoff": null,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 7.732,
+     "dip": 7.732,
+     "keyUpMs": 128,
+     "homeMs": 129,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "repSpring -0.6",
+   "complaint": "Fast repeated notes and trills fail on this key.",
+   "runs": {
+    "slow6": {
+     "order": "letoff checked",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": 13.348,
+     "tCheck": 1.457,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 12.606,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": 12.792,
+     "tCheck": 0.216,
+     "resetUp": 0.348,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.511,
+     "tCheck": 0.059,
+     "resetUp": 0.382,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.706,
+     "tCheck": 0.029,
+     "resetUp": 0.445,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 163,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "repSpring +0.7",
+   "complaint": "There's a little bump in the key when I let it up slowly.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 13.916,
+     "tCheck": 0.061,
+     "resetUp": 0.287,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 181,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.541,
+     "tCheck": 0.029,
+     "resetUp": 0.328,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 190,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "backcheck -3",
+   "complaint": "When I play loud and hold the key down, the hammer doesn't stay back: it bounces up and sits right under the string.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike strike bobble reset",
+     "strikes": [
+      1.4,
+      0.115
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike strike bobble reset",
+     "strikes": [
+      3.334,
+      0.122
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "capstan -0.6",
+   "complaint": "There's free play at the top of this key: it goes down a little before anything happens.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.586,
+     "tLetoff": 1.538,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 2.896,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset uncheck",
+     "strikes": [
+      0.253
+     ],
+     "tStrike": 0.16,
+     "letoff": 1.525,
+     "tLetoff": 0.154,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.038,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 158,
+     "endDist": 48.597,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.421
+     ],
+     "tStrike": 0.038,
+     "letoff": 1.538,
+     "tLetoff": 0.037,
+     "check": 14.373,
+     "tCheck": 0.064,
+     "resetUp": 0.232,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 158,
+     "endDist": 48.597,
+     "endD": 0
+    },
+    "set600": {
+     "order": "strike letoff checked uncheck reset",
+     "strikes": [
+      3.547
+     ],
+     "tStrike": 0.015,
+     "letoff": 0.329,
+     "tLetoff": 0.015,
+     "check": 18.042,
+     "tCheck": 0.03,
+     "resetUp": 0.289,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 48.597,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "capstan +0.5",
+   "complaint": "The hammer on this key sits higher than its neighbors, and the key goes on down a long way after the note sounds.",
+   "runs": {
+    "slow6": {
+     "order": "letoff jackjam",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.585,
+     "tLetoff": 1.16,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 0.716,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike jackjam strike bobble reset",
+     "strikes": [
+      0.257,
+      0.076
+     ],
+     "tStrike": 0.122,
+     "letoff": 1.517,
+     "tLetoff": 0.116,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.276,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 38.587,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.423
+     ],
+     "tStrike": 0.029,
+     "letoff": 1.442,
+     "tLetoff": 0.028,
+     "check": 14.358,
+     "tCheck": 0.055,
+     "resetUp": 0.407,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 175,
+     "endDist": 38.587,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.369
+     ],
+     "tStrike": 0.012,
+     "letoff": 1.42,
+     "tLetoff": 0.012,
+     "check": 17.668,
+     "tCheck": 0.027,
+     "resetUp": 0.45,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 180,
+     "endDist": 38.587,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "balPunch +0.5",
+   "complaint": "This key sits higher than the others.",
+   "runs": {
+    "slow6": {
+     "order": "letoff jackjam",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.583,
+     "tLetoff": 1.249,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 10.585,
+     "dip": 10.585,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 0.219,
+     "endD": 10.585
+    },
+    "set60": {
+     "order": "letoff strike jackjam strike bobble reset",
+     "strikes": [
+      0.257,
+      0.134
+     ],
+     "tStrike": 0.131,
+     "letoff": 1.477,
+     "tLetoff": 0.125,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.298,
+     "maxD": 10.585,
+     "dip": 10.585,
+     "keyUpMs": 176,
+     "homeMs": 177,
+     "endDist": 41.67,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike jackjam checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.031,
+     "letoff": 1.634,
+     "tLetoff": 0.03,
+     "check": 13.287,
+     "tCheck": 0.056,
+     "resetUp": 0.387,
+     "maxD": 10.585,
+     "dip": 10.585,
+     "keyUpMs": 176,
+     "homeMs": 186,
+     "endDist": 41.67,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike jackjam checked uncheck reset",
+     "strikes": [
+      3.291
+     ],
+     "tStrike": 0.013,
+     "letoff": 1.725,
+     "tLetoff": 0.013,
+     "check": 16.634,
+     "tCheck": 0.028,
+     "resetUp": 0.425,
+     "maxD": 10.585,
+     "dip": 10.585,
+     "keyUpMs": 176,
+     "homeMs": 191,
+     "endDist": 41.67,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "jackScrew -1.4",
+   "complaint": "Soft repeated notes on this key feel draggy compared with its neighbors.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.291
+     ],
+     "tStrike": 0.138,
+     "letoff": 1.359,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 45.29,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.633
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.349,
+     "tLetoff": 0.032,
+     "check": 14.659,
+     "tCheck": 0.056,
+     "resetUp": 0.324,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 169,
+     "endDist": 45.29,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.95
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.532,
+     "tLetoff": 0.013,
+     "check": 18.568,
+     "tCheck": 0.028,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 175,
+     "endDist": 45.29,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "drop +2",
+   "complaint": "Soft notes on this key buzz, as if something is touching the string.",
+   "runs": {
+    "slow6": {
+     "order": "letoff buzz",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 0,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike buzz reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.393
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.626,
+     "tLetoff": 0.032,
+     "check": 14.174,
+     "tCheck": 0.061,
+     "resetUp": 0.329,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.29
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.806,
+     "tLetoff": 0.013,
+     "check": 17.436,
+     "tCheck": 0.029,
+     "resetUp": 0.374,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 172,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "repStop -0.3",
+   "complaint": "Trills and fast repeated notes on this key feel unreliable.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.298,
+     "tCheck": 0.06,
+     "resetUp": 0.331,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "strike letoff checked uncheck reset",
+     "strikes": [
+      3.483
+     ],
+     "tStrike": 0.013,
+     "letoff": 0,
+     "tLetoff": 0.013,
+     "check": 18.001,
+     "tCheck": 0.028,
+     "resetUp": 0.384,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 166,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "repStop +0.25",
+   "complaint": "The hammer on this key sits a little higher than its neighbors.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 205,
+     "endDist": 43.604,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.237,
+     "tCheck": 0.06,
+     "resetUp": 0.328,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 213,
+     "endDist": 43.604,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.796,
+     "tCheck": 0.029,
+     "resetUp": 0.378,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 219,
+     "endDist": 43.604,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "damperDrag +0.5",
+   "complaint": "Notes ring on after I let go, and the sustain pedal leaves a little smear.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.33,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "damperLevel +0.6",
+   "complaint": "This note keeps ringing faintly after I let the key up, even without the pedal.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.33,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "damperCenter +2",
+   "complaint": "One string of this note rings on after I let go.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.33,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "damperGap -1.5",
+   "complaint": "The key feels heavier right at the top of the stroke than the ones next to it.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.33,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "pedalLift +2",
+   "complaint": "There's a thump when I put the sustain pedal down.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.33,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "damage splitShank",
+   "complaint": "This note sounds thinner than its neighbors, and there's a little click. The hammer looks a bit crooked.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike click reset",
+     "strikes": [
+      0.193
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike click checked uncheck reset",
+     "strikes": [
+      1.05
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.33,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike click checked uncheck reset",
+     "strikes": [
+      2.5
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "damage looseFlange",
+   "complaint": "There's a click in this note, and it doesn't seem to hit in the same place every time.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike click reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike click checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.33,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike click checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "damage looseHead",
+   "complaint": "A tick when I play this note, and it sounds a little duller than the others.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike click reset",
+     "strikes": [
+      0.231
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike click checked uncheck reset",
+     "strikes": [
+      1.26
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.33,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike click checked uncheck reset",
+     "strikes": [
+      3
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "center hammerTight",
+   "complaint": "Since the summer, soft repeated notes on this key feel a little sluggish next to its neighbors.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.251
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.508,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.399
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.621,
+     "tLetoff": 0.032,
+     "check": 14.271,
+     "tCheck": 0.06,
+     "resetUp": 0.333,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 168,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.333
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.778,
+     "tCheck": 0.029,
+     "resetUp": 0.384,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 174,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "center hammerLoose",
+   "complaint": "There's a click in this note, and the hammer seems to move about.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike click reset",
+     "strikes": [
+      0.262
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.497,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike click checked uncheck reset",
+     "strikes": [
+      1.401
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.308,
+     "tCheck": 0.06,
+     "resetUp": 0.33,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 165,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike click checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.812,
+     "tCheck": 0.029,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 171,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "center hammerWorn",
+   "complaint": "This note clicks, and when I look inside its hammer looks a little loose sideways.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike click reset",
+     "strikes": [
+      0.26
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.5,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike click checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.286,
+     "tCheck": 0.06,
+     "resetUp": 0.33,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 166,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike click checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.807,
+     "tCheck": 0.029,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 172,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "center wippenTight",
+   "complaint": "Since the summer this key comes back up a little lazily, and quick repeated notes feel heavy.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 187,
+     "homeMs": 189,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.319,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 187,
+     "homeMs": 189,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.365,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 187,
+     "homeMs": 189,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "center wippenLoose",
+   "complaint": "There's a faint tick from inside the piano when I play this key.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike click reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike click checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.33,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike click checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "center jackTight",
+   "complaint": "Sometimes this note won't play again unless I let the key nearly all the way up.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.174,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.362,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.412,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "center jackLoose",
+   "complaint": "Played softly, this note gives a little tick.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike click reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike click checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.33,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike click checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "center repTight",
+   "complaint": "Quick repeated notes feel a little slow on this key, as if the hammer were slow to come back up after a loud note.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.219,
+     "tCheck": 0.06,
+     "resetUp": 0.338,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 165,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.764,
+     "tCheck": 0.029,
+     "resetUp": 0.391,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 170,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "center repLoose",
+   "complaint": "Soft repeated notes on this key aren't as even as on its neighbors.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.365,
+     "tCheck": 0.06,
+     "resetUp": 0.331,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.827,
+     "tCheck": 0.029,
+     "resetUp": 0.38,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "center underTight",
+   "complaint": "After this humid summer, this note keeps ringing a little after I let the key go.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.33,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "damage brokenJackSpring",
+   "complaint": "Sometimes this note doesn't play again unless I let the key all the way up.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": null,
+     "endDist": 46.037,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.98,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.98,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "wear +0.8",
+   "complaint": "It was regulated when we bought it eight years ago. Now there's a click at the top of the key, soft notes are hard to control, and it feels like it bottoms out.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 3.003,
+     "tLetoff": 1.47,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.695,
+     "dip": 9.695,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 4,
+     "endD": 9.695
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.198
+     ],
+     "tStrike": 0.159,
+     "letoff": 2.915,
+     "tLetoff": 0.147,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.097,
+     "maxD": 9.695,
+     "dip": 9.695,
+     "keyUpMs": 161,
+     "homeMs": 161,
+     "endDist": 49.712,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.426
+     ],
+     "tStrike": 0.037,
+     "letoff": 2.887,
+     "tLetoff": 0.035,
+     "check": 16.862,
+     "tCheck": 0.066,
+     "resetUp": 0.296,
+     "maxD": 9.695,
+     "dip": 9.695,
+     "keyUpMs": 161,
+     "homeMs": 161,
+     "endDist": 49.712,
+     "endD": 0
+    },
+    "set600": {
+     "order": "strike letoff checked uncheck reset",
+     "strikes": [
+      3.564
+     ],
+     "tStrike": 0.015,
+     "letoff": 0,
+     "tLetoff": 0.015,
+     "check": 20.575,
+     "tCheck": 0.031,
+     "resetUp": 0.352,
+     "maxD": 9.695,
+     "dip": 9.695,
+     "keyUpMs": 161,
+     "homeMs": 167,
+     "endDist": 49.712,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "bushing frontWorn",
+   "complaint": "This key wobbles from side to side, and it clicks when I play it.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.168,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 159,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike keyclick checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.33,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 167,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike keyclick checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.379,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 158,
+     "homeMs": 173,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  },
+  {
+   "name": "bushing frontTight",
+   "complaint": "Since the summer this key stays down after I play it, and I have to lift it back up.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike keystuck",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set250": {
+     "order": "letoff strike checked keystuck",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 14.265,
+     "endD": 9.525
+    },
+    "set600": {
+     "order": "letoff strike checked keystuck",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 17.803,
+     "endD": 9.525
+    }
+   }
+  },
+  {
+   "name": "bushing balTight",
+   "complaint": "This key comes back up slowly, lazier than the ones next to it.",
+   "runs": {
+    "slow6": {
+     "order": "letoff",
+     "strikes": [],
+     "tStrike": null,
+     "letoff": 1.584,
+     "tLetoff": 1.332,
+     "check": null,
+     "tCheck": null,
+     "resetUp": null,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": null,
+     "homeMs": null,
+     "endDist": 1.699,
+     "endD": 9.525
+    },
+    "set60": {
+     "order": "letoff strike reset",
+     "strikes": [
+      0.257
+     ],
+     "tStrike": 0.139,
+     "letoff": 1.503,
+     "tLetoff": 0.133,
+     "check": null,
+     "tCheck": null,
+     "resetUp": 0.167,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 316,
+     "homeMs": 318,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set250": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      1.4
+     ],
+     "tStrike": 0.033,
+     "letoff": 1.62,
+     "tLetoff": 0.032,
+     "check": 14.265,
+     "tCheck": 0.06,
+     "resetUp": 0.276,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 316,
+     "homeMs": 318,
+     "endDist": 44.45,
+     "endD": 0
+    },
+    "set600": {
+     "order": "letoff strike checked uncheck reset",
+     "strikes": [
+      3.334
+     ],
+     "tStrike": 0.014,
+     "letoff": 1.804,
+     "tLetoff": 0.013,
+     "check": 17.803,
+     "tCheck": 0.029,
+     "resetUp": 0.311,
+     "maxD": 9.525,
+     "dip": 9.525,
+     "keyUpMs": 316,
+     "homeMs": 318,
+     "endDist": 44.45,
+     "endD": 0
+    }
+   }
+  }
+ ]
+}
