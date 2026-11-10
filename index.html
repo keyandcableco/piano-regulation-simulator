@@ -295,6 +295,10 @@ table.specs { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 
 tr.ok .dot { background: var(--ok); }
 tr.bad .dot { background: var(--bad); }
 tr.bad td:last-child { color: var(--bad); }
+/* in or out of spec as a mark, not by colour alone; and the band a reading passes in, under its target */
+.mark { display: inline-block; width: 1.1em; margin-right: 4px; font-weight: 700; text-align: center; color: var(--muted); }
+.mark.ok { color: var(--ok); } .mark.bad { color: var(--bad); } .mark.none { font-weight: 400; opacity: .6; }
+.specs .band { display: block; font-size: 12px; font-variant-numeric: tabular-nums; }
 .steps { display: flex; gap: 3px; flex-wrap: wrap; margin-bottom: 6px; }
 .pip { width: 28px; height: 26px; padding: 0; font-size: 12px; }
 .pip.ok { border-color: var(--ok); color: var(--ok); }
@@ -540,7 +544,7 @@ a { color: var(--accent); }
     </div>
     <div id="mode"><p class="muted">Loading the action… If nothing appears, this simulator needs a current browser: Chrome, Edge, Firefox, or Safari 16.4 or newer.</p></div>
     <p class="muted small foot">Targets are generic textbook numbers, not one maker's specs. Hover a part to name it, and click it to test or adjust it; press and hold on the key to strike it. Drag to turn the view, Shift-drag (or right-drag) to slide it, and roll the wheel to zoom, or use the buttons at the right of the picture. With ✋&nbsp;Move parts on, drag a part to move it by hand.</p>
-    <p class="muted small"><a href="#" id="credits">From the bench: tips, tools and credits</a></p>
+    <p class="muted small"><a href="#" id="limits">What this model doesn't do</a> · <a href="#" id="credits">From the bench: tips, tools and credits</a></p>
     <p class="muted small">Made by <a href="https://keyandcable.com/">The Key &amp; Cable Company</a>. Spotted something a real action wouldn't do? <a href="https://keyandcable.com/feedback.html">Tell me</a>. Found it useful? <a href="https://keyandcable.com/thanks.html" target="_blank" rel="noopener">Say thanks</a>.</p>
     <div id="actionbar" class="actionbar"></div>
   </aside>

@@ -77,25 +77,25 @@ export const jackSide = a => (a.wippenSpace || 0) + (a.wippenTravel || 0);
 // increments offered (screw turns or punching thicknesses). sides: a shim that goes under one side
 // or the other (the side is the choice); dirs: a sideways move, + toward the bass (left from the keys).
 export const ADJ = [
-  { id: 'balPunch', name: 'Balance rail punchings', part: 'balance', unit: 'mm', min: 0, max: 4,
+  { id: 'balPunch', name: 'Balance rail punchings', part: 'balance', unit: 'mm', min: 0, max: 2.5,   // more, and the key's back end reaches the wippen rail at the bottom
     steps: [0.1, 0.25], stepLabel: ['0.004" paper', '0.010" card'], how: 'Add or remove paper punchings under the key at the balance rail. Raises or lowers the key front.' },
   { id: 'jackScrew', name: 'Jack regulating screw', part: 'jackscrew', unit: 'mm', min: -7, max: 2,
     steps: [0.1], stepLabel: ['¼ turn'], how: 'Positions the jack front-to-back under the knuckle. + moves the jack toward the front.' },
   { id: 'repStop', name: 'Repetition lever height screw', part: 'repscrew', unit: 'mm', min: -2, max: 2,
     steps: [0.02, 0.08], stepLabel: ['⅛ turn', '½ turn'], how: 'Sets how high the repetition lever rests relative to the jack top. + raises the lever.' },
-  { id: 'capstan', name: 'Capstan screw', part: 'capstan', unit: 'mm', min: 6, max: 20,
+  { id: 'capstan', name: 'Capstan screw', part: 'capstan', unit: 'mm', min: 10, max: 16.5,   // from a hammer the key can no longer lift, up to one that blocks on the string
     steps: [0.04, 0.16], stepLabel: ['1/32 turn', '⅛ turn'], how: 'Raises or lowers the wippen, and with it the hammer. + raises the hammer (shorter blow).' },
-  { id: 'restRail', name: 'Hammer rest rail', part: 'restrail', unit: 'mm', min: 96, max: 122,
+  { id: 'restRail', name: 'Hammer rest rail', part: 'restrail', unit: 'mm', min: 101, max: 122,   // lower, and the rail is in the wippen
     steps: [0.25], stepLabel: ['shim'], how: 'Raises or lowers the rail the hammer shanks fall back toward.' },
   { id: 'frontPunch', name: 'Front rail punchings', part: 'frontpunch', unit: 'mm', min: 0, max: 8,
     steps: [0.1, 0.25], stepLabel: ['0.004" paper', '0.010" card'], how: 'Thicker punchings stop the key sooner: less dip.' },
-  { id: 'letoff', name: 'Let-off button', part: 'letoff', unit: 'mm', min: 86, max: 100,
+  { id: 'letoff', name: 'Let-off button', part: 'letoff', unit: 'mm', min: 93, max: 100,   // lower, and the jack jams on its stop felt so early that its tender would be through the button
     steps: [0.05, 0.2], stepLabel: ['⅛ turn', '½ turn'], how: 'Where the jack tender hits and trips the jack. + raises the button (later let-off, closer to the string).' },
   { id: 'drop', name: 'Drop screw', part: 'drop', unit: 'mm', min: 134, max: 145,
     steps: [0.05, 0.2], stepLabel: ['⅛ turn', '½ turn'], how: 'Stops the repetition lever. + raises the screw (hammer drops less after let-off).' },
   { id: 'repSpring', name: 'Repetition spring tension', part: 'repspring', unit: '', min: 0.3, max: 2.4,
     steps: [0.02], stepLabel: ['bend'], how: 'How hard the repetition lever pushes up on the knuckle.' },
-  { id: 'backcheck', name: 'Backcheck wire', part: 'backcheck', unit: 'mm', min: -4, max: 4,
+  { id: 'backcheck', name: 'Backcheck wire', part: 'backcheck', unit: 'mm', min: -4, max: 3.1,   // just past where the tail scrapes (G.bcScrapeLean): further in, the checked tail would be above the drawn head
     steps: [0.25], stepLabel: ['bend'], how: 'Bend the backcheck toward (+) or away from (−) the hammer tail.' },
   { id: 'hammerTravel', name: 'Traveling paper under the hammer flange', part: 'flange', unit: 'mm', min: -3, max: 3,
     steps: [0.1], stepLabel: ['paper'], sides: ['bass', 'treble'],   // + is paper under the bass side: the path swings toward the treble
@@ -130,6 +130,9 @@ export const ADJ = [
 
 // ---------- textbook specs ----------
 // Generic textbook targets of the kind a PTG exam expects. Change them here.
+// A spec is a target with a tolerance (the sim's own band: the skill level scales it), or a band a source prints, stored
+// as its two edges (lo, hi), both of which pass at every level: the level only widens such a band for the Apprentice,
+// never cuts into a published range (band(), grade()). src says whose figure it is.
 // They are not the measured Boston's regulation: Hirschkorn set his GP-178 to dip 10.0 mm, blow 48 (47.0 as measured),
 // let-off 1.0 mm from the string, drop to 3.0 and check at 15 (research/wippen/spec.md §1, §6), and at rest it shows
 // 6.3 mm from the let-off button to the jack's toe, 4.9 from the drop screw to its felt and 0.9 from the shank to the rest
@@ -159,13 +162,19 @@ export const SPEC = {
   // a grand hammer rides on its jack, so it should show none). Any play you could feel fails; the 0.05 mm is the sim's own.
   lostMotion: { name: 'No lost motion (key travel before the hammer moves)', target: 0, tol: 0.05, unit: 'mm' },
   dip:        { name: 'Key dip', target: IN * 3 / 8, tol: IN / 64, unit: 'mm' },
+  // a generic textbook figure for a middle note, with the sim's own tolerance. The makers: Steinway no less than 1/32 in
+  // and no more than 1/16; Kawai 1.0 to 1.5 mm in the middle and treble, 2.0 to 2.5 in the bass (the Learn step says so)
   letoff:     { name: 'Let-off from string', target: IN / 16, tol: IN / 64, unit: 'mm' },
   drop:       { name: 'Drop below let-off', target: IN / 16, tol: IN / 64, unit: 'mm' },
   // more than the 1 mm older books give: a modern grand at textbook dip, blow and let-off has about 2 mm or more
-  // (Greg, 2026-11-06); the measured Boston gives 1.7
+  // (Greg, 2026-11-06). The measured Boston gave 1.7 when this was set; since the jack moved onto the knuckle's rounded
+  // corner (jackPos, coreBack) the factory key gives 1.53, Steinway's figure (3/64 to 1/16 in, "a new penny"; Igrec
+  // 0.8 to 1.5 mm). The target is Greg's decision and stays; the Learn step says what the action gives and what they print.
   aftertouch: { name: 'Aftertouch (key travel after let-off)', target: 1.7, tol: 0.5, unit: 'mm' },
-  spring:     { name: 'Repetition spring', target: 0.55, tol: 0.25, unit: '' },
-  check:      { name: 'Checking distance', target: IN * 9 / 16, tol: IN / 16, unit: 'mm' },   // 1/2 to 5/8 in (Igrec)
+  // net lift on the knuckle at the check line, in hammer weights: graded by what the rise does (measure().springState),
+  // sluggish below G.weakNet and a pop above G.popNet, the same at every level. target is what factory() sets.
+  spring:     { name: 'Repetition spring', target: 0.55, lo: G.weakNet, hi: G.popNet, unit: '', src: 'the sim\'s own: a steady rise, no pop' },
+  check:      { name: 'Checking distance', target: IN * 9 / 16, lo: IN / 2, hi: IN * 5 / 8, unit: 'mm', src: 'Igrec: 1/2 to 5/8 in; Steinway: 1/2 in' },
   // centered and square to the hammer's check (Steinway's regulation guide); bands are the sim's own
   backcheckAlign: { name: 'Backcheck centered behind the tail, and square', target: 0, tol: 0.5, tolSq: 2, unit: 'mm' },
   // alignment: done first on a real piano, and part of the PTG exam's "assemble, align and regulate"
@@ -174,15 +183,33 @@ export const SPEC = {
   hammerSquare: { name: 'Hammer square to the strings', target: 0, tol: 1, unit: '°' },
   hammerSound: { name: 'Hammer and shank solid and quiet (wiggle and listen)', target: 0, tol: 0, unit: '' },
   // dampers: textbook timing is the head starting to lift with the hammer a third to half of the way up
-  damperTiming: { name: 'Damper starts lifting (share of hammer travel)', target: 0.45, tol: 0.1, unit: '%', damper: true },
-  damperStop:   { name: 'Damper stop rail clearance, key down', target: IN / 32, tol: IN / 64, unit: 'mm', damper: true },
-  pedalLift:    { name: 'Pedal lift above key lift (to the stop rail)', target: IN / 32, tol: IN / 64, unit: 'mm', damper: true },
+  // Steinway's guide sets the lift at one third of the hammer's travel and accepts a third to a half
+  damperTiming: { name: 'Damper starts lifting (share of hammer travel)', target: 0.45, lo: 1 / 3, hi: 1 / 2, unit: '%', damper: true, src: 'Steinway: between 1/3 and 1/2 of the hammer\'s travel' },
+  // play at the damper head with the key held down. Steinway: about 1/16 in in the treble, 3/32 in the bass; Kawai: 1 to 2 mm
+  // is permissible; Hamburg: about 1 mm. For this note (52, above the middle): Steinway's 1/16 in, inside Kawai's range.
+  damperStop:   { name: 'Damper stop rail clearance, key down', target: IN / 16, lo: 1, hi: 2, unit: 'mm', damper: true, src: 'Kawai: 1 to 2 mm; Steinway: about 1/16 in in the treble' },
+  // the pedal's lift against the key's (minus: the pedal lifts less). Kawai: the same height as the keys lift them;
+  // Steinway: below the stop rail and slightly below where the sharps lift (the sim has no sharp: read against this
+  // natural). So level with the key's lift passes, and a hair under; how far under is the sim's own (0.8 mm).
+  pedalLift:    { name: 'Pedal lift against the key\'s lift', target: -0.25, lo: -0.8, hi: 0, unit: 'mm', damper: true, src: 'Kawai: the same as the keys; Steinway: slightly below, and below the stop rail' },
   damperFall:   { name: 'Damper falls freely', target: 0, tol: 0.15, unit: '', damper: true },
   // Igrec: the head vertical and centered to its strings, both ends of its felt seated with equal force; bands are the sim's own
   damperSeat:   { name: 'Damper head centered on its unison, seated flat', target: 0, tol: 0.5, tolLevel: 0.2, unit: 'mm', damper: true },
   underCenter:  { name: 'Damper underlever center: falls freely', center: 'under', unit: 'g', noExam: true, damper: true },
 };
 export const DAMPER_SPECS = Object.keys(SPEC).filter(k => SPEC[k].damper);
+// A spec's pass band [lo, hi] at skill factor k (1.5 Apprentice, 1 Journeyman, 0.75 Exam). A source's band keeps its
+// printed edges at k <= 1 and widens about its middle for the Apprentice; the sim's own tolerance scales with k.
+export function band(id, k = 1) {
+  const s = SPEC[id];
+  if (s.lo !== undefined) { const c = (s.lo + s.hi) / 2, h = (s.hi - s.lo) / 2 * Math.max(1, k); return [c - h, c + h]; }
+  if (s.target === undefined || s.tol === undefined) return null;
+  return [s.target - s.tol * k, s.target + s.tol * k];
+}
+// Readings are graded as they are printed, to a hundredth (0.01 mm, 1% of hammer travel): two readings that print the
+// same can't be one in and one out, and a reading that prints as a band's edge (1/2 in, one third) is in.
+const q2 = v => Math.round(v * 100) / 100;
+export const inBand = (v, [lo, hi]) => q2(v) >= q2(lo) && q2(v) <= q2(hi);
 
 // ---------- small math ----------
 const rot = (p, a) => [p[0] * Math.cos(a) - p[1] * Math.sin(a), p[0] * Math.sin(a) + p[1] * Math.cos(a)];
@@ -598,11 +625,22 @@ export function slowPress(a, step = 0.01) {
     // when the jack's tender reaches the let-off button, and the repetition lever the drop screw
     if (dTender === null && L.psiBtn > L.psiRest + 1e-9) dTender = d;
     if (dScrew === null && L.rhoDrop < L.rhoStop) dScrew = d;
-    const wasEsc = st.escaped;
+    const wasEsc = st.escaped, st0 = { ...st };
     const r = staticHammer(a, L, st, g);
     if (r.blocked) { blockedAt = d; g = r.g; break; }
     // let off before the button tripped the jack: a jack set too far forward lets the knuckle slip off its back
-    if (!wasEsc && st.escaped && dEsc === null) { dEsc = d; letoff = G.stringY - crownY(g); slipped = L.psiBtn <= L.psiRest + 1e-9; }
+    if (!wasEsc && st.escaped && dEsc === null) {
+      slipped = L.psiBtn <= L.psiRest + 1e-9;
+      // the jack let go somewhere inside this step: close in on where, so the reading doesn't ride the step's grid
+      // (it wobbled 0.03 mm as the capstan turned, which doesn't move let-off)
+      let lo = Math.max(0, d - step), hi = d, gLo = g, gHi = r.g;
+      for (let i = 0; i < 14; i++) {
+        const mid = (lo + hi) / 2, s2 = { ...st0 }, r2 = staticHammer(a, linkage(a, mid), s2, gLo);
+        if (s2.escaped || r2.blocked) { hi = mid; gHi = r2.g; } else { lo = mid; gLo = r2.g; }
+      }
+      dEsc = hi; letoff = G.stringY - crownY(gLo);
+      dropLow = G.stringY - crownY(gHi);   // and where it lands at that moment, not a step later
+    }
     g = r.g;
     maxCrown = Math.max(maxCrown, crownY(g));
     // drop is judged just after let-off, where the hammer lands on the lever; as the key goes on down the lever lifts
@@ -651,6 +689,12 @@ export function measure(a) {
     for (let d = 0.01; d <= sp.dip; d += 0.01) { if (crownY(staticHammer(a, linkage(a, d), st, g).g) > c0 + 0.005) break; play = d; }
   }
   const pyTail = hamPt(gChk, G.tail)[1] - G.H[1];
+  // tripped at rest, does the hammer come down on the repetition lever, or on the rest rail first?
+  const gLever = gFromKnuckle(repSupportZ(a, L)), winkOnRail = !onRail && gRail(a) > gLever + 1e-6 && gJ > gRail(a);
+  // the lever reaching the drop screw only after let-off (or never): the hammer goes on rising, and "drop" is only the
+  // small fall onto the lever, which the screw doesn't move. Key travel from let-off to the screw (Infinity: never)
+  // (0.02 mm of key: the two contacts are found on the slow press's 0.01 mm steps)
+  const screwLate = sp.dEsc === null || sp.blockedAt !== null ? null : sp.dScrew === null ? Infinity : sp.dScrew > sp.dEsc + 0.02 ? sp.dScrew - sp.dEsc : null;
   return {
     keyHeight: keyHeightOf(a) - NEIGHBOR_H,
     jackPos: jg.backX - coreBack(g, jg.backY),
@@ -660,6 +704,7 @@ export function measure(a) {
     // trip the jack at rest: the hammer settles onto the repetition lever. That small drop is the wink.
     // Negative means the lever is already holding the hammer off the jack.
     wink: crownY(Math.max(gJ, gRail(a))) - crownY(gL),   // a hammer on the rail (lost motion) doesn't move at all
+    winkOnRail,                                           // it lands on the rail: the lever's height can't be read
     jackReturns: knuckleBottom(gJ)[1] - knuckleBottom(gL)[1] < a.wedge && !a.noJackSpring,
     hammerOnJack: Math.abs(g - gJ) < 2e-4,
     blow: G.stringY - crownY(g),
@@ -669,6 +714,8 @@ export function measure(a) {
     letoff: sp.letoff,
     blocked: sp.blockedAt !== null,
     drop: sp.letoff === null ? null : sp.dropLow - sp.letoff,
+    screwLate,
+    leverSags: springF(a, L, L.hornTop) < 1,   // a spring too weak to hold the hammer's weight at the lever's stop
     // key travel from the tender meeting the let-off button to the lever meeting the drop screw (+: the screw comes later)
     screwAfterButton: sp.dTender === null || sp.dScrew === null ? null : sp.dScrew - sp.dTender,
     aftertouch: sp.aftertouch,
@@ -683,11 +730,26 @@ export function measure(a) {
     noCheck: net > G.checkHold,
     press: sp,
     hammerTravel: a.hammerTravel, hammerSpacing: a.hammerSpace - a.hammerTravel, hammerSquare: a.hammerSquare,
-    hammerSound: a.damage ? 1 : 0, damage: a.damage || null,
+    // (a broken jack spring is the jack's fault, found by tripping the jack: the wink test)
+    hammerSound: a.damage && !DAMAGE[a.damage]?.noJackSpring ? 1 : 0, damage: a.damage || null,
+    ...measureRatio(a),
     ...measureDampers(a),
     ...measureKey(a),
     ...measureCenters(a),
   };
+}
+
+// ---------- action ratio ----------
+// How far the hammer's crown rises for each mm the key front goes down, taken as technicians take it (Yuji Nakamura's
+// jig: the hammer's rise for 6 mm of key, from rest), and the three levers it is made of, at rest: the key (capstan's
+// rise per mm at the front), the wippen (the knuckle's rise per mm at the capstan) and the shank (the crown's rise per
+// mm at the knuckle). Computed from the linkage as regulated; a hammer on the rail gives no ratio until it lifts.
+export function measureRatio(a) {
+  a = eff(a);
+  const at = d => { const L = linkage(a, d), g = Math.max(gRail(a), gOnJackAt(L, L.psiRest)); return { cap: L.cap[1], kn: knuckleBottom(g)[1], cr: crownY(g) }; };
+  const d6 = Math.min(6, dipOf(a) * 0.75), p0 = at(0), p1 = at(d6), e = at(0.5);
+  const dc = e.cap - p0.cap, dk = e.kn - p0.kn;
+  return { ratio: (p1.cr - p0.cr) / d6, ratioOver: d6, ratioKey: dc / 0.5, ratioWippen: dc > 1e-6 ? dk / dc : null, ratioShank: dk > 1e-6 ? (e.cr - p0.cr) / dk : null };
 }
 
 // ---------- dampers ----------
@@ -713,7 +775,7 @@ export function measureDampers(a) {
     damperTiming: timing,
     damperStop: a.damperStop - keyLiftBottom,
     pedalLift: a.pedalLift - keyLiftBottom,
-    pedalIntoStop: a.pedalLift > a.damperStop + 0.2,
+    pedalIntoStop: a.pedalLift >= a.damperStop,   // the makers stop the pedal's lift below the rail
     damperFall: a.damperDrag,
     damperSeat: a.damperCenter, damperLevel: a.damperLevel,
     fallMs: 1000 * damperFallTime(a, pedalH),
@@ -721,9 +783,10 @@ export function measureDampers(a) {
   };
 }
 
-// pass/fail for one spec given a measurement set; k scales the tolerance (skill level)
+// pass/fail for one spec given a measurement set; k is the skill level's factor (band(): it scales the sim's own
+// tolerances, and only widens a band a source prints)
 export function grade(id, m, k = 1) {
-  const s = { ...SPEC[id], tol: SPEC[id].tol * k };
+  const s = SPEC[id], b = band(id, k);
   let v = m[id];
   if (s.center) {
     const [lo, hi] = CENTERS[s.center].band;
@@ -735,40 +798,56 @@ export function grade(id, m, k = 1) {
   if (v === null || v === undefined) return { ok: false, v: null, note: 'no let-off' };
   if (id === 'jackPos' && !m.jackUnder) return { ok: false, v, note: 'jack is not under the knuckle' };
   if (id === 'jackPos' && m.jackSlips) return { ok: false, v, note: 'too far forward: the knuckle slips off it before let-off' };
+  // a hammer that sits on the rest rail, or comes down on it when the jack is tripped, says nothing about the lever
+  if (id === 'wink' && m.onRail) return { ok: false, v, note: 'the hammer sits on the rest rail: lower the rail, then trip the jack' };
+  // (a drop to the rail that is already too deep needs no second look: the lever is too low, below)
+  if (id === 'wink' && m.winkOnRail && q2(v) <= q2(b[1])) return { ok: false, v, note: 'the hammer came down on the rest rail, not the lever: lower the rail and trip it again' };
   if (id === 'wink' && v < 0) return { ok: false, v, note: 'no wink: the lever holds the hammer off the jack' };
+  if (id === 'wink' && DAMAGE[m.damage]?.noJackSpring) return { ok: false, v, note: DAMAGE[m.damage].signs };
   if (id === 'wink' && !m.jackReturns) return { ok: false, v, note: 'jack will not return under the knuckle' };
   if (id === 'restGap' && m.onRail) return { ok: false, v, note: m.lostMotion > 0.05 ? 'hammer sits on the rail: lost motion' : 'hammer sits on the rail' };
   if (id === 'check' && m.scrapes) return { ok: false, v, note: 'tail scrapes the backcheck' };
   if (id === 'check' && m.bcMisses) return { ok: false, v: null, note: 'the backcheck misses the tail: the hammer bounces back' };
   // held against the string at the bottom: by a drop screw set too high (no drop at let-off), or, with the drop itself
   // fine, by too much aftertouch carrying the lever back up as the key goes on down
-  if (id === 'drop' && m.dropAtString) return v != null && v >= s.target - s.tol
+  if (id === 'drop' && m.dropAtString) return v != null && v >= b[0]
     ? { ok: false, v, note: 'the lever lifts the hammer back up to the string at the bottom: too much aftertouch' }
     : { ok: false, v: null, note: 'no drop: the lever holds the hammer against the string' };
+  // the lever not yet on its screw at let-off: no drop to read (the screw's turns show in how late it comes)
+  if (id === 'drop' && m.leverSags && v != null && q2(v) > q2(b[1])) return { ok: false, v, note: 'the spring is too weak to carry the hammer: the lever sags under it' };
+  if (id === 'drop' && m.screwLate != null && !m.leverSags) return { ok: false, v: null, note: m.screwLate === Infinity
+    ? 'none: the hammer goes on rising after let-off, the lever never reaches the drop screw'
+    : `none yet: the hammer goes on rising after let-off, the lever meets the drop screw ${m.screwLate.toFixed(2)} mm of key travel later` };
   if (id === 'spring' && m.bcMisses) return { ok: false, v: null, note: 'can\'t be set: the backcheck misses, so the hammer never checks' };
   if (id === 'check' && m.noCheck) return { ok: false, v, note: 'hammer will not stay checked' };
   if (id === 'damperStop' && v <= 0.05) return { ok: false, v, note: 'dampers hit the stop rail before the key bottoms' };
   if (id === 'pedalLift' && m.pedalIntoStop) return { ok: false, v, note: 'the pedal drives the dampers into the stop rail' };
-  if (id === 'pedalLift' && v < 0) return { ok: false, v, note: 'the pedal lifts the dampers less than the keys do' };
+  if (id === 'pedalLift') return { ok: inBand(v, b), v, note: q2(v) > q2(b[1]) ? 'the pedal lifts the dampers higher than the keys do' : q2(v) < q2(b[0]) ? 'the pedal lifts the dampers too little' : '' };
   if (id === 'hammerSquare' && m.damage === 'splitShank') return { ok: false, v, note: 'the head wobbles from blow to blow' };
-  if (id === 'hammerSound') return m.damage ? { ok: false, v, note: DAMAGE[m.damage].signs } : { ok: true, v, note: 'solid and quiet' };
+  if (id === 'hammerSound') return m.hammerSound ? { ok: false, v, note: DAMAGE[m.damage].signs } : { ok: true, v, note: 'solid and quiet' };
   // a wire dragging in its guide bushing or a tight underlever center: the pedal test can't tell which
-  if (id === 'damperFall') return { ok: v <= s.tol, v, note: v <= s.tol ? 'falls freely' : 'drags: falls late' };
+  if (id === 'damperFall') { const ok = q2(v) <= q2(b[1]); return { ok, v, note: ok ? 'falls freely' : 'drags: falls late' }; }
   if (id === 'keyBushings') {
     const note = v < 0.05 ? 'no side play at the front: the front bushing binds'
       : m.balPlay < 0.05 ? 'no play at the balance pin: the balance bushing binds'
       : m.keyFall === 'hangs' ? 'a tight bushing holds the key up' : m.keyFall === 'slow' ? 'the key drops slowly'
-      : v > s.target + s.tol ? 'a knock each way at the front: the front bushing is worn' : '';
-    return { ok: !note && Math.abs(v - s.target) <= s.tol, v, note };
+      : q2(v) > q2(b[1]) ? 'a knock each way at the front: the front bushing is worn' : '';
+    return { ok: !note && inBand(v, b), v, note };
   }
   // two readings each: sideways in mm, and square (degrees) or seated (mm one end is up)
-  if (id === 'backcheckAlign') return { ok: Math.abs(v) <= s.tol && Math.abs(m.backcheckSquare) <= s.tolSq * k, v, note: '' };
-  if (id === 'damperSeat') return { ok: Math.abs(v) <= s.tol && Math.abs(m.damperLevel) <= s.tolLevel * k, v, note: '' };
+  if (id === 'backcheckAlign') return { ok: inBand(v, b) && Math.abs(m.backcheckSquare) <= s.tolSq * k, v, note: '' };
+  if (id === 'damperSeat') return { ok: inBand(v, b) && Math.abs(m.damperLevel) <= s.tolLevel * k, v, note: '' };
   if (id === 'spring') {
     const notes = { good: 'rises positively, no pop', weak: 'sluggish rise', none: 'hammer does not rise', pop: 'pops: bump felt in the key', jumps: 'jumps out of check' };
     return { ok: m.springState === 'good', v, note: notes[m.springState] };
   }
-  return { ok: Math.abs(v - s.target) <= s.tol, v, note: '' };
+  return { ok: inBand(v, b), v, note: '' };
+}
+// Find the fault deals a second fault on top of the first: the specs the first alone puts out that the two together put
+// back in (at any of the skill factors ks). A pair that cancels like that would make the customer's complaint untrue.
+export function cancelled(first, both, ks = [1]) {
+  const m1 = measure(first), m2 = measure(both);
+  return Object.keys(SPEC).filter(id => ks.some(k => !grade(id, m1, k).ok && grade(id, m2, k).ok));
 }
 
 // ---------- factory regulation (solve every knob to its spec) ----------
@@ -792,9 +871,9 @@ export function factory() {
     bis(a, 'repSpring', () => measure(a).spring, SPEC.spring.target, 0.3, 2.4);
     bis(a, 'damperGap', () => measureDampers(a).damperTiming ?? 1, SPEC.damperTiming.target, 0, 9);
     const kl = measureDampers(a).keyLiftBottom;
-    // the stop rail a hair above the key's lift, and the pedal taking the dampers just up to it
+    // the stop rail its clearance above the key's lift, and the pedal lifting the dampers a hair less than the key does
     a.damperStop = kl + SPEC.damperStop.target;
-    a.pedalLift = a.damperStop - 0.05;
+    a.pedalLift = kl + SPEC.pedalLift.target;
   }
   return a;
 }
@@ -855,6 +934,11 @@ const STRIKE_R = Math.hypot(G.crownC[0], G.crownC[1] + G.crownR);   // centre pi
 // G.checkHold, as before. The app's Strike and hold (250 mm/s) catches at 0.51-0.71 on every fault case tried.
 const CHECK_HOLD_V = 0.42;
 const BOUNCE_V = 0.01;  // a knuckle landing on the jack slower than this (m/s) just settles
+// The fastest the jack can drive the hammer, rad/s: 5.6 m/s at the crown. The key here is moved at a set speed, not by
+// a force, so nothing else stops a faster key throwing the hammer faster; this stands in for the limit of a real blow.
+// Askenfelt and Jansson (KTH, "From touch to string vibrations"): a forte key seldom moves faster than about 1 m/s,
+// the hammer then reaching about 5 m/s. From about 1000 mm/s of key speed up, every strike here is 5.59 m/s.
+const JACK_DRIVE_W_MAX = 40;
 // A jack spring working the jack's rounded top back under a knuckle that sits a hair below where the jack would hold
 // it (up to G.wedge) doesn't snap the hammer up. At the reset the hammer stays where it is and keeps its speed, and
 // the jack takes up the gap over this long (s), along a smoothstep whose sharpest slowing (57 rad/s^2 at the full
@@ -1044,7 +1128,7 @@ export class Sim {
         this.bounceD = this.d;   // a strike before the key comes back up is a bobble
       }
       // otherwise the jack drives it (one slipping back under lifts it gently: WEDGE_T)
-      else w = Math.max(w, Math.min(40, (jackG - this.g) / dt));
+      else w = Math.max(w, Math.min(JACK_DRIVE_W_MAX, (jackG - this.g) / dt));
       g = jackG;
     }
     const gR = gRail(a);
@@ -1136,4 +1220,7 @@ export class Sim {
 }
 
 // Factory regulation solved offline with factory() (node), so the page loads fast.
-export const FACTORY = {"balPunch":1.5,"jackScrew":-0.5732,"repStop":-0.4591,"capstan":13.8078,"restRail":110.7759,"frontPunch":2.299,"letoff":95.6693,"drop":140.2303,"repSpring":1.3553,"backcheck":0.5226,"damperGap":3.5071,"damperStop":5.0557,"pedalLift":5.0057,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0,"wippenSpace":0,"wippenTravel":0,"backcheckSpace":0,"backcheckSquare":0,"damperCenter":0,"damperLevel":0};
+// The let-off button and drop screw stand where they were solved before the slow press closed in on the let-off instant
+// (slowPress): they read 1.584 and 1.600 mm now, both in spec, where a fresh factory() gives 95.6686 and 140.2323 for
+// 1.5875 each. Kept so the time-stepped action (Sim), fitted to slow-motion video on these values, is the same to the last digit.
+export const FACTORY = {"balPunch":1.5,"jackScrew":-0.5732,"repStop":-0.4591,"capstan":13.8078,"restRail":110.7759,"frontPunch":2.299,"letoff":95.6693,"drop":140.2303,"repSpring":1.3553,"backcheck":0.5226,"damperGap":3.5071,"damperStop":5.8495,"pedalLift":4.012,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0,"wippenSpace":0,"wippenTravel":0,"backcheckSpace":0,"backcheckSquare":0,"damperCenter":0,"damperLevel":0};

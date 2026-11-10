@@ -1,6 +1,7 @@
 // "From the bench": tips and tools from working technicians, credited to the people
 // who came up with them or taught them. Keyed by Learn step (a spec id, or an info step's id).
-// Tips are paraphrased, never quoted at length. Each: { text, who, src, url?, forum? }.
+// Tips are paraphrased, never quoted at length. Each: { text, who, src, url?, forum?, sim? }.
+// sim: a line shown under a tip whose method lands somewhere the sim's grade doesn't: which of the two the sim grades.
 // forum: true marks a post from PTG's Pianotech forum (readable without a login). Greg's call
 // (2026-11-06): name them. Crediting technicians for their methods and tools is a trade
 // tradition worth carrying on. Set NAME_FORUM_POSTERS to false to show forum and year only.
@@ -17,7 +18,8 @@ const PT = (who, year, url) => ({ who, src: `PTG Pianotech forum, ${year}`, url,
 export const TIPS = {
   prep: [
     { text: 'Take the keyframe return spring off before bedding and regulating: its friction stiffens the keyframe.', ...BROWN },
-    { text: 'Hammer flange friction of about nine half-swings balances stability against repetition. Keep both sides alike so traveling and spacing stay put.', ...BROWN },
+    { text: 'Hammer flange friction of about nine half-swings balances stability against repetition. Keep both sides alike so traveling and spacing stay put.', ...BROWN,
+      sim: 'The sim grades the friction in grams (Renner\'s 2 to 5 g at 23 mm, about 4 to 10 half-swings by its own conversion). Its healthy hammer is the measured Boston\'s: about 5.' },
     { text: 'Fully regulate one natural and one sharp first, to try out the specs and parts before doing all 88.', ...BROWN },
     { text: 'Easing pliers that work with the stack in place save pulling the action for a few tight keys.', ...PT('Benjamin Sanchez', 2021) },
   ],
@@ -63,7 +65,8 @@ export const TIPS = {
   ],
   letoff: [
     { text: 'Rough in let-off by feel: roll a finger along the jack tender until the jack trips. No bump means too wide; a big bump, or no escape, means too close.', ...PT('Brian De Tar', 1995) },
-    { text: 'Set each button to just block, then back off until the hammer stops touching a string that is still vibrating: dampers held up with the sostenuto, two quick strikes, then bring the hammer to let-off.', ...PT('Ed Foote', 2002) },
+    { text: 'Set each button to just block, then back off until the hammer stops touching a string that is still vibrating: dampers held up with the sostenuto, two quick strikes, then bring the hammer to let-off.', ...PT('Ed Foote', 2002),
+      sim: 'This lands closer than the sim grades: it passes 1/16" give or take 1/64" on this note, and has no vibrating string to test against.' },
     { text: 'A 1/16" strip of magnetic sign material makes a let-off gauge. Exact specs matter less than exact consistency.', ...PT('Newton Hunt', 2002) },
     { text: 'On the bench, a let-off rack: a straightedge set just below let-off under half a section of shanks, matched to sample notes set in the piano.', who: 'the late LaRoy Edwards (Yamaha)', src: 'Instructions for Using the Let Off Rack',
       url: 'https://cdn.shopify.com/s/files/1/0664/2365/2581/files/Instructions_for_Using_The_Let_Off_Rack.odt.pdf' },
@@ -82,7 +85,8 @@ export const TIPS = {
   ],
   aftertouch: [
     { text: 'The "lost punching": with let-off set, put a split card punching on the front pin, build up paper until let-off just happens, then slip the split punching out. Its thickness is your aftertouch.', ...PT('David Skolnik', 2016) },
-    { text: 'An aftertouch gauge cut from an old keytop, slotted around the front pin and thinned to .040". Under a light touch the key clicks onto it just before let-off.', ...PT('Fred Sturm', 2016) },
+    { text: 'An aftertouch gauge cut from an old keytop, slotted around the front pin and thinned to .040". Under a light touch the key clicks onto it just before let-off.', ...PT('Fred Sturm', 2016),
+      sim: 'The sim grades 1.2 to 2.2 mm at Journeyman level: a .040" (1 mm) gauge reads short of that here.' },
     { text: 'Aftertouch is there to get the jack out of the knuckle\'s way as the hammer rebounds. Too much crushes the stop felt; too little gives bobbling and blocking.', ...PT('Conrad Hoffsommer RPT', 2004) },
   ],
   check: [
@@ -91,7 +95,8 @@ export const TIPS = {
     { text: 'A strip of tape on one handle of the wire bender shows which way you\'re bending.', ...PT('Ron Nossaman', 2010) },
   ],
   spring: [
-    { text: 'Fast as it can rise without bouncing at the top. Done right the springs taper from slower in the bass to faster in the treble, and a slight bump in the key is fine: chasing every bump leaves them too weak.', ...PT('Daniel DeBiasio', 2026, 'https://my.ptg.org/discussion/jack-to-knuckle-alignment-question') },
+    { text: 'Fast as it can rise without bouncing at the top. Done right the springs taper from slower in the bass to faster in the treble, and a slight bump in the key is fine: chasing every bump leaves them too weak.', ...PT('Daniel DeBiasio', 2026, 'https://my.ptg.org/discussion/jack-to-knuckle-alignment-question'),
+      sim: 'The sim grades the other way, as the next tip does: a rise with no bump passes, and any pop fails.' },
     { text: 'Yamaha\'s target: enough tension to lift the hammer until the lever reaches the drop screw, not so much you feel a bump.', who: 'Larry Lobel', src: 'Mechanical Music Digest, 1997', url: 'https://mmdigest.com/Archives/Digests/199702/1997.02.09.21.html' },
     { text: 'The Yamaha trick: sight along the row of wippens afterwards to catch springs hung up on the lip of their groove.', ...PT('Joseph Alkana RPT, from LaRoy Edwards', 2000) },
     { text: 'Allow for the season: leave springs a little hoppy in winter; they slow down in summer as the centers tighten.', ...PT('Matt Wynne', 2002) },

@@ -5,7 +5,7 @@ import { createScene, NOTE_Z, BASS } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
 import { TOOLBAG } from './toolbag.js';
-import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS } from './model.js';
+import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled } from './model.js';
 import { initControls, markView, closeMenu } from './controls.js';
 
 const $ = s => document.querySelector(s);
@@ -36,6 +36,19 @@ function fmt(mm, signed = false) {
   return units === 'in' ? s + fracIn(mm) : s + fmm(mm).replace(/^-/, '−');
 }
 const fmtBoth = mm => units === 'in' ? `${fracIn(mm)} (${fmm(mm)})` : `${fmm(mm)} (${fracIn(mm)})`;
+// A band's edge: a fraction where it falls on a 64th, else thousandths of an inch (a level's edge often falls between two
+// 64ths, and the nearest fraction would print a limit that isn't the one graded)
+const mm2 = mm => `${mm.toFixed(2).replace(/^-/, '−')} mm`;
+const on64 = mm => Math.abs(mm / IN * 64 - Math.round(mm / IN * 64)) < 0.02;
+const fmtEdge = mm => units !== 'in' ? mm2(mm).replace(' mm', '') : on64(mm) ? fracIn(mm) : `${(mm / IN).toFixed(3).replace(/^-/, '−').replace(/^(−?)0\./, '$1.')}"`;
+// A graded length as it is printed: near a limit, a 64th (or a tenth of a mm) is too coarse to show which side of it the
+// reading is on, so there it is given to the hundredth of a mm as well, which is what it is graded on (model.js inBand)
+function fmtGraded(id, mm) {
+  const b = SPEC[id].unit === 'mm' ? band(id, level().tolK) : null;
+  if (!b || mm == null) return fmt(mm);
+  if (units === 'in') return b.some(e => fracIn(e) === fracIn(mm)) ? `${fracIn(mm)} (${mm2(mm)})` : fracIn(mm);
+  return b.some(e => fmm(e) === fmm(mm)) ? mm2(mm) : fmm(mm).replace(/^-/, '−');
+}
 
 // ---------- skill level ----------
 // Apprentice: readings live everywhere, looser tolerances, hints. Journeyman: readings only after
@@ -98,13 +111,14 @@ catch (err) {
 // and so do the Sandbox's views where the three stand side by side
 let viewNow = 'action';
 let travelRestG = null;   // the hammer's rest angle in the traveling view, held while a test lifts it
+let winkRestG = null;     // and in the wink test's view, held while the jack is tripped
 const TOGETHER = new Set(['angle', 'damperline', 'damperrow']);
 const focusFor = name => !multi() || name === 'hammerline' || (examActive() ? exam.done : TOGETHER.has(name)) ? null : cur;
 const view = name => { viewNow = name; travelRestG = null; S.setFocus(focusFor(name)); S.setView(name, NOTE_Z[cur]); showView(); };
 // the View button names the view, and its menu marks it; the views only tests use are named here
 // (short enough to fit the button: tests/controls-check.cjs lists them too)
 const TEST_VIEWS = { travel: 'Traveling', jackfront: 'Jack from the keys', checkfront: 'Backcheck, end on', checktop: 'Backcheck, above',
-  damperline: 'Damper heads', damperrow: 'Three dampers', keytop: 'Key tops' };
+  damperline: 'Damper heads', damperrow: 'Three dampers', keytop: 'Key tops', wink: 'Jack and hammer', wippen: 'Wippen' };
 function showView() {
   for (const b of document.querySelectorAll('[data-view]')) b.classList.toggle('on', b.dataset.view === viewNow);
   markView(document.querySelector(`[data-view="${viewNow}"] b`)?.textContent ?? TEST_VIEWS[viewNow] ?? viewNow);
@@ -148,14 +162,14 @@ const STEPS = [
     what: 'Line up the back of the jack with the back of the knuckle core: the thin wood tongue through the middle of the felt roll, which runs up into the shank. Follow the line of the tongue\'s back face down: it should meet the back of the jack\'s top corner. Seen from the front, the jack should also stand centered under the knuckle.',
     how: 'Turn the jack regulating screw to move it front to back. Too far back and the jack drags as it escapes and is slow to get back under the knuckle; too far forward and it has less of the knuckle to push on. To center it side to side, loosen the wippen flange screw and shift the whole wippen, or put traveling paper behind one side of the wippen flange, between it and the rail: the wippen swings like a gate and the jack moves toward the side the paper is on.',
     note: 'Near its mark, jack position changes how let-off feels (forward lightens the bump) more than where it happens; the sim models where, not the feel. Set too far forward, the knuckle slips off the back of the jack before the button trips it: let-off comes early and the blow is weak. The knuckle rides on the jack\'s rounded, slick back corner, so moving the jack also moves the hammer a little: recheck the wink and blow after. Spacing the hammers moves the knuckles sideways, so center the jacks after the hammers. Steinway\'s guide (written for its uprights) also centers the jack\'s toe on its button, and calls for a compromise when the two disagree.' },
-  { spec: 'wink', title: 'Repetition lever height', knobs: ['repStop'], test: 'wink',
+  { spec: 'wink', title: 'Repetition lever height', knobs: ['restRail', 'repStop'], test: 'wink',
     what: 'Trip the jack with the key at rest: the hammer should "wink", dropping a little (about 1/16") onto the repetition lever, and the jack should slip back under the knuckle when you let it go. Put another way, the top of the lever sits just below the top of the jack, about the thickness of a thin front punching.',
-    how: 'Turn the repetition lever height screw. If the hammer doesn\'t move, the lever is too high: it holds the hammer off the jack (lost motion, uneven hammer line). If it drops and the jack can\'t get back under, the lever is too low and the note won\'t repeat.',
-    note: 'The wink moves when you set the blow next, and a spring too weak to carry the hammer deepens it: check it again after the hammer line and the springs.' },
+    how: 'First lower the rest rail out of the way: a hammer that sits on the rail, or lands on it when the jack is tripped, tells you nothing about the lever. Then turn the repetition lever height screw. If the shank is clear of the rail and the hammer doesn\'t move, the lever is too high: it holds the hammer off the jack (lost motion, uneven hammer line). If it drops and the jack can\'t get back under, the lever is too low and the note won\'t repeat.',
+    note: 'The rail gets its own height two steps on. The wink moves when you set the blow next, and a spring too weak to carry the hammer deepens it: check it again after the hammer line and the springs.' },
   { spec: 'blow', title: 'Blow distance and hammer line', knobs: ['capstan'], test: 'blowGauge',
     what: 'The capstan lifts the wippen and sets the hammer\'s rest height. Textbook blow distance is 1 3/4"; makers range from about 44 to 48 mm. Across a section the hammers should form a straight line.',
     how: 'Turn the capstan. Up raises the hammer and shortens the blow.',
-    note: 'If a shank sits on the rest rail, the capstan can\'t lift that hammer: lower the rail out of the way first, then bring it up. Less blow means more aftertouch, so the capstan is one of the two real aftertouch adjustments.' },
+    note: 'If a shank sits on the rest rail, the capstan can\'t lift that hammer: lower the rail out of the way first, then bring it up. Turning the capstan slides the knuckle on the jack a little, so recheck the jack position and the wink after. Less blow means more aftertouch, so the capstan is one of the two real aftertouch adjustments.' },
   { spec: 'restGap', also: ['lostMotion'], title: 'Hammer rest rail', knobs: ['restRail'], test: 'restRail', tests: ['restRail', 'topPlay'],
     what: 'The rest rail sits a little below the shanks so the hammers ride on their wippens and capstans, never on the rail. Then press the key lightly at the very top: the hammer should start up the moment the key moves.',
     how: 'Raise or lower the rail. If a shank sits on the rail, the hammer is not riding on the wippen: the key moves before the hammer does, and that free play is lost motion.',
@@ -163,7 +177,7 @@ const STEPS = [
   { spec: 'letoff', title: 'Let-off', knobs: ['letoff'], test: 'slowPress',
     what: 'Press the key slowly: the jack should trip with the hammer 1/16" from the string on this note. Let-off is set wider toward the bass and closer toward the top treble.',
     how: 'Turn the let-off button. Lower trips earlier (farther from the string). Too close and soft notes block or buzz; too far and you lose pianissimo control and power.',
-    note: 'The jack\'s tender should reach the let-off button just as the repetition lever reaches the drop screw; the drop step comes back to that.' },
+    note: 'The sim grades a generic textbook figure for a middle note, 1/16" give or take 1/64". The makers differ: Steinway says no less than 1/32" and no more than 1/16"; Kawai 1.0 to 1.5 mm in the middle and treble, 2.0 to 2.5 mm in the bass. On a real piano the maker\'s figure governs. The jack\'s tender should reach the let-off button just as the repetition lever reaches the drop screw; the drop step comes back to that.' },
   { spec: 'drop', title: 'Drop', knobs: ['drop'], test: 'slowPress',
     what: 'In a well-regulated action the repetition lever meets the drop screw at the same moment the jack\'s tender meets the let-off button. Then, just after let-off, the hammer falls back onto the lever about 1/16" below where it let off. As the key goes on to the bottom the lever lifts it back up, nearly to where it let off with this much aftertouch: ignore that rise (Igrec), but it must never be pushed back up to the string.',
     how: 'Turn the drop screw. Down stops the lever sooner and gives more drop. Too little drop and the hammer can bobble against the string; too much makes repetition sluggish.',
@@ -173,7 +187,7 @@ const STEPS = [
     how: 'Change the front rail punchings. Thicker punchings stop the key sooner and give less dip. Measure with moderate pressure, about the weight of your hand: pressing hard squashes the punching.',
     note: 'Dip moves checking with it, and how far the lever lifts the hammer back at the bottom, so recheck those. If the hammer blocks before the key bottoms, let-off may be too close, the dip too shallow, or there is lost motion: find which first.' },
   { spec: 'aftertouch', title: 'Aftertouch', knobs: ['frontPunch', 'capstan'], test: 'slowPress',
-    what: 'Aftertouch is the key travel left after let-off. Igrec gives about 1 mm (0.8 to 1.5 mm), and many modern grands run more; this action at the textbook dip and blow gives about 1.7, and the sim grades that. It is what makes sure the jack escapes on the softest blow.',
+    what: 'Aftertouch is the key travel left after let-off. It is what makes sure the jack escapes on the softest blow. Regulated to the textbook dip, blow and let-off, this action gives about 1.5 mm (1/16"). The books differ: Igrec gives about 1 mm (0.8 to 1.5 mm); Steinway 3/64" to 1/16", about the thickness of a new penny. The sim\'s target is 1.7 mm, and it passes 1.2 to 2.2 mm at Journeyman level.',
     how: 'Most texts set it with dip and blow: more dip or less blow gives more aftertouch. Neither moves let-off or drop, judged just after let-off, but dip moves checking: recheck that. Some techs, Chris Brown among them, fine-tune it together with let-off and drop.',
     note: 'Too little and soft notes block or bobble; too much wastes the blow, slows repetition and crushes the jack\'s stop felt.' },
   { spec: 'check', also: ['backcheckAlign'], title: 'Backcheck', knobs: ['backcheck', 'backcheckSpace', 'backcheckSquare'], test: 'strikeHold', tests: ['strikeHold', 'sightBackcheck'],
@@ -189,13 +203,13 @@ const STEPS = [
     how: 'Loosen the set screw in the underlever\'s wire block, move the underlever up or down the wire with the head seated on the strings (a setting jig holds it), and retighten. That changes how much key travel happens before the key end picks up the underlever. Too early and you feel the dampers in the touch; too late and the note isn\'t fully undamped at soft levels.',
     note: 'Lift timing is set key by key, so look for evenness across a section.' },
   { spec: 'damperStop', title: 'Damper stop rail', knobs: ['damperStop'], test: 'damperSlow',
-    what: 'With the key held firmly down, there should be a hair of room (about 1/32" at the damper head) before the underlever reaches the stop rail.',
-    how: 'Raise or lower the rail. It keeps dampers from flying up on hard staccato and bobbling on the way down. It is not the pedal\'s stop: the pedal has its own, set to about the same height.',
-    note: 'Simplified here: the damper falls by its own weight. Many bass dampers also have springs.' },
+    what: 'With the key held firmly down, the damper head should still have a little play before the underlever reaches the stop rail: about 1/16" on this note. Steinway gives about 1/16" in the treble and 3/32" in the bass; Kawai allows 1 to 2 mm.',
+    how: 'Raise or lower the rail. It keeps dampers from flying up on hard staccato and bobbling on the way down. It is not the pedal\'s stop: the pedal has its own, set lower.',
+    note: 'The makers check this holding a sharp down, since the sharps lift their dampers a little higher. The sim has no sharp, so it reads this natural. Simplified here: the damper falls by its own weight. Many bass dampers also have springs.' },
   { spec: 'pedalLift', title: 'Damper pedal lift', knobs: ['pedalLift'], test: 'pedalTest',
-    what: 'The pedal should lift every damper just above where the keys take them, about level with the stop rail.',
-    how: 'Set the pedal\'s stop (or the rod length) so the lift tray takes the dampers just past the key lift. Too little and some notes stay damped; too much and the dampers slam into the stop rail and thump.',
-    note: 'On a real piano also leave a little free play in the pedal and rod before the tray moves. Not modelled yet.' },
+    what: 'The pedal should lift every damper as high as the keys lift them, or a hair less, and never up to the stop rail. Kawai: the same height with the pedal as with the keys. Steinway: to a point below the stop rail, slightly below where the sharp keys lift.',
+    how: 'Set the pedal\'s stop (or the rod length) so the lift tray takes the dampers to the key\'s lift or just under it. Too little and the dampers don\'t clear the strings cleanly; too much and the pedal drives the dampers into the stop rail with a thump.',
+    note: 'The makers set this against the sharps\' lift; the sim reads it against this natural, and passes level with the key down to 1/32" under. On a real piano also leave a little free play in the pedal and rod before the tray moves. Not modelled yet.' },
   { spec: 'damperFall', also: ['damperSeat', 'underCenter'], title: 'Damper wires: fall freely, seat flat', knobs: ['damperDrag', 'damperCenter', 'damperLevel'], centers: ['under'], test: 'pedalTest', tests: ['pedalTest', 'damperSight', 'ulDrop'],
     what: 'Let the pedal go: every damper should drop and land at once. One that hangs or lands late leaves the note ringing. Each head should sit centered on its unison, both ends of its felt on the strings with equal force.',
     how: 'A late damper usually has a wire that isn\'t running straight through its guide rail bushing: bend the wire so it passes without binding, or ease a tight bushing. If the wire runs free, loosen its set screw and let the underlever drop on its own: it should fall from its own weight, or its center is tight. Bend the top of the wire (bends 3 and 4, in Igrec\'s numbering) to center the head, and bend it as seen from the side to seat both ends.',
@@ -213,18 +227,23 @@ const TESTS = {
   straightedge: { label: 'Lay the straightedge', specs: ['keyHeight'], view: 'keyfront',
     run: async () => { await releaseKey(); S.straightedge.visible = true; await waitReal(3); S.straightedge.visible = false; } },
   sightJack: { label: 'Sight the jack under the knuckle', specs: ['jackPos'], view: 'escapement', run: async () => { await releaseKey(); } },
-  wink: { label: 'Trip the jack (wink test)', specs: ['wink'], view: 'escapement',
+  // seen where a technician looks: the jack and, in the same picture, the hammer head against a mark at its rest height
+  wink: { label: 'Trip the jack (wink test)', specs: ['wink'], view: 'wink',
     run: async () => {
-      // push the tender to trip the jack, watch the hammer settle onto the repetition lever, then let go
-      await releaseKey();
-      const g0 = sim.g, gRep = solveG(repSupportZ(sim.a, sim.L)), returns = m.jackReturns;
+      // push the tender to trip the jack, watch the hammer settle onto the repetition lever (or the rest rail, if that
+      // is nearer), then let go
+      await releaseKey(); await waitReal(0.7);   // let the view settle first
+      const g0 = sim.g, gRep = Math.max(solveG(repSupportZ(sim.a, sim.L)), gRail(sim.a)), returns = m.jackReturns;
+      const noSpring = DAMAGE[sim.a.damage]?.noJackSpring;
       for (let i = 0; i < 2; i++) {
         jackOverride = sim.L.psiRest + 0.16; hammerOverride = Math.min(g0, gRep); await waitReal(0.8);
         if (returns) { jackOverride = null; hammerOverride = null; }
-        else { jackOverride = sim.L.psiRest + 0.07; toast('The jack can\'t get back under the knuckle', 'warn'); }
+        else { jackOverride = sim.L.psiRest + (noSpring ? 0.16 : 0.07); toast(noSpring ? 'Let go, the jack stays where it was pushed: nothing springs it back. Look at the jack spring' : 'The jack can\'t get back under the knuckle', 'warn'); }
         await waitReal(0.8);
       }
       jackOverride = null; hammerOverride = null;
+      if (m.onRail) say('The hammer sits on the rest rail, so tripping the jack moves nothing: lower the rail, then trip it again', 'warn');
+      else if (m.winkOnRail) say('The hammer came down on the rest rail, not the repetition lever: lower the rail and trip it again', 'warn');
     } },
   blowGauge: { label: 'Blow distance gauge', specs: ['blow'], view: 'hammer', run: async () => { await releaseKey(); } },
   restRail: { label: 'Look at the rest rail', specs: ['restGap'], view: 'rails', run: async () => { await releaseKey(); } },
@@ -244,7 +263,8 @@ const TESTS = {
   wiggle: { label: 'Wiggle the hammer, play it, and listen', specs: ['hammerSound'], view: 'hammer',
     run: async () => {
       await releaseKey(); sim.press(sim.dip, 250); await waitSim(0.3); sim.press(0, 60); await waitSim(0.3);
-      const d = DAMAGE[sim.a.damage], play = m.hammerPlay > 0;
+      // (a broken jack spring is not the hammer's fault: the hammer and shank are sound, and the wink test finds it)
+      const d = m.hammerSound ? DAMAGE[sim.a.damage] : null, play = m.hammerPlay > 0;
       toast(d ? `You notice ${d.signs}.` : play ? 'You notice play at the center pin, and a click on the blow.' : 'Solid on its center, no play, and quiet.', d || play ? 'warn' : '');
     } },
   pedalTest: { label: 'Pedal down, then let it go', specs: ['pedalLift', 'damperFall'], view: 'dampers', scale: 0.1, damper: true,
@@ -346,7 +366,7 @@ const TESTS = {
     } },
   // Igrec's step 45: tilt the stack so the wippens hang, push one toward the shanks and let it go. It falls back by its
   // own weight; a slow one gets its flange gauged. The key isn't under it (drawn where it rests).
-  wippenTilt: { label: 'Tilt the stack: lift the wippen, let it fall back', specs: ['wippenCenter'], view: 'rails', scale: 0.1,
+  wippenTilt: { label: 'Tilt the stack: lift the wippen, let it fall back', specs: ['wippenCenter'], view: 'wippen', scale: 0.1,
     run: async () => {
       await releaseKey();
       sim.keyShown = 0;
@@ -502,7 +522,7 @@ function knobReadings(id) {
   const ids = KNOB_FOR[id] || [];
   return el('div', { class: 'sets small' }, el('span', { class: 'muted' }, 'Sets'), ids.map(s => {
     const show = revealed(s), r = show ? reading(s) : null;
-    return el('span', { class: 'chip' + (show ? (r.ok ? ' ok' : ' bad') : '') }, el('span', { class: 'dot' }), `${SHORT[s]}: `,
+    return el('span', { class: 'chip' + (show ? (r.ok ? ' ok' : ' bad') : '') }, mark(show ? r.ok : null), `${SHORT[s]}: `,
       show ? r.txt : el('span', { class: 'muted' }, `not measured (${testFor(s)})`));
   }));
 }
@@ -561,12 +581,30 @@ function viewFor(part) {
 }
 
 // ---------- measurement table ----------
+// The band a reading passes in at this level, as printed under its target: its two edges (model.js band(): a sourced
+// band keeps its edges, the sim's own narrows at Exam level and widens for the Apprentice)
+function specBand(id) {
+  const s = SPEC[id], b = band(id, level().tolK);
+  if (id === 'spring') return `net lift ${s.lo} to ${s.hi} × hammer weight`;
+  if (id === 'damperTiming') return `${Math.round(b[0] * 100)}% to ${Math.round(b[1] * 100)}%`;
+  if (id === 'pedalLift') return `${fmtEdge(-b[0])} under to ${b[1] > 0.005 ? `${fmtEdge(b[1])} over` : 'level'}`;
+  if (!b || s.center || s.unit === '' || id === 'keyBushings') return '';
+  if (s.unit === '°') return `within ${+b[1].toFixed(2)}°`;
+  if (id === 'backcheckAlign') return `within ${fmtEdge(b[1])}, ${+(s.tolSq * level().tolK).toFixed(1)}°`;
+  if (id === 'damperSeat') return `within ${fmtEdge(b[1])}, one end up ${fmtEdge(s.tolLevel * level().tolK)}`;
+  if (id === 'lostMotion') return `under ${fmtEdge(b[1])}`;
+  // a band a maker prints in whole millimetres is given as printed (Kawai: 1 to 2 mm), whichever unit is showing
+  if (s.lo !== undefined && Number.isInteger(s.lo) && Number.isInteger(s.hi) && level().tolK <= 1) return `${s.lo} to ${s.hi} mm`;
+  if (s.target === 0) return `within ${fmtEdge(b[1])}`;
+  return `${fmtEdge(b[0])} to ${fmtEdge(b[1])}`;
+}
 function specTarget(id) {
   const s = SPEC[id];
   if (id === 'keyHeight') return mode === 'exam' ? `given: ${fmt(NEIGHBOR_H)}` : 'level with neighbors';
   if (id === 'dip' && mode === 'exam') return `given: ${fmt(SPEC.dip.target)}`;
   if (id === 'jackPos') return 'aligned';
   if (id === 'spring') return 'rises, no pop';
+  if (id === 'pedalLift') return 'the key\'s lift, or a hair under';
   if (id === 'damperTiming') return 'a third to half';
   if (id === 'hammerSquare') return 'square';
   if (id === 'hammerSound') return 'solid, quiet';
@@ -581,7 +619,7 @@ function specTarget(id) {
   if (s.center) { const c = CENTERS[s.center]; return `${c.band.map(g => +g.toFixed(1)).join(' to ')} g at ${c.at} mm${c.springOff ? ', spring off' : ''}`; }
   return fmt(s.target);
 }
-const side = v => Math.abs(v) < 0.05 ? 'centered' : `${fmt(Math.abs(v))} toward the ${v > 0 ? 'bass' : 'treble'}`;
+const side = (v, id) => Math.abs(v) < 0.05 ? 'centered' : `${fmtGraded(id, Math.abs(v))} toward the ${v > 0 ? 'bass' : 'treble'}`;
 function reading(id, mm = m) {
   const r = gradeL(id, mm);
   let txt;
@@ -589,32 +627,37 @@ function reading(id, mm = m) {
   else if (id === 'damperTiming' && r.v != null) txt = `at ${Math.round(r.v * 100)}% of hammer travel`;
   else if (id === 'hammerSquare') txt = r.note ? r.note : Math.abs(r.v) < 0.25 ? 'square' : `${Math.abs(r.v).toFixed(1)}° out of square`;
   else if (id === 'hammerSound') txt = r.note;
-  else if (id === 'hammerSpacing') txt = Math.abs(r.v) < 0.05 ? 'centered' : `${fmt(Math.abs(r.v))} toward the ${r.v > 0 ? 'bass' : 'treble'}`;
-  else if (id === 'hammerTravel') txt = Math.abs(r.v) < 0.05 ? 'straight' : `drifts ${fmt(Math.abs(r.v))} toward the ${r.v > 0 ? 'treble' : 'bass'}`;
+  else if (id === 'hammerSpacing') txt = side(r.v, id);
+  else if (id === 'hammerTravel') txt = Math.abs(r.v) < 0.05 ? 'straight' : `drifts ${fmtGraded(id, Math.abs(r.v))} toward the ${r.v > 0 ? 'treble' : 'bass'}`;
   else if (id === 'damperFall') txt = `${r.note} (lands in ${Math.round(mm.fallMs)} ms)`;
-  else if (id === 'wippenSpacing') txt = side(r.v);
-  else if (id === 'backcheckAlign') txt = `${side(r.v)}, ${Math.abs(mm.backcheckSquare) < 0.25 ? 'square' : `${Math.abs(mm.backcheckSquare).toFixed(1)}° out of square`}`;
-  else if (id === 'lostMotion') txt = r.v < 0.01 ? 'none' : `${fmt(r.v)} of free play at the key`;
-  else if (id === 'damperSeat') txt = `${side(r.v)}, ${Math.abs(mm.damperLevel) < 0.02 ? 'seated flat' : `${mm.damperLevel > 0 ? 'back' : 'front'} end ${fmt(Math.abs(mm.damperLevel))} up`}`;
+  else if (id === 'wippenSpacing') txt = side(r.v, id);
+  else if (id === 'backcheckAlign') txt = `${side(r.v, id)}, ${Math.abs(mm.backcheckSquare) < 0.25 ? 'square' : `${Math.abs(mm.backcheckSquare).toFixed(1)}° out of square`}`;
+  else if (id === 'lostMotion') txt = r.v < 0.01 ? 'none' : `${fmtGraded(id, r.v)} of free play at the key`;
+  else if (id === 'damperSeat') txt = `${side(r.v, id)}, ${Math.abs(mm.damperLevel) < 0.02 ? 'seated flat' : `${mm.damperLevel > 0 ? 'back' : 'front'} end ${fmt(Math.abs(mm.damperLevel))} up`}`;
   else if (id === 'keyBushings') txt = r.v < 0.05 ? r.note : `${fmt(r.v)} side play at the front` + (r.note ? ` · ${r.note}` : ', drops freely');
+  else if (id === 'pedalLift' && r.v != null) txt = (Math.abs(r.v) < 0.005 ? 'level with the key\'s lift' : `${fmtGraded(id, Math.abs(r.v))} ${r.v > 0 ? 'over' : 'under'} the key's lift`)
+    + (r.note && (mm.pedalIntoStop || r.v < 0) ? ` · ${r.note}` : '');
   // grams on the gauge at its distance (the hammer's swing count with it), and any side play
   else if (SPEC[id].center) txt = `${r.v.toFixed(1)} g at ${CENTERS[SPEC[id].center].at} mm` + (id === 'hammerCenter' ? `, ${mm.swings} half-swings` : '')
     + (r.note ? ` · ${r.note}` : '');
   else if (r.v == null) txt = r.note || '—';
-  else if (id === 'keyHeight') txt = Math.abs(r.v) < 0.05 ? 'level' : `${fmt(Math.abs(r.v))} ${r.v > 0 ? 'high' : 'low'}`;
-  else if (id === 'jackPos') txt = Math.abs(r.v) < 0.05 ? 'aligned' : `${fmt(Math.abs(r.v))} ${r.v > 0 ? 'too far back' : 'too far forward'}`;
-  else txt = fmt(r.v) + (r.note ? ` · ${r.note}` : '');
+  else if (id === 'keyHeight') txt = Math.abs(r.v) < 0.05 ? 'level' : `${fmtGraded(id, Math.abs(r.v))} ${r.v > 0 ? 'high' : 'low'}`;
+  else if (id === 'jackPos') txt = Math.abs(r.v) < 0.05 ? 'aligned' : `${fmtGraded(id, Math.abs(r.v))} ${r.v > 0 ? 'too far back' : 'too far forward'}`;
+  else txt = fmtGraded(id, r.v) + (r.note ? ` · ${r.note}` : '');
   if (id !== 'spring' && r.note && (id === 'keyHeight' || id === 'jackPos')) txt += ` · ${r.note}`;
   return { ok: r.ok, txt };
 }
+// in or out of spec, said with a mark as well as a colour (red and green alone don't reach everyone)
+const mark = ok => el('span', { class: 'mark ' + (ok === null ? 'none' : ok ? 'ok' : 'bad'), title: ok === null ? 'not measured' : ok ? 'in spec' : 'out of spec',
+  'aria-label': ok === null ? 'not measured' : ok ? 'in spec' : 'out of spec', role: 'img' }, ok === null ? '○' : ok ? '✓' : '✗');
 function measureTable(ids, { head = true, short = false } = {}) {
   return el('table', { class: 'specs' + (head ? '' : ' bare') },
-    head ? el('thead', {}, el('tr', {}, el('th', {}, 'Check'), el('th', {}, 'Target'), el('th', {}, 'Now'))) : null,
+    head ? el('thead', {}, el('tr', {}, el('th', {}, 'Check'), el('th', {}, 'Target, passes'), el('th', {}, 'Now'))) : null,
     el('tbody', {}, ids.map(id => {
-      const show = revealed(id), r = reading(id);
+      const show = revealed(id), r = reading(id), bandTxt = mode === 'exam' && (id === 'keyHeight') ? '' : specBand(id);
       return el('tr', { class: show ? (r.ok ? 'ok' : 'bad') : '' },
-        el('td', {}, el('span', { class: 'dot' }), short ? SHORT[id] || SPEC[id].name : SPEC[id].name),
-        el('td', { class: 'muted' }, specTarget(id)),
+        el('td', {}, mark(show ? r.ok : null), short ? SHORT[id] || SPEC[id].name : SPEC[id].name),
+        el('td', { class: 'muted' }, specTarget(id), bandTxt ? el('span', { class: 'band' }, bandTxt) : null),
         el('td', {}, show ? r.txt : el('span', { class: 'muted' }, 'not measured')));
     })));
 }
@@ -629,8 +672,9 @@ const SCENARIOS = [
   { complaint: 'Fast repeated notes and trills fail on this key.', faults: { repSpring: -0.6 }, answer: 'Repetition spring too weak.' },
   { complaint: 'There\'s a little bump in the key when I let it up slowly.', faults: { repSpring: +0.7 }, answer: 'Repetition spring too strong.' },
   { complaint: 'When I play loud and hold the key down, the hammer doesn\'t stay back: it bounces up and sits right under the string.', faults: { backcheck: -3.0 }, alone: true, answer: 'Backcheck bent too far back: it misses the tail, so nothing catches the hammer and it comes back up on the repetition lever.' },
-  { complaint: 'There\'s free play at the top of the key and the tone is weak.', faults: { capstan: -0.4 }, answer: 'Capstan too low: the hammer rests on the rail, so the key moves before it lifts anything (lost motion), and the blow is too long.' },
-  { complaint: 'The hammer on this key sits higher than its neighbors, and the key goes on down a long way after the note sounds.', faults: { capstan: +0.5 }, answer: 'Capstan too high: the blow is short, so aftertouch grows. Let-off doesn\'t move: the button still trips the jack at the same point. The jack position reading shifts a little with the hammer\'s height and comes right with the capstan.' },
+  // sized so the play can be felt and the lost-motion test shows it: about half a millimetre at the key (at -0.4 it was 0.1)
+  { complaint: 'There\'s free play at the top of this key: it goes down a little before anything happens.', faults: { capstan: -0.6 }, answer: 'Capstan too low: the hammer rests on the rail, so the key goes down about half a millimetre before it lifts anything (lost motion). The blow is too long as well, which leaves almost no aftertouch; both come right when the capstan is brought back up.' },
+  { complaint: 'The hammer on this key sits higher than its neighbors, and the key goes on down a long way after the note sounds.', faults: { capstan: +0.5 }, answer: 'Capstan too high: the blow is short, so aftertouch grows. Let-off doesn\'t move: the button still trips the jack at the same point. The jack position reading shifts a little with the hammer\'s height, and the damper now starts to lift a little late as a share of the hammer\'s shorter travel: both come right with the capstan.' },
   { complaint: 'This key sits higher than the others.', faults: { balPunch: +0.5 }, answer: 'Too many balance rail punchings: key too high (and the dip changed with it).' },
   { complaint: 'Soft repeated notes on this key feel draggy compared with its neighbors.', faults: { jackScrew: -1.4 }, answer: 'Jack set too far back under the knuckle: it drags as it escapes and is slow to get back under. Sight the back of the jack against the back of the knuckle core. Moving it shifts the hammer\'s height a little too, so blow and wink come right once it is back in place.' },
   { complaint: 'Soft notes on this key buzz, as if something is touching the string.', faults: { drop: +2.0 }, alone: true, answer: 'Drop screw too high: after let-off the repetition lever carries the hammer back up against the string on a soft blow.' },
@@ -640,7 +684,7 @@ const SCENARIOS = [
   { complaint: 'This note keeps ringing faintly after I let the key up, even without the pedal.', faults: { damperLevel: +0.6 }, answer: 'The damper head isn\'t seated: its back end sits up off the strings, so a string goes on ringing. Bend the wire, as seen from the side, until both ends sit with equal force.' },
   { complaint: 'One string of this note rings on after I let go.', faults: { damperCenter: +2.0 }, answer: 'The damper head sits off center on its unison, so its felt doesn\'t cover one string properly. Bend the top of the wire to center it.' },
   { complaint: 'The key feels heavier right at the top of the stroke than the ones next to it.', faults: { damperGap: -1.5 }, answer: 'The damper lifts too early: the key picks up the underlever before the hammer is a third of the way up. Lifting earlier also lifts it further, which eats the stop rail clearance and leaves the pedal short of the key lift: they come right once the timing is fixed.' },
-  { complaint: 'There\'s a thump when I put the sustain pedal down.', faults: { pedalLift: +2 }, answer: 'Pedal lift too high: it drives the dampers into the stop rail.' },
+  { complaint: 'There\'s a thump when I put the sustain pedal down.', faults: { pedalLift: +2 }, answer: 'Pedal lift too high: it drives the dampers into the stop rail (put the pedal down and the sim says so). The pedal should lift them no higher than the keys do, and stop short of the rail.' },
   { complaint: 'This note sounds thinner than its neighbors, and there\'s a little click. The hammer looks a bit crooked.', faults: { damage: 'splitShank' }, alone: true,
     answer: 'A split hammer shank, not yet broken: it flexes on the blow (less power), clicks, and the head wobbles. Burning or traveling won\'t hold; replace the shank, then travel, space and square the new one.' },
   { complaint: 'There\'s a click in this note, and it doesn\'t seem to hit in the same place every time.', faults: { damage: 'looseFlange' }, alone: true,
@@ -669,7 +713,7 @@ const SCENARIOS = [
   { complaint: 'After this humid summer, this note keeps ringing a little after I let the key go.', faults: { center: 'underTight' }, alone: true,
     answer: 'A tight damper underlever center: the damper falls late. The wire runs straight in its guide bushing; with its set screw loosened the underlever comes down slowly on its own. Ease the center (James Kelly repins a half size up and reams).' },
   { complaint: 'Sometimes this note doesn\'t play again unless I let the key all the way up.', faults: { damage: 'brokenJackSpring' }, alone: true,
-    answer: 'A broken jack spring: nothing pushes the jack back under the knuckle until the key is fully up. Replace the spring.' },
+    answer: 'A broken jack spring: nothing pushes the jack back under the knuckle until the key is fully up. Trip the jack by its tender and it stays where you pushed it; the hammer and shank are sound. Replace the spring.' },
   { complaint: 'It was regulated when we bought it eight years ago. Now there\'s a click at the top of the key, soft notes are hard to control, and it feels like it bottoms out.', faults: { wear: 0.8 }, alone: true,
     answer: 'Nothing was turned: eight years of playing packed down the felts and cloth. Blow grew, the hammer settled onto the rest rail (lost motion), and aftertouch shrank. The fix is a touch-up of the whole sequence.' },
   { complaint: 'This key wobbles from side to side, and it clicks when I play it.', faults: { bushing: 'frontWorn' }, alone: true,
@@ -685,11 +729,13 @@ function newScenario() {
   scenario = { ...s, faults: { ...s.faults } };
   adj = { ...FACTORY };
   for (const [k, v] of Object.entries(scenario.faults)) adj[k] = typeof v === 'string' ? v : (adj[k] || 0) + v;
-  // a second, quieter problem half the time
+  // a second, quieter problem half the time: never one that puts back in spec something the first put out (a high key
+  // gives a shallow dip its depth back, and the customer's "feels shallow" would no longer be true of the key)
   if (!s.alone && Math.random() < 0.5) {
-    const s2 = pool.find(p => !p.alone && !Object.keys(p.faults).some(k => k in s.faults));
-    for (const [k, v] of Object.entries(s2.faults)) adj[k] += v;
-    scenario.second = s2;
+    const both = p => { const a = { ...adj }; for (const [k, v] of Object.entries(p.faults)) a[k] += v; return a; };
+    const ks = [...new Set([1, level().tolK])];
+    const s2 = pool.find(p => p !== s && !p.alone && !Object.keys(p.faults).some(k => k in s.faults) && !cancelled(adj, both(p), ks).length);
+    if (s2) { adj = both(s2); scenario.second = s2; }
   }
   tested = new Set(); testsUsed = 0; verdict = null; checks = 0; gaveUp = false; hint = false;
   applyAdj();
@@ -747,7 +793,8 @@ function redraw() {
     for (const b of document.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.mode === U.mode);
     const p = $('#mode');
     p.replaceChildren(); $('#actionbar').replaceChildren();
-    if (showCredits) U.renderCredits(p, () => { showCredits = false; refresh(); }); else U.renderPanel(p);
+    if (showLimits) renderLimits(p);
+    else if (showCredits) U.renderCredits(p, () => { showCredits = false; refresh(); }); else U.renderPanel(p);
     return;
   }
   for (const b of document.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.mode === mode);
@@ -758,7 +805,8 @@ function redraw() {
   S.setCallouts(mode !== 'sandbox' || distancesOn);
   const p = $('#mode');
   p.replaceChildren(); $('#actionbar').replaceChildren();
-  if (showCredits) renderCredits(p);
+  if (showLimits) renderLimits(p);
+  else if (showCredits) renderCredits(p);
   else if (mode === 'learn') renderLearn(p);
   else if (mode === 'diagnose') renderDiagnose(p);
   else if (mode === 'exam') renderExam(p);
@@ -783,7 +831,8 @@ function renderLearn(p) {
       onclick: () => { stepIdx = i; focusStep(); refresh(); } }, String(i + 1))),
     el('button', { class: 'pip' + (done ? ' cur' : ''), title: 'Final check', onclick: () => { stepIdx = STEPS.length; refresh(); } }, '✓')),
     // the key arrives knocked out of regulation (messUp), and nothing else on the page would say so
-    done ? null : el('p', { class: 'muted small' }, 'This key starts out of regulation on purpose: every setting, hammer alignment included, is knocked a little off. Work through the steps to put it right; ✓ re-checks everything at the end.'));
+    done ? null : el('p', { class: 'muted small' }, 'This key starts out of regulation on purpose: every setting, hammer alignment included, is knocked a little off. Work through the steps to put it right; ✓ re-checks everything at the end. The key is kept while you look at another tab. ',
+      el('button', { class: 'linkish', onclick: newLearnKey }, 'Start over with a new key')));
   if (done) {
     GRADED.flatMap(stepSpecs).forEach(id => tested.add(id));
     const bad = GRADED.filter(s => !stepDone(s));
@@ -821,7 +870,8 @@ function renderLearn(p) {
 const named = t => !t.forum || NAME_FORUM_POSTERS || NAMED_OK.has(t.who);
 function tipLine(t) {
   const label = named(t) ? `${t.who}, ${t.src}` : t.src;
-  return el('li', {}, t.text, ' ', el('span', { class: 'credit' }, '— ', t.url ? el('a', { href: t.url, target: '_blank', rel: 'noopener' }, label) : label));
+  return el('li', {}, t.text, ' ', el('span', { class: 'credit' }, '— ', t.url ? el('a', { href: t.url, target: '_blank', rel: 'noopener' }, label) : label),
+    t.sim ? el('div', { class: 'muted small simgrades' }, t.sim) : null);
 }
 function benchTips(key) {
   const tips = TIPS[key];
@@ -846,6 +896,43 @@ function renderCredits(p) {
     el('div', { class: 'row' }, el('button', { onclick: () => { showCredits = false; refresh(); } }, '← Back')));
 }
 let showCredits = false;
+// ---------- what the model leaves out ----------
+// Said plainly, in one place, reached from the foot of the panel on every tab of both actions (README.md has the same
+// list): a trainer's blind spots are part of what it teaches.
+const LIMITS = {
+  both: [
+    ['No feel.', 'The key and its punchings are rigid, and the key moves at a set speed, not under a finger\'s weight. There is no touchweight, no let-off bump, no punching that squashes under pressure: dip and aftertouch read the same however the key is pressed.'],
+    ['No sound.', 'Blocking, buzzing, bobbling and ringing strings are told in words, not heard. Nothing here trains the ear, and voicing and hammer-to-string mating are not modelled.'],
+    ['One natural key.', 'No sharp: nothing on sharp height, sharp dip, or the damper and pedal settings the makers check on a sharp. The three-note model is three naturals.'],
+    ['One note\'s geometry.', 'One place in the scale. No taper from bass to treble (let-off, springs, damper play), no bass dampers with springs.'],
+    ['Generic targets.', 'Textbook numbers, not one maker\'s specs. On a real piano the maker\'s figures govern, and Steinway\'s or Kawai\'s own regulation would fail some checks here.'],
+    ['Every click is exact and instant.', 'No stripped screws, no bent wire springing back, no paper that is nearly right. The time a job takes here says nothing about the bench.'],
+    ['No assembly, bedding, key squaring or spacing, hammer filing.', 'They are named in Learn so the order reads complete, but they are not done here.'],
+  ],
+  grand: [
+    ['Measured, with stand-ins.', 'The hammer action is one measured Boston GP-178 note (Hirschkorn, 2004). The dampers and their lift tray are drawn to suit, not measured.'],
+    ['No una corda or sostenuto, and no pedal trapwork.', 'The damper pedal lifts the tray by itself: no pitman, no free play to regulate.'],
+    ['Parts are rigid.', 'The knuckle does not settle into the repetition lever, the backcheck and its wire do not give, felts do not compress under a blow. The fingertip check of jack against lever, and "as high as it goes without scraping" for the backcheck, don\'t come out as they do on a bench.'],
+    ['The repetition spring is graded by a number, not the eye.', 'The rise you watch is a simplified one, fitted to slow-motion video; the grade is the spring\'s net lift.'],
+    ['Wear amounts are the sim\'s own estimates.', 'The directions are right; the sizes have no published source.'],
+  ],
+  upright: [
+    ['Built on a filmed one-note action model.', 'Its parts and motion come from Renner\'s catalog, Steinway\'s vertical guide, Bill Spurlock\'s writing and Jim Ellis\'s high-speed clips. The key and rail dimensions are stand-ins until a real one is measured.'],
+    ['No pedal linkage.', 'The pedals move the dampers and the hammer rail by themselves: no lift rod, trap levers or lost motion in them to regulate.'],
+    ['No tool models for the upright yet.', 'The tool bag shows the grand\'s tools.'],
+  ],
+};
+let showLimits = false;
+function renderLimits(p) {
+  const list = rows => el('ul', {}, rows.map(([b, t]) => el('li', {}, el('b', {}, b), ' ', t)));
+  put(p, el('h2', {}, 'What this model doesn\'t do'),
+    el('p', {}, 'A picture on a screen can teach what each adjustment does, what it moves and the order of the work. It can\'t teach your hands or your ear, and it leaves these out:'),
+    list(LIMITS.both),
+    el('h3', {}, 'The grand'), list(LIMITS.grand),
+    el('h3', {}, 'The upright'), list(LIMITS.upright),
+    el('p', { class: 'muted' }, 'Spotted something a real action wouldn\'t do? ', el('a', { href: 'https://keyandcable.com/feedback.html' }, 'Tell me'), '.'),
+    el('div', { class: 'row' }, el('button', { onclick: () => { showLimits = false; refresh(); } }, '← Back')));
+}
 function focusStep() {
   const st = STEPS[stepIdx];
   if (!st) return;
@@ -1049,7 +1136,8 @@ const howTo = () => el('ol', { class: 'how' },
   el('li', {}, el('b', {}, 'Adjust. '), 'Click the part of the action you would turn (a screw, a spring, a punching): its − and + come up beside it, with the readings, and they change as you turn it.',
     panelKnobs() ? ' At this level each test here also lists what sets it.' : ''),
   el('li', {}, el('b', {}, 'Check. '), 'Play the key to try it, then press ', el('b', {}, 'Check my work'),
-    ' at the bottom. You are told which checks are still out, but not why, until it is right or you ask for the answer.'));
+    level().live ? ' at the bottom. You are told which checks are still out, but not why, until it is right or you ask for the answer.'
+      : ' at the bottom. You are told how many checks are still out, and which of the ones you have measured, but not why. A reading you haven\'t run the test for is not named: finding which test to run is the job. Ask for the answer if you are stuck.'));
 // a solved verdict no longer holds once anything is turned again
 const unsolve = () => { if (verdict && !verdict.bad.length) verdict = null; };
 function checkWork() {
@@ -1058,8 +1146,12 @@ function checkWork() {
   refresh();
   // the list sits at the top: go there the first time and when it's right; after that, don't pull you out of the part you're in
   if (checks === 1 || !verdict.bad.length) $('#verdict')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-  else toast(`Still out: ${verdict.bad.map(id => SHORT[id] || SPEC[id].name).join(', ')}`, 'warn');
+  else { const { named, unnamed } = stillOut(); toast(`Still out: ${[...named.map(id => SHORT[id] || SPEC[id].name), unnamed ? unmeasured(unnamed, named.length) : null].filter(Boolean).join(', ')}`, 'warn'); }
 }
+// What a check names: only readings you have measured (at Apprentice level every reading is live, so all of them). The
+// rest are counted, not named: naming them before a test is run would hand over the diagnosis.
+const stillOut = () => { const named = verdict.bad.filter(revealed); return { named, unnamed: verdict.bad.length - named.length }; };
+const unmeasured = (n, more) => `${n}${more ? ' more' : ''} in readings you haven't measured yet`;
 function renderDiagnose(p) {
   if (!scenario) {
     put(p, el('h2', {}, 'Find the fault'),
@@ -1074,7 +1166,8 @@ function renderDiagnose(p) {
   put(p, el('div', { class: 'complaint' }, el('div', { class: 'muted small' }, 'The customer says'), el('p', {}, `“${scenario.complaint}”`)),
     verdict ? el('div', { class: 'verdict ' + (solved ? 'ok' : 'bad'), id: 'verdict' },
       el('h3', {}, solved ? 'Regulated. Nice work.' : `Last check: ${verdict.bad.length} still out of spec`),
-      solved ? null : el('ul', { class: 'small' }, verdict.bad.map(id => el('li', {}, SPEC[id].name))),
+      solved ? null : el('ul', { class: 'small' }, stillOut().named.map(id => el('li', {}, SPEC[id].name)),
+        stillOut().unnamed ? el('li', { class: 'muted' }, unmeasured(stillOut().unnamed, stillOut().named.length), ': run the tests to find them') : null),
       solved || gaveUp ? answer() : null,
       el('p', { class: 'muted small' }, `${testsUsed} test${testsUsed === 1 ? '' : 's'} run, checked ${checks} time${checks === 1 ? '' : 's'}.`),
       el('div', { class: 'row' }, solved || gaveUp ? el('button', { class: solved ? 'primary' : '', onclick: newScenario }, 'Next customer')
@@ -1191,13 +1284,23 @@ function factoryAll() {
 }
 // the three dampers side by side: when each starts to lift on its key, and how long each takes to land off the pedal
 function damperCompare() {
-  const cell = (id, txt) => s => el('td', { class: gradeL(id, NOTES[s].m).ok ? 'okc' : 'badc' }, txt(NOTES[s].m));
+  const cell = (id, txt) => s => { const ok = gradeL(id, NOTES[s].m).ok; return el('td', { class: ok ? 'okc' : 'badc' }, mark(ok), txt(NOTES[s].m)); };
   const rows = [
     ['Starts lifting (share of hammer travel)', 'damperTiming', mm => mm.damperTiming == null ? 'never' : `${Math.round(100 * mm.damperTiming)}%`],
     ['Lands after the pedal', 'damperFall', mm => `${Math.round(mm.fallMs)} ms`]];
   return el('table', { class: 'specs score' },
     el('thead', {}, el('tr', {}, el('th', {}, 'Dampers'), EXAM_ORDER.map((s, i) => el('th', {}, `Note ${i + 1}`)))),
     el('tbody', {}, rows.map(([name, id, txt]) => el('tr', {}, el('td', {}, name), EXAM_ORDER.map(cell(id, txt))))));
+}
+// The action ratio, as a reading: how far the hammer rises for each mm of key, and the three levers it is made of
+// (model.js measureRatio). It is why this action gives the aftertouch it does at a given dip and blow.
+function ratioBlock() {
+  const x = v => v == null ? '—' : v.toFixed(2);
+  return el('div', { class: 'wear', id: 'ratio' },
+    el('div', { class: 'knob-head' }, el('b', {}, 'Action ratio'), el('span', { class: 'muted small' }, m.ratio > 0.05 ? `${m.ratio.toFixed(1)} : 1` : 'none: the hammer isn\'t lifted')),
+    el('div', { class: 'muted small' }, `The hammer rises ${fmtBoth(m.ratio * m.ratioOver)} for the first ${fmtBoth(m.ratioOver)} of key dip. `
+      + `At rest the levers are: key ${x(m.ratioKey)} (capstan rise per unit at the key front) × wippen ${x(m.ratioWippen)} (knuckle per unit at the capstan) × shank ${x(m.ratioShank)} (hammer per unit at the knuckle). `
+      + 'The ratio falls a little through the stroke. Dip = (blow − let-off) ÷ ratio + aftertouch (Yuji Nakamura).'));
 }
 function renderSandbox(p) {
   const three = multi(), dis = busy ? '' : false;
@@ -1218,6 +1321,7 @@ function renderSandbox(p) {
       el('button', { onclick: messUpSandbox }, 'Mess it all up')),
     wearControl(),
     AREAS.map(areaPanel),
+    ratioBlock(),
     el('label', { class: 'row small' }, 'Break something: ',
       el('select', { onchange: e => { adj.damage = e.target.value || null; clearFrames(); sim.setAdj(adj); sim.reset(); m = measure(adj); store(); refresh(); } },
         el('option', { value: '' }, 'nothing'),
@@ -1314,7 +1418,8 @@ function examScore() {
     notScored(id, i) ? { txt: '—', ok: true, skip: true } : { ...reading(id, NOTES[i].m), ok: gradeL(id, NOTES[i].m).ok }) }));
   const even = EVEN.concat(exam.dampers ? ['damperTiming'] : []).map(id => {
     const vals = EXAM_ORDER.map(i => gradeL(id, NOTES[i].m).v);
-    const ok = vals.every(v => v != null) && Math.max(...vals) - Math.min(...vals) <= SPEC[id].tol * exam.level.tolK;
+    const [lo, hi] = band(id, exam.level.tolK);   // even: within the spec's tolerance of each other (half its band)
+    const ok = vals.every(v => v != null) && Math.max(...vals) - Math.min(...vals) <= (hi - lo) / 2 + 1e-9;
     return { id, ok, spread: vals.every(v => v != null) ? Math.max(...vals) - Math.min(...vals) : null };
   });
   if (exam.dampers) {
@@ -1363,7 +1468,7 @@ function renderExam(p) {
 }
 function renderExamResult(p) {
   const sc = examScore(), pass = sc.pct >= 80;
-  const cell = c => el('td', { class: c.ok ? 'okc' : 'badc' }, c.txt);
+  const cell = c => el('td', { class: c.ok ? 'okc' : 'badc' }, c.skip ? null : mark(c.ok), c.txt);
   put(p, el('div', { class: 'verdict ' + (pass ? 'ok' : 'bad') },
       el('h2', {}, `${sc.pct}%: ${pass ? 'pass' : 'not yet'}`),
       el('p', { class: 'muted small' }, `${exam.level.name} level · time used ${clock(exam.used)} of ${exam.minutes}:00 · ${testsUsed} tests run`),
@@ -1373,7 +1478,7 @@ function renderExamResult(p) {
       el('tbody', {}, sc.rows.map(r => el('tr', {}, el('td', {}, SPEC[r.id].name), r.cells.map(cell))))),
     el('h3', {}, 'Evenness across the three notes'),
     el('table', { class: 'specs score' }, el('tbody', {}, sc.even.map(e =>
-      el('tr', {}, el('td', {}, e.ms ? 'Dampers land together' : SPEC[e.id].name), el('td', { class: e.ok ? 'okc' : 'badc' },
+      el('tr', {}, el('td', {}, e.ms ? 'Dampers land together' : SPEC[e.id].name), el('td', { class: e.ok ? 'okc' : 'badc' }, mark(e.ok),
         e.spread == null ? 'not all working' : e.ms ? `${Math.round(e.spread)} ms apart` : e.id === 'damperTiming' ? `spread ${Math.round(e.spread * 100)}%` : `spread ${fmt(e.spread)}`))))),
     el('p', { class: 'muted small' }, `Evenness passes when the three notes are within each spec's tolerance of each other. Practice scoring, not PTG's.`),
     el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { toOneNote(); refresh(); } }, 'New exam')));
@@ -1425,6 +1530,10 @@ function handleEvents() {
     if (e.type === 'softcheck') say(show('check') ? `Too soft to stay checked: the backcheck slowed it ${fmt(e.dist)} from the string and the repetition lever lifted it back out`
       : 'Too soft to stay checked: the repetition lever lifted the hammer back out');
     if (e.type === 'damperbounce') say('The damper bobbled on the strings', 'warn');
+    // the pedal taking the dampers up into the stop rail (a regulated pedal stops short of it); a hard blow that
+    // throws a damper up to the rail is what the rail is there for, and is only noted
+    if (e.type === 'damperstop') sim.pedalTarget > 0 && sim.a.pedalLift >= sim.a.damperStop ? say('Thump: the pedal drove the dampers into the stop rail', 'warn')
+      : say('The damper flew up to its stop rail');
     if (e.type === 'bobble') say(e.lever ? 'The hammer floated up off the repetition lever and struck again (bobble)'
       : 'The hammer bounced off the jack and struck again (bobble)', 'warn');
     // the tender reaching the let-off button and the lever reaching the drop screw: together in a well-regulated action
@@ -1470,7 +1579,16 @@ function updateCallouts() {
     return;
   }
   const keep = [];
-  if (show('blow') && atRest) {
+  // the wink test: a mark at the height the crown rests at, so the head's dip shows against it (and its size, once measured)
+  if (viewNow === 'wink') {
+    if (atRest && hammerOverride === null) winkRestG = sim.g;
+    if (winkRestG !== null) {
+      const c0 = crownTop(winkRestG), c = crownTop(g), dipped = c0[1] - c[1] > 0.02;
+      S.setCallout('winkrest', [c0[0] - 14, c0[1], z], [c0[0] + 14, c0[1], z], 'rest height', { dy: -14 }); keep.push('winkrest');
+      if (dipped && show('wink')) { S.setCallout('winkdip', [c0[0] + 16, c0[1], z], [c0[0] + 16, c[1], z], `wink ${fmt(c0[1] - c[1])}`, { dy: 14 }); keep.push('winkdip'); }
+    }
+  } else winkRestG = null;
+  if (show('blow') && atRest && !(viewNow === 'wink' && hammerOverride !== null)) {
     const c = crownTop(g); S.setCallout('blow', [c[0], c[1], z], [c[0], G.stringY, z], `blow ${fmt(G.stringY - c[1])}`); keep.push('blow');
   }
   if (show('restGap') && atRest) {
@@ -1574,7 +1692,8 @@ $('#labels').onclick = () => { labelsOn = !labelsOn; S.setLabels(labelsOn); $('#
 // on from the start where the stage has room for it
 const setInset = on => { S.setInset(on); $('#inset-btn').classList.toggle('on', on); };
 $('#inset-btn').onclick = () => setInset(!$('#inset-btn').classList.contains('on'));
-S.insetEl.onclick = () => view('keyfront');
+const stepping = () => paused || !!cue;
+S.insetEl.onclick = () => view(stepping() ? 'hammer' : 'keyfront');
 setInset($('#stage').clientWidth >= 700);
 // ---------- frame by frame ----------
 // Pause freezes the action. Frame ▶ moves it on by what one screen frame shows at the chosen speed (press a key
@@ -1686,11 +1805,15 @@ function runCue() {
 $('#k-letoff').onclick = goToLetoff;
 for (const b of document.querySelectorAll('[data-view]')) b.onclick = () => view(b.dataset.view);
 for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
-  if (action === 'upright') { if (U.busy) return; showCredits = false; U.setMode(b.dataset.mode); refresh(); return; }
+  if (action === 'upright') { if (U.busy) return; showCredits = showLimits = false; U.setMode(b.dataset.mode); refresh(); return; }
   if (b.dataset.mode === mode) return;
   if (mode === 'exam' && exam.started && !exam.done && b.dataset.mode !== 'exam' && !confirm('Leave the exam? Your progress will be lost.')) return;
+  // the Learn key and the Find-the-fault customer are kept while another tab is open (looking a tool up, trying
+  // something in the Sandbox), and are there again on coming back
+  if (mode === 'learn') kept.learn = { adj: { ...adj }, tested: new Set(tested), stepIdx };
+  if (mode === 'diagnose' && scenario) kept.diagnose = { adj: { ...adj }, tested: new Set(tested), scenario, testsUsed, verdict, checks, gaveUp, hint };
   toOneNote();
-  showCredits = false;
+  showCredits = showLimits = false;
   if (mode === 'drills') { drillsStop?.(); drillsEl = null; }
   if (mode === 'tools') { S.hideTool(); toolSel = null; S.setLabels(labelsOn); }
   dropHand();
@@ -1698,15 +1821,31 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   $('#framepad').hidden = true;
   if (mode === 'tools') { S.setLabels(false); if (sim.dTarget > 0) sim.press(0, 60); if (TOOLBAG.length) pickTool(TOOLBAG[0].id); }
   if (mode === 'exam' || mode === 'drills' || mode === 'tools') { exam = { started: false, done: false }; refresh(); return; }
-  if (mode === 'learn') { stepIdx = 0; messUp(); focusStep(); }
-  else if (mode === 'diagnose') { scenario = null; adj = { ...FACTORY }; applyAdj(); }
+  const k = kept[mode]; kept[mode] = null;
+  if (mode === 'learn') {
+    if (k) { ({ stepIdx } = k); adj = k.adj; applyAdj(); tested = k.tested; store(); refresh(); } else { stepIdx = 0; messUp(); }
+    focusStep();
+  }
+  else if (mode === 'diagnose') {
+    scenario = null; adj = { ...FACTORY };
+    if (k) ({ adj, scenario, testsUsed, checks, gaveUp, hint } = k);
+    applyAdj();
+    if (k) { tested = k.tested; verdict = k.verdict; store(); refresh(); }
+  }
   else { adj = { ...FACTORY }; applyAdj(); }
 };
+const kept = { learn: null, diagnose: null };
+// a fresh Learn key, asked for: the work on this one goes
+function newLearnKey() {
+  if (busy || !confirm('Start over with a new key? The work on this one will be lost.')) return;
+  stepIdx = 0; tested = new Set(); messUp(); focusStep();
+}
 $('#units').onclick = () => { units = units === 'in' ? 'mm' : 'in'; refresh(); };
 $('#level').value = Object.keys(LEVELS).find(k => LEVELS[k] === LEVEL);
 // a hint or a check was given at the old level's tolerances
 $('#level').onchange = e => { LEVEL = LEVELS[e.target.value]; hint = false; verdict = null; try { localStorage.setItem('regsim-level', e.target.value); } catch {} e.target.blur(); refresh(); };
-$('#credits').onclick = e => { e.preventDefault(); showCredits = true; refresh(); $('aside').scrollTop = 0; };
+$('#credits').onclick = e => { e.preventDefault(); showCredits = true; showLimits = false; refresh(); $('aside').scrollTop = 0; };
+$('#limits').onclick = e => { e.preventDefault(); showLimits = true; showCredits = false; refresh(); $('aside').scrollTop = 0; };
 window.addEventListener('keydown', e => {
   if (mode === 'tools' || action === 'upright') return;   // no key on the bench while a tool is out; the upright has its own keys
   if (e.code === 'Escape') { setLoop(false); letUp(); closePop(); }
@@ -1977,7 +2116,11 @@ function frame(now) {
   const toLetoff = !cue ? '' : cue.run ? 'going to let-off · ' : frameNo < cue.letoff ? `let-off in ${frames(cue.letoff - frameNo)} · `
     : frameNo === cue.letoff ? 'let-off · ' : `${frames(frameNo - cue.letoff)} after let-off · `;
   $('#keypos').textContent = `${paused ? 'paused · ' : ''}${toLetoff}key ${fmt(kd)} down`;
-  S.setInsetText(`Key front · ${fmt(kd)} down${kd >= sim.dip - 0.01 ? ' (dip)' : ''}`);
+  // stepping through a stroke a frame at a time, the corner picture is the hammer at the string (where let-off and drop
+  // happen), not the key front; the key's travel is still on the bar
+  S.setInsetMode(stepping() ? 'crown' : 'key');
+  S.setInsetText(stepping() ? `Hammer at the string${revealed('letoff') ? ` · ${fmt(G.stringY - crownY(sim.g))} away` : ''}`
+    : `Key front · ${fmt(kd)} down${kd >= sim.dip - 0.01 ? ' (dip)' : ''}`);
   $('#keystate').textContent = !down ? 'Key at rest' : apart ? 'Key down' : sim.dTarget > sim.d + 0.01 ? 'Key going down' : sim.dTarget > 0.05 ? 'Key held down' : sim.stuck && !sim.lifting ? 'Key stuck down' : 'Key coming up';
   $('#keystate').classList.toggle('down', down);
   $('#k-release').classList.toggle('attn', sim.dTarget > 0.05 && plan !== 'up' && plan !== 'all' && !busy);
@@ -2020,7 +2163,7 @@ async function setAction(kind) {
     $('#framepad').hidden = true;
   }
   closeMenu(); dropHand(); U?.dropHand();
-  action = kind; showCredits = false;
+  action = kind; showCredits = showLimits = false;
   $('#app').classList.toggle('upright', kind === 'upright');
   for (const b of document.querySelectorAll('#action-switch button')) b.classList.toggle('on', b.dataset.action === kind);
   $('header h1').textContent = kind === 'upright' ? 'Upright action regulation' : 'Grand action regulation';
