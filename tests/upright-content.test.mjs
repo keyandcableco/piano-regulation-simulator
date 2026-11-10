@@ -78,14 +78,14 @@ test('rule 3: the finest step of each knob a step turns moves that step\'s readi
 test('lost motion: the hammer follows a pulled rail, the key moves first, and the jack returns, by the gap', () => {
   assert.ok(M0.railFollow > 0.2 && M0.railFollow < 1.6, `rail follow ${M0.railFollow.toFixed(2)} mm at the crown (Steinway about 0.4, Spurlock about 1.6)`);
   assert.ok(M0.lostMotionKey > 0, 'the key moves before the hammer');
-  const less = measure({ ...FACTORY, capstan: capstanFor(FACTORY, 0.04) }), none = measure({ ...FACTORY, capstan: capstanFor(FACTORY, -0.05) });
+  const less = measure({ ...FACTORY, capstan: capstanFor(FACTORY, 0.03) }), none = measure({ ...FACTORY, capstan: capstanFor(FACTORY, -0.05) });
   assert.ok(less.railFollow < M0.railFollow && none.railFollow === 0, 'less lost motion, less follow; none, no follow');
   assert.equal(grade('lostMotion', less).ok, false, 'too little: the jack can\'t return');
   assert.match(grade('lostMotion', none).note, /holds the hammer off/);
   // the jack return test in the Sim: hard blow, sustain down, the key let up very slowly
   const ret = a => { const s = new Sim(a); s.setPedal(true); s.run(0.15); s.press(s.dip, 1300); s.run(0.35); s.press(0, 10); s.run(s.dip / 10 + 0.2); return s.jack === 'under'; };
   assert.equal(ret(FACTORY), true, 'factory: the jack gets back under');
-  assert.equal(ret({ ...FACTORY, capstan: capstanFor(FACTORY, 0.04) }), false, '0.04 mm: it hangs on the butt leather');
+  assert.equal(ret({ ...FACTORY, capstan: capstanFor(FACTORY, 0.03) }), false, '0.03 mm: it hangs on the butt leather');
 });
 test('lost motion: a capstan step moves the checking a lot (the note: set checking later)', () => {
   assert.ok(Math.abs(with_('capstan', step('capstan')).check - M0.check) > 0.3);
@@ -100,7 +100,7 @@ test('dip: more dip gives more aftertouch and more escapement and checks closer'
   const deeper = with_('frontPunch', -0.1);
   assert.ok(deeper.dip > M0.dip && deeper.aftertouch > M0.aftertouch && deeper.escapement > M0.escapement && deeper.check < M0.check);
 });
-test('aftertouch and escapement: a shorter blow raises both; with checking at 9/16 in both pass from about 42.35 to 42.6 mm', () => {
+test('aftertouch and escapement: a shorter blow raises both; with checking at 9/16 in both pass from about 42.3 to 43.4 mm', () => {
   const solveKnob = (a, k, read, target, lo, hi) => {
     const up = read({ ...a, [k]: hi }) > read({ ...a, [k]: lo });
     for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if ((read({ ...a, [k]: mid }) < target) === up) lo = mid; else hi = mid; }
@@ -108,19 +108,20 @@ test('aftertouch and escapement: a shorter blow raises both; with checking at 9/
   };
   // the rail set for this blow, the lost motion reset, the checking roughed in to 9/16 in, as the step says
   const at = (blow, check = true) => {
-    const a = { ...FACTORY, railShim: solveKnob(FACTORY, 'railShim', b => measure(b).blow, blow, -3, 6) };
+    // (the capstan down out of the way first: a hammer the jack holds off its rail doesn't follow the rail back)
+    const low = { ...FACTORY, capstan: FACTORY.capstan - 1.5 }, a = { ...FACTORY, railShim: solveKnob(low, 'railShim', b => measure(b).blow, blow, -3, 6) };
     a.capstan = capstanFor(a);
     if (check) a.backcheck = solveKnob(a, 'backcheck', b => measure(b).check ?? 99, SPEC.check.target, -15, 6);
     return measure(a);
   };
   const both = m => grade('aftertouch', m).ok && grade('escapement', m).ok;
-  const s = at(42.3), lo = at(42.38), hi = at(42.56), l = at(42.66);
+  const s = at(42.2), lo = at(42.35), hi = at(43.35), l = at(43.55);
   assert.ok(s.aftertouch >= lo.aftertouch && lo.aftertouch > l.aftertouch && s.escapement > lo.escapement && lo.escapement > l.escapement, 'shorter blow, more of both');
-  assert.equal(grade('escapement', s).ok, false, '42.3: the jack too far clear');
-  assert.equal(grade('aftertouch', l).ok, false, '42.66: too little aftertouch');
-  assert.ok(both(lo) && both(hi), '42.38 and 42.56: both in');
+  assert.equal(grade('escapement', s).ok, false, '42.2: the jack too far clear');
+  assert.equal(grade('aftertouch', l).ok, false, '43.55: too little aftertouch');
+  assert.ok(both(lo) && both(hi) && both(at(42.5)), '42.35, 42.5 and 43.35: both in');
   // with the checking left where the rail put it, the window is narrower: why the step says to rough checking in first
-  assert.equal(both(at(42.38, false)), false, '42.38 without the checking reset: out');
+  assert.equal(both(at(42.35, false)), false, '42.35 without the checking reset: out');
 });
 test('grading names the cause: no let-off for checking; the jack holding the hammer off its rail for the blow', () => {
   const noLetoff = measure({ ...FACTORY, letoff: -0.6 });
@@ -137,7 +138,7 @@ test('aftertouch: too much jams the jack against its stop at the bottom (Igrec: 
   assert.equal(grade('aftertouch', deep).ok, false);
 });
 test('bridle: a strap tight enough for the soft pedal to lift the wippen fails, and the Sim\'s wippen does lift', () => {
-  const tight = { ...FACTORY, bridle: 3 }, m = measure(tight);
+  const tight = { ...FACTORY, bridle: FACTORY.bridle + 3 }, m = measure(tight);
   assert.ok(m.softLifts && !grade('bridle', m).ok && grade('bridle', M0).ok);
   const lift = a => { const s = new Sim(a), phi0 = s.phi; s.setSoft(true); s.run(0.3); return s.phi - phi0; };
   assert.ok(lift(tight) > 0.001, `tight strap: the wippen lifts ${lift(tight).toFixed(4)} rad`);

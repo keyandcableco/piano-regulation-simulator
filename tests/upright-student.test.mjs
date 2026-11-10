@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ADJ, SPEC, measure, grade, pose, jackGap, stringGap, gRail, dipOf, slowPress, keyHeightOf, NEIGHBOR_H } from '../upright-model.js';
-import { STEPS, deregulated, seeded } from '../content-upright.js';
+import { STEPS, deregulated, seeded, advise } from '../content-upright.js';
 
 const KEYS = 25;
 // quick readings for the knob a step turns (measure() gives them all, slower)
@@ -104,3 +104,63 @@ test('the Learn order on 25 de-regulated keys: what each step knocks out, and ev
   console.log(`knocked out in the first round (step -> spec set earlier: keys):\n  ${[...knocked].sort((p, q) => q[1] - p[1]).map(([k, v]) => `${k}: ${v}`).join('\n  ') || 'none'}`);
   assert.deepEqual(stillOut, [], 'every key in spec after going round again');
 });
+
+// ---------- the student who stops at green (critique 2026-11-09, U3) ----------
+// The student above drives every knob to its exact target. A real one stops when the row turns green. This one does:
+// each knob a step at a time toward its target, stopping as soon as its own reading grades in at the level. At the
+// aftertouch step, where no knob is its own, it does what the line under the readings (and the final check) tells it:
+// content-upright.js advise(). It must finish within the two rounds "Go round again" asks for, at every level.
+const LEVELS = { Apprentice: 1.5, Journeyman: 1, 'the top level': 0.75 };
+function green(K) {
+  const okNow = (a, id) => grade(id, measure(a), K).ok;
+  const toGreen = (a, k, id, target = SPEC[id].target) => {
+    const d = ADJ.find(x => x.id === k), err = b => Math.abs(rd[id](b) - target);
+    if (okNow(a, id)) return;
+    for (const s of [d.step, -d.step]) {
+      let moved = false, e = err(a);
+      for (;;) {
+        const v = +(a[k] + s).toFixed(6);
+        if (v < d.min - 1e-9 || v > d.max + 1e-9) break;
+        const e2 = err({ ...a, [k]: v });
+        if (e2 >= e - 1e-9) break;
+        a[k] = v; e = e2; moved = true;
+        if (okNow(a, id)) return;
+      }
+      if (moved) return;
+    }
+  };
+  const KNOB = { blow: 'railShim', lostMotion: 'capstan', dip: 'frontPunch', letoff: 'letoff', check: 'backcheck' };
+  return {
+    ...STUDENT,
+    blow: a => { const d = ADJ.find(x => x.id === 'capstan'); while (rd.lostMotion(a) <= 0) a.capstan = +(a.capstan - d.step).toFixed(6); toGreen(a, 'railShim', 'blow'); },
+    lostMotion: a => toGreen(a, 'capstan', 'lostMotion'), keyHeight: a => toGreen(a, 'balPunch', 'keyHeight', 0), dip: a => toGreen(a, 'frontPunch', 'dip'),
+    letoff: a => toGreen(a, 'letoff', 'letoff'), check: a => toGreen(a, 'backcheck', 'check'),
+    softPedal: a => toGreen(a, 'softFelt', 'softPedal'), damperTiming: a => toGreen(a, 'spoon', 'damperTiming'),
+    // "bring it to that figure first", or one step of the blow (and the lost motion reset) or of the dip
+    aftertouch: a => {
+      for (let i = 0; i < 10; i++) {
+        const adv = advise(measure(a), K);
+        if (!adv) return;
+        if (adv.to !== undefined) tune(a, KNOB[adv.spec], rd[adv.spec], adv.to);
+        else if (adv.dir) {
+          const k = KNOB[adv.spec], d = ADJ.find(x => x.id === k);
+          a[k] = +(a[k] - adv.dir * d.step).toFixed(6);   // a shim out lengthens the blow; a punching out deepens the dip
+          if (adv.spec === 'blow') tune(a, 'capstan', rd.lostMotion, SPEC.lostMotion.target);
+        } else return;
+      }
+    },
+  };
+}
+for (const [name, K] of Object.entries(LEVELS)) {
+  test(`a student who stops at green, at ${name}: at least 28 of 30 de-regulated keys in spec after two rounds`, () => {
+    const rng = seeded(20261109), student = green(K), out = [];
+    for (let n = 0; n < 30; n++) {
+      const a = deregulated(rng);
+      for (let round = 0; round < 2; round++) for (const s of GRADED) student[s.spec](a);
+      const m = measure(a), bad = GRADED.flatMap(specsOf).filter(id => !grade(id, m, K).ok);
+      if (bad.length) out.push(`key ${n}: ${bad.map(id => `${id} ${m[id]?.toFixed?.(2)} (${grade(id, m, K).note})`).join(', ')}`);
+    }
+    console.log(`  ${name}: ${30 - out.length} of 30 in spec${out.length ? `\n  ${out.join('\n  ')}` : ''}`);
+    assert.ok(out.length <= 2, out.join('; '));
+  });
+}
