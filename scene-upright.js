@@ -363,7 +363,9 @@ export function createUprightScene(canvas, overlay) {
       cyl(1.4, 4, 'x', [b.x0 - 1 - D[0], b.y - D[1], 0], COLORS.brass, 'dblock', damper, { metal: true });
       cyl(2.4, 1.4, 'x', [b.x0 - 3.2 - D[0], b.y - D[1], 0], COLORS.brass, 'dblock', damper, { metal: true });
     }
-    extPts(rel(TRACE.damperHead, D), WIDTH.damperHead, 0, COLORS.redfelt, 'damper', damper);
+    // the head is a wooden block; only its two pads are felt. (It was drawn in the red that everywhere else here means
+    // cloth: critique 2026-11-09. The filmed model's head is red, a painted or covered block: research/upright/parts/damper.md)
+    extPts(rel(TRACE.damperHead, D), WIDTH.damperHead, 0, COLORS.wood, 'damper', damper);
     for (const f of TRACE.damperFelts) extPts(rel(f, D), WIDTH.damperHead, 0, COLORS.hammerfelt, 'damperfelt', damper);
     center('dcenter', damper, [0, 0], WIDTH.damperLever + 5);
 
@@ -411,7 +413,10 @@ export function createUprightScene(canvas, overlay) {
     // the springs follow the parts they press; the strap hangs between the catcher and the bridle wire's hook
     const W = CENTER.wippen, js = TRACE.jackSpring;
     reshape(n.jackSpring, coilGeo(rel([js[0]], W)[0], rel([turn(js[1], CENTER.jack, p.psi)], W)[0], 2, 0.35, 6, 0));
-    reshape(n.buttSpring, wireGeo(leg(TRACE.buttSpring, q => turn(q, CENTER.butt, -p.g)), 0.5, n.buttSpringZ));
+    // a broken or unhooked butt spring (upright-model.js DAMAGE; the strap drill's a.noSpring) stands off the butt, sprung
+    // back toward the dampers, and no longer follows the hammer
+    const noSpring = a.damage === 'buttSpringBroken' || a.noSpring;
+    reshape(n.buttSpring, wireGeo(leg(TRACE.buttSpring, q => turn(q, CENTER.butt, noSpring ? -0.45 : -p.g)), 0.5, n.buttSpringZ));
     reshape(n.damperSpring, wireGeo(leg(TRACE.damperSpring, q => turn(q, CENTER.damper, p.dl)), 0.45, WIDTH.damperFlange / 2 + 0.8));
     const [f, k] = strapEnds(a, p.phi, p.g), s = TRACE.strap;
     let along = 0;
@@ -419,12 +424,12 @@ export function createUprightScene(canvas, overlay) {
       if (i) along += Math.hypot(q[0] - s[i - 1][0], q[1] - s[i - 1][1]);
       return lerp(turn(q, CENTER.butt, -p.g), wipPt(p.phi, turn(q, BRIDLE_BASE, bridleAngle(a))), along / STRAP_LEN);
     });
-    // a broken strap (upright-model.js DAMAGE) hangs from the catcher, its end gone
-    const broken = a.damage === 'strapBroken';
+    // a broken strap (upright-model.js DAMAGE; the strap drill's a.noStrap): the torn tape hangs from the catcher, and its
+    // other end, with the red tab, stays on the bridle wire's hook and droops from it
+    const broken = a.damage === 'strapBroken' || a.noStrap;
     const hang = broken ? [f, [f[0] + 0.5, f[1] - 9], [f[0] + 1.2, f[1] - 18]] : strap;
     reshape(n.strap, tapeGeo(hang, STRAP_T, WIDTH.strap, BASS * STRAP_Z0, broken ? BASS * STRAP_Z0 : BASS * BRIDLE_Z));
-    n.strapEnd.visible = !broken;
-    if (!broken) reshape(n.strapEnd, strapTabGeo(strap));
+    reshape(n.strapEnd, strapTabGeo(broken ? [[k[0] + 1.5, k[1] - 9], [k[0] + 0.6, k[1] - 4.5], k] : strap, broken ? 9 : 4));
   }
 
   // ---------- part labels (on the middle note) ----------

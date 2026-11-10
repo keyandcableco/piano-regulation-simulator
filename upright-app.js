@@ -4,10 +4,10 @@
 // this module's, which sit in the same bars so the phone layouts carry over.
 // The upright's model, drawing and content are upright-model.js, scene-upright.js and content-upright.js. It has Learn
 // and the Sandbox; Find the fault, the exam, drills and tools come with C5, C7 and C8.
-import { FACTORY, ADJ, SPEC, DAMAGE, Sim, measure, grade, pose, DAMPER_PEDAL_LIFT, keyAngle, capstanTop, wippenOn, gRail, gString } from './upright-model.js';
+import { FACTORY, ADJ, DAMAGE, Sim, measure, grade, pose, evenTol, DAMPER_PEDAL_LIFT, keyAngle, capstanTop, wippenOn, gRail, gString } from './upright-model.js';
 import { hand, UPRIGHT_HOLD, HOLD_NAMES, dragTo } from './hand.js';
 import { createUprightScene } from './scene-upright.js';
-import { STEPS, TESTS, TIPS, TOOLS, SPEC_NAMES, REPAIRS, SCENARIOS, bandText, readingText, callouts, deregulated, fairStart, creditOf } from './content-upright.js';
+import { STEPS, TESTS, TIPS, TOOLS, SPEC_NAMES, REPAIRS, SCENARIOS, bandText, readingText, callouts, deregulated, fairStart, creditOf, advise, alsoText } from './content-upright.js';
 import { markView } from './controls.js';
 
 const DT = 0.0001;          // s: the Sim's step (its tests' and fit's)
@@ -49,10 +49,14 @@ const VIEW_GROUPS = [
 ];
 const TEST_VIEWS = { head: 'Hammer head' };   // views only a test uses, named on the View button
 const EVENT_TEXT = {
-  letoff: e => e.hand ? 'Jack tripped by hand' : `Let off ${e.dist.toFixed(1)} mm from the strings`, strike: e => `Struck at ${e.v.toFixed(1)} m/s`, blocked: () => 'Blocked on the strings',
+  // (a let-off distance only where the hammer was still on the jack: in a blow it has flown on and struck by then)
+  letoff: e => e.hand ? 'Jack tripped by hand' : e.flown ? 'Jack escaped' : `Let off ${e.dist.toFixed(1)} mm from the strings`, strike: e => `Struck at ${e.v.toFixed(1)} m/s`,
+  blocked: () => 'Blocked: the jack holds the hammer on the strings', bobble: () => 'The hammer bounces on the jack',
   checked: e => `Checked ${e.dist.toFixed(1)} mm from the strings`, reset: () => 'Jack back under the butt', seated: () => 'Damper back on the strings',
-  straptaut: () => 'The strap pulls',
 };
+// the event line's length: a blow, held and let go, says struck, jack escaped, checked, jack back, damper back, hammer
+// home (the strap going taut shows in the picture, and in the time home)
+const LOG_LINES = 4;
 const specsOf = st => [st.spec, ...(st.also ?? [])];
 
 // env: el and put (the app's DOM helpers), toast(text, kind), level() (the app's skill level: tolK, live), refresh()
@@ -139,11 +143,15 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     if (busy) return;
     plan = null; idle = false;
     if (kind !== 'up') testEvents = [];   // the callouts read this press's events
-    if (kind === 'up') { sim.press(0, UP); return; }
+    if (kind === 'up') { keyUp(); return; }
     if (kind === 'slow') { sim.press(sim.dip, SLOW); return; }
     sim.press(sim.dip, STRIKE);
     if (kind === 'play') plan = 'up';
   }
+  // let the key up; from check, the time the hammer takes to get home goes on the event line (the strap and the butt
+  // spring show there: Ellis's test)
+  let releasedAt = null;
+  function keyUp() { releasedAt = sim.checked && sim.d > 0.9 * sim.dip ? sim.t : null; sim.press(0, UP); }
   function setSoft(on) { if (busy) return; idle = false; testEvents = []; softOn = on; sim.setSoft(on); softBtn.classList.toggle('on', on); }
   function setSustain(on) { if (busy) return; idle = false; testEvents = []; sustainOn = on; sim.setPedal(on); susBtn.classList.toggle('on', on); }
   function setSpeed(s) { speed = s; for (const b of speedBtns) b.classList.toggle('on', +b.dataset.uspeed === s); }
@@ -163,10 +171,11 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       sim.step(DT);
       // Play lets the key up once it is down (as the grand's does, a moment after it gets there)
       if (plan === 'up' && sim.d >= sim.dip - 0.01) { plan = sim.t + 0.012; }
-      else if (typeof plan === 'number' && sim.t >= plan) { plan = null; sim.press(0, UP); }
+      else if (typeof plan === 'number' && sim.t >= plan) { plan = null; keyUp(); }
       for (const e of sim.events) {
         if (!e.hand) testEvents.push(e);   // (a jack tripped by hand isn't a let-off reading)
-        if (EVENT_TEXT[e.type]) { log.push(EVENT_TEXT[e.type](e)); if (log.length > 3) log.shift(); }
+        if (EVENT_TEXT[e.type]) { log.push(EVENT_TEXT[e.type](e)); if (log.length > LOG_LINES) log.shift(); }
+        if (e.type === 'rail' && releasedAt !== null) { log.push(`Hammer home in ${Math.round(1000 * (e.t - releasedAt))} ms`); if (log.length > LOG_LINES) log.shift(); releasedAt = null; }
       }
       sim.events = [];
       if (testRun && sim.t >= testRun.until - 1e-12) { const r = testRun.r; testRun = null; r(); }
@@ -199,7 +208,8 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     }
     lastEvent.textContent = log.join(' · ');
     const d = override ? override.p.d : sim.d;
-    keyState.textContent = d < 0.05 && sim.dTarget < 0.05 ? 'Key at rest' : sim.dTarget > sim.d + 0.01 ? 'Key going down' : sim.dTarget > 0.05 ? 'Key held down' : 'Key coming up';
+    keyState.textContent = d < 0.05 && sim.dTarget < 0.05 ? 'Key at rest' : !override && sim.blocked && sim.dTarget > sim.d + 0.01 ? 'Key blocked: it stops short'
+      : sim.dTarget > sim.d + 0.01 ? 'Key going down' : sim.dTarget > 0.05 ? 'Key held down' : 'Key coming up';
     keyState.classList.toggle('down', d > 0.05);
     keyPos.textContent = `${exam.started && !exam.done ? `note ${exam.cur + 1} · ${clockText()} · ` : ''}key ${d.toFixed(2)} mm down${lagging && !sim.hand ? ' · slower than chosen' : ''}`;
     if (exam.started && !exam.done && Date.now() >= exam.endAt && !busy) handIn();
@@ -217,7 +227,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     view,
     run: secs => new Promise(r => { testRun = { until: sim.t + secs, r }; }),
     pause: secs => new Promise(r => setTimeout(r, secs * 1000)),
-    say: (text, warn) => { toast(text, warn ? 'warn' : ''); log.push(text); if (log.length > 3) log.shift(); },
+    say: (text, warn) => { toast(text, warn ? 'warn' : ''); log.push(text); if (log.length > LOG_LINES) log.shift(); },
     release: async () => {
       if (sim.d > 0.001 || sim.checked || sim.soft > 0 || sim.pedal > 0) { sim.press(0, UP); sim.setSoft(false); sim.setPedal(false); await ctx.run(0.4); }
       sim.reset(); testEvents = [];
@@ -296,10 +306,16 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       const bad = GRADED.filter(s => !stepDone(s));
       put(p, el('h2', {}, 'Final check'),
         el('p', {}, bad.length ? 'Everything was re-measured. These are out of spec now (often because a later step moved them):' : 'Every measurement is in spec. That key is regulated.'),
-        bad.length ? el('ul', {}, bad.map(s => el('li', {}, el('button', { class: 'linkish', onclick: () => goStep(STEPS.indexOf(s)) }, s.title)))) : null,
+        bad.length ? el('ul', {}, bad.map(s => el('li', {}, el('button', { class: 'linkish', onclick: () => goStep(STEPS.indexOf(s)) }, s.title), backTo(s)))) : null,
         readingsTable(GRADED.flatMap(specsOf)),
         el('div', { class: 'row' }, el('button', { disabled: busy ? '' : false, onclick: () => { setRegulation(deregulated(), { keepTested: false }); goStep(0); } }, 'Start over with a new key')));
       return;
+    }
+    // aftertouch and the jack's clearance are set by other readings: what to go back to (content-upright.js advise)
+    function backTo(s) {
+      if (s.spec !== 'aftertouch') { const n = specsOf(s).map(id => gradeL(id).note).find(Boolean); return n ? `: ${n}` : null; }
+      const adv = advise(m, level().tolK), to = adv && GRADED.find(g => specsOf(g).includes(adv.spec));
+      return adv ? [`: ${adv.text}`, to && to !== s ? [' (', el('button', { class: 'linkish', onclick: () => goStep(STEPS.indexOf(to)) }, to.title), ')'] : null] : null;
     }
     const nav = ok => el('div', { class: 'row' },
       el('button', { disabled: stepIdx === 0 ? '' : false, onclick: () => goStep(stepIdx - 1) }, '← Back'),
@@ -310,6 +326,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     put(p, head, el('h2', {}, st.title), el('p', {}, st.what), el('p', { class: 'muted' }, st.how), st.note ? el('p', { class: 'note' }, st.note) : null,
       el('div', { class: 'row' }, (st.tests ?? [st.test]).map(testButton)),
       readingsTable(specsOf(st)),
+      st.spec === 'aftertouch' && specsOf(st).every(id => tested.has(id)) && !stepDone(st) ? el('p', { class: 'note', 'data-advice': '' }, 'What to move', backTo(st)) : null,
       el('div', { class: 'knobs' }, st.knobs.map(k => knobRow(k))),
       st.repairs ? repairButtons(specsOf(st)) : null,
       benchTips(st.id ?? st.spec), nav(stepDone(st)),
@@ -352,11 +369,12 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     if (!scenario) { newCase(); return; }
     if (verdict && verdict.k !== level().tolK) verdict = null;   // given at another skill level's tolerances
     const knobs = level().live;   // the panel lists the knobs at Apprentice; otherwise they're on the parts (click one)
+    const also = alsoText(scenario);
     put(p, el('h2', {}, 'A customer says:'), el('p', { class: 'note' }, `“${scenario.complaint}”`),
       el('p', { class: 'muted small' }, `Find out what's wrong and put it right: run the tests that would show it, then adjust or repair. ${knobs ? '' : 'Click a part on the action to adjust it. '}Check your work when you think it's done.`),
       verdict ? el('div', { class: 'verdict ' + (verdict.ok ? 'ok' : 'bad') },
-        verdict.ok ? el('p', {}, el('b', {}, 'Fixed. '), scenario.cause, '.') : el('p', {}, 'Still out: ', verdict.bad.map(id => SPEC_NAMES[id]).join(', '), '.')) : null,
-      gaveUp ? el('div', { class: 'verdict bad' }, el('p', {}, el('b', {}, 'What was wrong: '), scenario.cause, '. ', el('b', {}, 'The fix: '), scenario.fix, '.')) : null,
+        verdict.ok ? el('p', {}, el('b', {}, 'Fixed. '), scenario.cause, '.', also ? ` ${also}.` : '') : el('p', {}, 'Still out: ', verdict.bad.map(id => SPEC_NAMES[id]).join(', '), '.')) : null,
+      gaveUp ? el('div', { class: 'verdict bad' }, el('p', {}, el('b', {}, 'What was wrong: '), scenario.cause, '. ', also ? `${also}. ` : '', el('b', {}, 'The fix: '), scenario.fix, '.')) : null,
       AREAS.map(ar => el('details', { class: 'fold', open: '' }, el('summary', {}, ar.name),
         el('div', { class: 'row' }, ar.tests.map(testButton)), readingsTable(ar.specs),
         knobs ? el('div', { class: 'knobs' }, ar.knobs.map(k => knobRow(k))) : null, repairButtons(ar.specs))));
@@ -396,7 +414,6 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     tested = exam.notes[i].tested;
     refresh();
   }
-  const evenTol = id => { const s = SPEC[id]; return (s.lo !== undefined ? (s.hi - s.lo) / 2 : s.tol) * exam.level.tolK; };
   function examScore() {
     exam.notes[exam.cur] = { a: { ...a }, tested };
     const ms = exam.notes.map(n => measure(n.a)), g = (id, i) => grade(id, ms[i], exam.level.tolK);
@@ -406,7 +423,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     const even = EVEN.map(id => {
       const v = ms.map((m2, i) => g(id, i).v);
       const spread = v.every(x => x != null) ? Math.max(...v) - Math.min(...v) : null;
-      return { id, spread, ok: spread !== null && spread <= evenTol(id) };
+      return { id, spread, ok: spread !== null && spread <= evenTol(id, exam.level.tolK) + 1e-9 };
     });
     const items = rows.flatMap(r => r.cells.filter(c => !c.skip).map(c => c.ok)).concat(even.map(e => e.ok));
     let pct = Math.round(100 * items.filter(Boolean).length / items.length);
@@ -419,7 +436,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   function renderExam(p) {
     if (!exam.started) {
       put(p, el('h2', {}, 'Upright exam: three notes'),
-        el('p', {}, 'Three neighboring notes, each knocked out of regulation, to regulate in the time: the same steps as Learn, with one hammer rail and soft pedal shared by all three. You\'re scored on each note against the specs, and on how even the three are: each reading\'s spread across the three within one note\'s tolerance.'),
+        el('p', {}, 'Three neighboring notes, each knocked out of regulation, to regulate in the time: the same steps as Learn, with one hammer rail and soft pedal shared by all three. You\'re scored on each note against the specs, and on how even the three are: each reading\'s spread across the three within one note\'s tolerance (and never finer than one paper punching or capstan step moves it).'),
         el('p', { class: 'muted small' }, 'PTG\'s vertical exam section is a disassembled three-note action model with pedals: you assemble it, then regulate all three notes and the pedals in 65 minutes, scored for their consistency and accuracy (Technical Exam Source Book Addendum, 2005). Here the model comes assembled and the scoring is the sim\'s own practice scoring, not PTG\'s sheet. At the top skill level one note may also hold a worn or broken part: in the real exam, repairs are a separate section.'),
         el('p', { class: 'muted small' }, 'An independent practice tool, not affiliated with or endorsed by the Piano Technicians Guild.'),
         el('div', { class: 'row' }, el('span', { class: 'muted' }, 'Clock:'), EXAM_CLOCKS.map(n => el('button', { class: n === examMinutes ? 'on' : '', onclick: () => { examMinutes = n; refresh(); } }, `${n} min`))),
@@ -464,15 +481,38 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       el('p', {}, 'Jim Ellis RPT timed the hammer coming back from the backcheck to its rail on a quick release, with the bridle strap and the butt spring each on or off. He found the strap\'s main job is repetition: strap and spring together bring the hammer home fastest, and with neither it takes about twice as long. PTG\'s high-speed clips redo his test on an upright action model; the sim\'s physics were fitted to them.'),
       canvas,
       el('p', { class: 'muted small' }, 'Solid: filmed. Dashed: the sim. The hammer\'s angle from where it rests, from the moment the key is let go; each line ends on the rail.'),
-      el('table', { class: 'specs' }, el('thead', {}, el('tr', {}, el('th', {}, 'Case'), el('th', {}, 'Filmed'), el('th', {}, 'Sim'))),
+      el('table', { class: 'specs' }, el('thead', {}, el('tr', {}, el('th', {}, 'Case'), el('th', {}, 'Filmed'), el('th', {}, 'Sim'), el('th', {}, 'Yours'))),
         el('tbody', {}, Object.entries(ellis.cases).map(([k, c]) => el('tr', {},
           el('td', {}, el('label', {}, el('input', { type: 'checkbox', checked: ellisShown[k] ? '' : false, onchange: e => { ellisShown[k] = e.target.checked; refresh(); } }),
-            ' ', el('span', { style: `color:${ELLIS_COLORS[k]};font-weight:600` }, c.label))),
-          el('td', {}, `${Math.round(c.filmRailMs)} ms`), el('td', {}, c.simRailMs ? `${Math.round(c.simRailMs)} ms` : '—'))))),
-      el('p', { class: 'muted small' }, 'The sim\'s strap-only case comes back a little faster than strap and spring together, the other way round from the film: its butt spring isn\'t right yet in that case.'),
-      el('p', { class: 'muted small' }, 'To feel it on the action: in the Sandbox, break the bridle strap (the parts list) and play at Slow ×50 with a quick release, then put it right and play again.'),
+            ' ', el('span', { style: `color:${ELLIS_COLORS[k]};font-weight:600` }, c.label)),
+            el('div', {}, el('button', { class: 'test', 'data-time': k, disabled: busy ? '' : false, onclick: () => timeCase(k) }, '▶ Time it'))),
+          el('td', {}, `${Math.round(c.filmRailMs)} ms`), el('td', {}, c.simRailMs ? `${Math.round(c.simRailMs)} ms` : '—'),
+          el('td', { 'data-timed': k }, k in drillTimes ? `${drillTimes[k] ?? '—'} ms` : '—'))))),
+      el('p', {}, el('b', {}, 'Your turn. '), 'Before you time them, decide: which case comes home last, and which two are closest together? Then time each one on the sim\'s own action. Each run plays a moderate blow at the factory regulation, holds the key, and lets it go at the filmed speed, with the strap broken or the butt spring unhooked as the case says; watch the strap go straight for a moment as the key gets home.'),
+      el('p', { class: 'muted small' }, 'Your times differ a little from the Sim column: that column is the sim set up as the filmed model was (a longer blow, its own checking distance); yours is the factory regulation. In the Sandbox the same thing shows on the event line: break the bridle strap or the butt spring, strike and hold, let the key go, and read "Hammer home in … ms".'),
       el('p', { class: 'credit' }, 'Jim Ellis RPT, "Bridle Strap Function", Piano Technicians Journal, Dec 1997; high-speed video from PTG\'s Education Hub (main videos narrated by Scott Murphy RPT).'));
     drawEllis(canvas);
+  }
+  // one of Ellis's four cases on the sim's own action: a moderate blow held, then the key let go at the filmed speed
+  const drillTimes = {};
+  async function timeCase(key) {
+    if (busy) return;
+    const c = ellis.cases[key];
+    dropHand(); busy = true; plan = null; testScale = 0.1; closeCard();
+    for (const k of Object.keys(a)) delete a[k];
+    Object.assign(a, FACTORY, { damage: null, noStrap: !c.strap, noSpring: !c.spring }); m = measure(a);
+    sim = new Sim(a); testEvents = []; log.length = 0; refresh(); view('check');
+    try {
+      sim.press(sim.dip, STRIKE); await ctx.run(0.3);
+      const t0 = sim.t; let home;
+      sim.press(0, UP);
+      for (let i = 0; i < 14 && !home; i++) { await ctx.run(0.03); home = testEvents.find(e => e.type === 'rail' && e.t > t0); }
+      drillTimes[key] = home ? Math.round(1000 * (home.t - t0)) : null;
+      ctx.say(home ? `${c.label}: the hammer was home ${drillTimes[key]} ms after the key was let go (filmed: ${Math.round(c.filmRailMs)} ms)` : `${c.label}: the hammer didn't get home in 400 ms`);
+      await ctx.run(0.1); await ctx.pause(0.8);
+    } catch (err) { console.error(err); }
+    delete a.noStrap; delete a.noSpring; m = measure(a); sim = new Sim(a);
+    testRun = null; busy = false; idle = false; refresh();
   }
   function drawEllis(cv) {
     const g = cv.getContext('2d'), W = cv.width, Hh = cv.height, L = 56, B = 40, T = 14, R = 14;
@@ -593,7 +633,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
   }
   // let the part go (the key comes back up by itself). The pointer stays the grab's till it comes up, so the view
   // doesn't start turning under it mid-drag.
-  function letGoOf(g) { if (g.started && g.sim === sim && sim.hand) { sim.letGo(); idle = false; if (g.hold === 'key') sim.press(0, UP); } }
+  function letGoOf(g) { if (g.started && g.sim === sim && sim.hand) { sim.letGo(); idle = false; if (g.hold === 'key') keyUp(); } }
   function dropHand() { if (grab && !grab.dropped) { grab.dropped = true; letGoOf(grab); } }
   // the pointer up: let go, and the view turns again; returns what was held
   function endGrab() {
@@ -603,7 +643,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     if (!g.dropped) letGoOf(g);
     return g;
   }
-  const letUp = () => { if (!busy) { sim.press(0, UP); idle = false; } };
+  const letUp = () => { if (!busy) { keyUp(); idle = false; } };
   const endHold = e => {
     if (grab && (e.pointerId === undefined || e.pointerId === grab.id)) endGrab();
     if (keyHeld !== null && (e.pointerId === undefined || e.pointerId === keyHeld)) { keyHeld = null; S.controls.enabled = true; letUp(); }

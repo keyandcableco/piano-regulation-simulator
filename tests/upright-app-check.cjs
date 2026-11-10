@@ -38,9 +38,9 @@ if (!out) { console.error('usage: node tests/upright-app-check.cjs <out_dir> [ba
   // the key: Play, then the events line
   await page.click('#cat-speed .cat-btn'); await page.click('[data-uspeed="1"]');
   await page.click('#keybar button[data-upright]:has-text("Play")');
-  await page.waitForTimeout(2500);
+  await page.waitForFunction(() => /Hammer home/.test(document.querySelector('.u-lastevent').textContent), null, { timeout: 60000 }).catch(() => {});
   const ev = await page.$eval('.u-lastevent', e => e.textContent);
-  check(/Struck|Checked/.test(ev), `Play strikes and checks: "${ev}"`);
+  check(/Struck|Checked/.test(ev) && /Hammer home in 1[01]\d ms/.test(ev), `Play strikes, checks and times the hammer home: "${ev}"`);
   // a part card: the backcheck in the Backcheck view
   await page.click('#cat-view .cat-btn'); await page.click('#views [data-uview="check"]'); await page.waitForTimeout(1200);
   const box = await page.$eval('#cu', c => { const r = c.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
@@ -108,7 +108,22 @@ if (!out) { console.error('usage: node tests/upright-app-check.cjs <out_dir> [ba
   // drills: the strap plot
   await page.click('.tab[data-mode="drills"]'); await page.waitForTimeout(1500);
   check((await text('#mode')).includes('Strap or no strap') && await page.$('#mode canvas') !== null, 'the strap drill draws its plot');
+  // the drill's own run: one of Ellis's cases timed on the sim's action
+  await page.click('#mode button[data-time="s"]');
+  await page.waitForFunction(() => { const b = document.querySelector('#mode button[data-time="s"]'); return b && !b.disabled && /\d+ ms/.test(document.querySelector('#mode [data-timed="s"]').textContent); }, null, { timeout: 180000 });
+  const timed = await page.$eval('#mode [data-timed="s"]', e => e.textContent);
+  check(/^1[0-4]\d ms/.test(timed), `the drill times spring only on the sim: ${timed} (filmed 126 ms)`);
   await shot('upright-drill');
+  // the Sandbox with a broken strap: strike, hold, let go, and the event line gives the time home
+  await page.click('.tab[data-mode="sandbox"]'); await page.waitForTimeout(400);
+  await page.selectOption('#mode select', 'strapBroken'); await page.waitForTimeout(300);
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press('h'); await page.waitForTimeout(2500);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => /Hammer home/.test(document.querySelector('.u-lastevent').textContent), null, { timeout: 60000 }).catch(() => {});
+  const home = await page.$eval('.u-lastevent', e => e.textContent);
+  check(/Hammer home in 1[1-3]\d ms/.test(home), `a broken strap's slower return shows on the event line: "${home}"`);
+  await shot('upright-strap-broken');
   // credits, then back to the grand
   await page.click('#credits'); await page.waitForTimeout(300);
   check((await text('#mode')).includes('upright credits'), 'upright credits');
