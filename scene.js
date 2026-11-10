@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { G, FACTORY, NEIGHBOR_H, WEAR, TRAVEL_RISE, SIDE_K, WIPPEN_JACK_ARM, WIPPEN_PAPER, keyAngle, hamPt, repRho, knuckleBottom } from './model.js';
+import { G, FACTORY, NEIGHBOR_H, WEAR, TRAVEL_RISE, SIDE_K, WIPPEN_JACK_ARM, WIPPEN_PAPER, keyAngle, hamPt, repRho, knuckleBottom, linkage, dipOf, gFromTail, gOnJackAt, eff } from './model.js';
 
 const COLORS = {
   keybed: 0x6e4c2e, rail: 0xa47a4c, wood: 0xd7b98c, keywood: 0xe6d3ad, keytop: 0xf6f3ea,
@@ -112,15 +112,20 @@ const J_BTN_CONTACT = [23.4, 23.9];   // middle of the button's felt face
 const R_BODY = [[38.7, -12.6], [3.8, 2.9], [-3.3, 5.3], [-21.7, 11.8], [-32.6, 16.2], [-36.3, 17.5], [-40, 18.5], [-43.6, 19.2], [-46.6, 19.5],
   [-56.8, 19.9], [-58.6, 15.8], [-51.7, 12.5], [-45.5, 12.5], [-3.3, -2], [3.8, -5.3], [28.5, -15.1], [40, -15.5]];
 const R_DROP_FELT = [[-46.6, 19.5], [-56.8, 19.9], [-56.8, 22], [-46.6, 21.5]];
-const R_WINDOW_FELT = [[-45.5, 12.6], ...G.windowFelt, [-45, 19.3]];   // glued on the window's front wall, facing the jack
+// The jack stop felt, glued on the window's front wall, facing the jack. model.js stops a tripped jack where its top-front
+// corner meets the line of G.windowFelt; the jack's front face leans, so lower down it comes further forward than that
+// line. The wall and the felt's face are drawn leaning with it, along the face of a jack jammed on a slow press (too much
+// aftertouch, or let-off set too early), so the picture shows the jack flat on its felt there, not through it.
+const R_WINDOW_FELT = [[-46.8, 12.6], [-44.7, 12.6], [-43.05, 19.3], [-45, 19.3]];
 // solid between the cheeks at the tail and the front end; open in the window between
 const R_TAIL = [[38.7, -12.6], [3.8, 2.9], [-3.3, 5.3], [-21.7, 11.8], [-25, 13.13], [-25, 5.46], [-3.3, -2], [3.8, -5.3], [28.5, -15.1], [40, -15.5]];
-const R_FRONT = [[-45, 19.35], [-46.6, 19.5], [-56.8, 19.9], [-58.6, 15.8], [-51.7, 12.5], [-45.5, 12.5]];
+const R_FRONT = [[-45, 19.35], [-46.6, 19.5], [-56.8, 19.9], [-58.6, 15.8], [-51.7, 12.5], [-46.8, 12.5]];
 const R_BUTTON_C = [31.8, -26.8];    // bottom of the height screw's felt button, rep-local
 const R_BUTTON_FELT_H = 5;
 const CAP_R = 4.5;                   // capstan screw radius
 const CAP_H = G.capDomeR - Math.sqrt(G.capDomeR ** 2 - CAP_R ** 2);   // height of its dome
 const CAP_PITCH = 1.28;              // mm per turn: 1/32 turn is the knob's 0.04 mm step
+const LETOFF_FELT = 3;               // the let-off button's felt, mm thick
 const LETOFF_LEN = 20;               // the let-off button's screw, button to top: in its rail, clear of the flange rail, over the knob's range
 const DROP_LEN = 16;                 // the drop screw, its end to the foot of its spade head: it stays through the flange over the knob's range
 const DROP_PITCH = 0.4;              // mm per turn: ⅛ turn is the knob's 0.05 mm step
@@ -331,7 +336,7 @@ export function createScene(canvas, overlay) {
     ext(shapeFrom(FS_SLOT), 0.7, 0, COLORS.dark, 'flangescrew', fs);
     cyl(FS_R, FS_LEN, 'y', [0, -FS_LEN / 2, 0], COLORS.steel, 'flangescrew', fs, { metal: true });
     n.letoffBtn = new THREE.Group(); root.add(n.letoffBtn);
-    cyl(5, 3, 'y', [G.letoffX, 1.5, 0], COLORS.redfelt, 'letoff', n.letoffBtn);
+    n.letoffFelt = cyl(5, LETOFF_FELT, 'y', [G.letoffX, LETOFF_FELT / 2, 0], COLORS.redfelt, 'letoff', n.letoffBtn);
     // its screw rides with it, up through the regulating rail, so turning it shows above the rail
     cyl(1.2, LETOFF_LEN, 'y', [G.letoffX, 3 + LETOFF_LEN / 2, 0], COLORS.steel, 'letoff', n.letoffBtn, { metal: true });
     // drop screw: down the middle of the flange's body, its rounded, flattened end stopping the felt on the repetition
@@ -573,6 +578,82 @@ export function createScene(canvas, overlay) {
       }
     return best;
   }
+  // Is the drawn tail in the drawn backcheck? Side view: a corner of either outline inside the other.
+  const inPoly = ([x, y], P) => {
+    let c = false;
+    for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][1] > y) !== (P[j][1] > y) && x < (P[j][0] - P[i][0]) * (y - P[i][1]) / (P[j][1] - P[i][1]) + P[i][0]) c = !c;
+    return c;
+  };
+  const toWorld = (pts, obj, o) => pts.map(([x, y]) => { gv.set(x - o[0], y - o[1], 0).applyMatrix4(obj.matrixWorld); return [gv.x, gv.y]; });
+  // (points every half millimetre or so along each outline: the buckskin's face is one long straight edge)
+  const dense = pts => pts.flatMap((p, i) => { if (!i) return [p]; const a = pts[i - 1], k = Math.ceil(Math.hypot(p[0] - a[0], p[1] - a[1]) / 0.5); return Array.from({ length: k }, (_, j) => [a[0] + (p[0] - a[0]) * (j + 1) / k, a[1] + (p[1] - a[1]) * (j + 1) / k]); });
+  const TAIL_PTS = dense(TAIL_EDGE), BC_PTS = dense(BC_FACE);
+  function tailHits(n, bc) {
+    n.headG.updateWorldMatrix(true, false);
+    const edge = toWorld(TAIL_PTS, n.headG, [0, 0]);
+    if (edge.some(p => bc.all.some(P => inPoly(p, P)))) return true;
+    const wood = toWorld(H_WOOD, n.headG, [0, 0]);
+    return bc.face.some(p => inPoly(p, wood));
+  }
+  // the head's buckskin, the felt under it and its wood, and the points along the buckskin's face
+  const bcOutline = n => { n.bcHeadG.updateWorldMatrix(true, false); return { all: [BC_LEATHER, BC_FELT, BC_WOOD].map(P => toWorld(P, n.bcHeadG, BC_HEAD_C)), face: toWorld(BC_PTS, n.bcHeadG, BC_HEAD_C) }; };
+  // A backcheck that comes up under a tail carries it: the hammer is drawn no lower than where its tail rests on the
+  // buckskin. (model.js has no such contact: a hammer left low while the key goes down, as when a jack set too far
+  // forward lets the knuckle slip off early, would otherwise be drawn with the backcheck through its tail.)
+  function carriedBy(n, g) {
+    const bc = bcOutline(n);
+    if (!tailHits(n, bc)) return g;
+    let lo = g, hi = g + 0.15;
+    for (let i = 0; i < 9; i++) { const mid = (lo + hi) / 2; n.hammer.rotation.z = mid; if (tailHits(n, bc)) lo = mid; else hi = mid; }
+    return hi;
+  }
+  // How far the wire bends for the backcheck knob. model.js catches the tail 3 mm higher for each mm of the knob; the
+  // drawn head, turned knob / 80 rad about the wire's bend, meets a checked tail up to about 1.5 mm in from factory, and
+  // further in falls behind (a "checked" hammer was drawn with daylight round its tail). So past there the wire is drawn
+  // bent the little more that brings the buckskin up to the tail where the model checks it, as far as it can go without
+  // standing in the resting tail: worked out once, on the factory action, knob by knob.
+  const BC_KNOBS = Array.from({ length: 33 }, (_, i) => -4 + i * 0.25);
+  let bcMore = null;
+  function fitBackcheck() {
+    const n = notes[0], more = [];
+    for (const o of [n.align, n.headG, n.bc, n.bcHeadG, n.key]) o.rotation.set(0, 0, 0);
+    n.align.position.z = 0;
+    for (const b of BC_KNOBS) {
+      const a = eff({ ...FACTORY, backcheck: b }), d = dipOf(a);
+      const at = (dKey, g, t) => {
+        const k = keyAngle(a, dKey); n.key.position.set(G.balX, k.By, 0); n.key.rotation.z = k.th;
+        n.hammer.rotation.z = g; n.bc.rotation.z = b / 80 + t;
+        return tailHits(n, bcOutline(n));
+      };
+      const L0 = linkage(a, 0), gRest = gOnJackAt(L0, L0.psiRest), gChk = gFromTail(linkage(a, d).bcCatchY);
+      let t = 0;
+      if (!at(d, gChk, 0) && at(d, gChk, 0.12)) { let lo = 0, hi = 0.12; for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (at(d, gChk, mid)) hi = mid; else lo = mid; } t = lo; }
+      // not into the tail of the hammer at rest (with a little air: 0.004 rad is about 0.2 mm at the head)
+      while (t > 0 && at(0, gRest, t + 0.004)) t = Math.max(0, t - 0.002);
+      more.push(t);
+    }
+    bcMore = more;
+  }
+  const bcLean = b => {
+    if (!bcMore) fitBackcheck();
+    const x = Math.max(0, Math.min(BC_KNOBS.length - 1.001, (b + 4) / 0.25)), i = Math.floor(x);
+    return b / 80 + bcMore[i] + (bcMore[i + 1] - bcMore[i]) * (x - i);
+  };
+  // The tripped jack against the knuckle: model.js holds an escaped jack just past the point the knuckle slipped off
+  // it, where the drawn corner would still stand in the knuckle's roll once the knuckle has come down beside it (on the
+  // lever, or in check). It is drawn tripped the little further that leaves its back just touching the roll.
+  const J_BACK_LOW = (() => {   // the back edge's line, moved in by the corner's radius so it runs from the corner's centre
+    const [px, py] = [4.9, 8.9], [cx, cy] = G.jackTop, l = Math.hypot(cx - px, cy - py);
+    return [px - (cy - py) / l * G.jackTopR, py + (cx - px) / l * G.jackTopR];
+  })();
+  function clearOfKnuckle(L, psi, g, wear) {
+    const k = hamPt(g, G.knuckleC), R = G.knuckleR + WEAR.knuckle * wear + G.jackTopR - 0.05;
+    const gap = s => { const q = nearest(k, L.jackPt(s, G.jackTop), L.jackPt(s, J_BACK_LOW)); return Math.hypot(k[0] - q[0], k[1] - q[1]) - R; };
+    if (gap(psi) >= 0) return psi;
+    let lo = psi, hi = psi + 0.15;
+    for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (gap(mid) < 0) lo = mid; else hi = mid; }
+    return hi;
+  }
 
   // ---------- part labels (on the middle note) ----------
   const LABELS = [
@@ -613,7 +694,12 @@ export function createScene(canvas, overlay) {
     keyfront: { t: [10, 55, 0], p: [-190, 125, 110] },
     hammer: { t: [425, 168, 0], p: [425, 171, 330] },
     backcheck: { t: [445, 125, 0], p: [452, 128, 330] },
-    rails: { t: [325, 120, 0], p: [325, 125, 270] },
+    // the rest rail under the shank, close enough to see the gap (1/8 in is about 20 px on a desktop)
+    rails: { t: [G.restRailX, 112, 0], p: [G.restRailX, 116, 225] },
+    // the wippen on its flange and rail (the tilt test)
+    wippen: { t: [325, 120, 0], p: [325, 125, 270] },
+    // the wink test: the jack being tripped and, in the same picture, the hammer head that dips
+    wink: { t: [398, 138, 0], p: [398, 142, 335] },
     // looking down the keys from the player's side at the hammer tops: sight the hammer line
     hammerline: { t: [460, 162, 0], p: [280, 245, 0] },
     dampers: { t: [540, 130, 0], p: [540, 140, 420] },
@@ -737,6 +823,7 @@ export function createScene(canvas, overlay) {
   }
 
   function update(slot, sim, a, hammerOverride = null, jackOverride = null, drawShared = slot === 0) {
+    if (!bcMore) fitBackcheck();   // (it poses the middle note to do it: before this frame's own pose)
     const n = notes[slot];
     const k = keyAngle(a, sim.keyShown ?? sim.d);
     n.key.position.set(G.balX, k.By, 0); n.key.rotation.z = k.th;
@@ -746,7 +833,9 @@ export function createScene(canvas, overlay) {
     if (!!n.stackOff !== !!sim.stackOff) { n.stackOff = !!sim.stackOff; showStack(n, !n.stackOff, drawShared); }
     const L = sim.L;
     n.wippen.rotation.z = L.phi;
-    n.jack.rotation.z = jackOverride ?? sim.psi;
+    // (a tripped jack is drawn clear of the knuckle's roll; one a test or a hand holds is where that puts it)
+    const psiShown = jackOverride ?? (sim.st?.escaped && sim.hand?.hold !== 'jack' ? clearOfKnuckle(L, sim.psi, hammerOverride ?? sim.g, a.wear || 0) : sim.psi);
+    n.jack.rotation.z = psiShown;
     // side play the center tests rock (model.js Sim.reset): the jack on its pin, the hammer on its pin (the wippen: below)
     n.jack.rotation.x = Math.asin(BASS * (sim.jackRock || 0) / G.jackTop[1]);   // rocking on its pin: the top moves, not the end in the cheeks
     n.align.rotation.y = Math.asin(-BASS * (sim.hammerRock || 0) / G.crownC[0]);
@@ -791,9 +880,23 @@ export function createScene(canvas, overlay) {
     n.balPunch.scale.y = Math.max(0.3, a.balPunch); n.balPunch.position.y = G.balRailY + Math.max(0.3, a.balPunch) / 2 - Math.max(0, 0.3 - a.balPunch);
     n.frontPunch.scale.y = Math.max(0.3, a.frontPunch); n.frontPunch.position.y = G.frontRailY + Math.max(0.3, a.frontPunch) / 2;
     n.letoffBtn.position.y = a.letoff;
+    // A jack jammed on its stop felt can't trip any further, while the model's key goes on down: the tender is drawn
+    // squashing the button's felt (up to 60% of it) rather than passing through it.
+    const squash = Math.max(0, Math.min(0.6 * LETOFF_FELT, L.jackPt(psiShown, [-25, 3])[1] + 2.1 - a.letoff));
+    n.letoffFelt.scale.y = (LETOFF_FELT - squash) / LETOFF_FELT; n.letoffFelt.position.y = squash + (LETOFF_FELT - squash) / 2;
     n.dropScrew.position.y = a.drop; n.dropScrew.rotation.y = 2 * Math.PI * (a.drop - FACTORY.drop) / DROP_PITCH;   // right-hand thread: up turns it anticlockwise
     if (drawShared) restRail.position.y = a.restRail;
-    n.bc.rotation.z = (a.backcheck - (a.wear || 0) * WEAR.backcheck) / 80;
+    n.bc.rotation.z = bcLean(a.backcheck - (a.wear || 0) * WEAR.backcheck);
+    // Bent in past where it scrapes, the head can't be drawn any closer without standing in the resting tail; there the
+    // wire is drawn giving to the tail it holds, so a checked hammer still shows the buckskin on its tail
+    if (sim.st?.checked && hammerOverride === null && a.backcheck > 2) {
+      const hit = t => { n.bc.rotation.z = bcLean(a.backcheck - (a.wear || 0) * WEAR.backcheck) + t; return tailHits(n, bcOutline(n)); };
+      if (!hit(0) && hit(0.08)) { let lo = 0, hi = 0.08; for (let i = 0; i < 9; i++) { const mid = (lo + hi) / 2; if (hit(mid)) hi = mid; else lo = mid; } hit(lo); }
+      else hit(0);
+    }
+    // the backcheck under a tail the model has left low carries it (not while it has the hammer in check, nor a test's or a hand's hammer)
+    if (hammerOverride === null && L.depth > 0.3 && !sim.st?.checked && !sim.st?.catching && sim.hand?.hold !== 'hammer' && !sim.stackOff)
+      n.hammer.rotation.z = carriedBy(n, sim.g);
     // packed-down felts
     const w = a.wear || 0;
     n.knuckle.scale.y = (2 * G.knuckleR + WEAR.knuckle * w) / (2 * G.knuckleR);
@@ -878,11 +981,17 @@ export function createScene(canvas, overlay) {
   const insetBox = document.createElement('div'); insetBox.id = 'inset'; insetBox.hidden = true; overlay.appendChild(insetBox);
   insetBox.style.pointerEvents = 'auto'; insetBox.title = 'The key front: click for the full view';
   const insetText = document.createElement('div'); insetText.className = 'inset-text'; insetBox.appendChild(insetText);
-  let insetOn = false;
+  let insetOn = false, insetMode = 'key';
   function setInset(on) { insetOn = on; }
   function setInsetText(t) { if (insetText.textContent !== t) insetText.textContent = t; }
-  // top right, under the view buttons however many rows they wrap to (and under the exam clock), left of the move
-  // buttons, about a quarter of the stage wide. Measured again only when the stage changes size.
+  // What the inset shows: the key front, or ('crown') the hammer's crown at the string, side on and close, for stepping
+  // through let-off and drop a frame at a time: the Jack & knuckle view that goes with it has the hammer head out of the
+  // picture, and let-off is the hammer's distance from the string. Its let-off and drop lines show in it.
+  const INSET_CROWN = { t: [462, G.stringY - 7, 0], p: [462, G.stringY - 6.5, 80] };
+  function setInsetMode(m) { insetMode = m; insetBox.title = m === 'crown' ? 'The hammer at the string: click for the Hammer view' : 'The key front: click for the full view'; }
+  // top left, under the view buttons however many rows they wrap to: clear of the strings, the damper and the hammer
+  // head in the opening view and the side views (top right, it sat on them), about a quarter of the stage wide.
+  // Measured again only when the stage changes size.
   const viewsBar = document.getElementById('views'), navpad = document.getElementById('navpad');
   let insetAt = null;
   if (window.ResizeObserver) { const ro = new ResizeObserver(() => { insetAt = null; }); for (const e of [viewsBar, navpad]) if (e) ro.observe(e); }   // the bars wrap or reflow
@@ -891,21 +1000,22 @@ export function createScene(canvas, overlay) {
     if (insetAt?.sw === w && insetAt.sh === h) return insetAt;
     const iw = Math.round(Math.max(150, Math.min(280, w * 0.26))), ih = Math.round(iw * 0.72);
     const top = Math.max(56, viewsBar ? viewsBar.offsetTop + viewsBar.offsetHeight + 8 : 0);
-    const right = navpad?.offsetParent ? navpad.offsetLeft - 8 : w - 10;
-    insetAt = { x: right - iw, top, w: iw, h: ih, sw: w, sh: h };
+    insetAt = { x: viewsBar ? Math.max(8, viewsBar.offsetLeft) : 10, top, w: iw, h: ih, sw: w, sh: h };
     insetBox.style.cssText = `left:${insetAt.x}px;top:${top}px;width:${iw}px;height:${ih}px;pointer-events:auto`;
     return insetAt;
   }
   // not in the clipped views (they look along the action at one slice, and swapping their clipping planes out and back
   // every frame would send every material back through the shader cache)
   function renderInset() {
-    const show = insetOn && !toolStage.visible && viewName !== 'keyfront' && !clipNow;
+    const crown = insetMode === 'crown', V = crown ? INSET_CROWN : INSET;
+    const show = insetOn && !toolStage.visible && viewName !== (crown ? 'hammer' : 'keyfront') && !clipNow;
     if (insetBox.hidden === show) insetBox.hidden = !show;
     if (!show) return;
     const r = insetRect(), y = r.sh - r.top - r.h;   // the renderer counts from the bottom
-    insetCam.position.set(INSET.p[0], INSET.p[1], INSET.p[2] + viewZ); insetCam.lookAt(INSET.t[0], INSET.t[1], INSET.t[2] + viewZ);
+    insetCam.position.set(V.p[0], V.p[1], V.p[2] + viewZ); insetCam.lookAt(V.t[0], V.t[1], V.t[2] + viewZ);
     insetCam.aspect = r.w / r.h; insetCam.updateProjectionMatrix();
-    for (const c of callouts.values()) c.line.visible = false;   // their labels are placed for the main view only
+    // the lines' labels are placed for the main view only; at the string the let-off and drop lines themselves show
+    for (const c of callouts.values()) c.line.visible = crown && calloutsOn;
     renderer.setScissorTest(true); renderer.setScissor(r.x, y, r.w, r.h); renderer.setViewport(r.x, y, r.w, r.h);
     renderer.render(scene, insetCam);
     renderer.setScissorTest(false); renderer.setViewport(0, 0, r.sw, r.sh);
@@ -1002,5 +1112,5 @@ export function createScene(canvas, overlay) {
 
   setNoteCount(1);
   return { render, update, setView, zoomBy, slideBy, resetView, showTool, hideTool, spinTool, highlight, pick, screenOf, setCallout, clearCallouts, setCallouts, backcheckGap, setBackground, controls, camera, setLabels,
-           setNoteCount, setFocus, setInset, setInsetText, insetEl: insetBox, straightedge, PART_NAMES, VIEWS };
+           setNoteCount, setFocus, setInset, setInsetText, setInsetMode, insetEl: insetBox, straightedge, PART_NAMES, VIEWS };
 }
