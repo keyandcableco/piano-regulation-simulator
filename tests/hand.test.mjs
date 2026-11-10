@@ -59,6 +59,45 @@ test('grand: the hammer lifted by hand moves nothing else, and falls back onto t
   assert.ok(!types(after).includes('strike'));
 });
 
+test('grand: the hammer dropped by hand onto a played key at rest bounces on the jack; the key and wippen stay still', () => {
+  // (a key that has been played and let up moves by the forces on it, not at a set speed as a new Sim's does)
+  const s = grand(); s.blow('mf'); run(s, 0.3, G_DT); s.release(); run(s, 2, G_DT);
+  assert.equal(s.d, 0, 'the key back at rest');
+  const c0 = crown(s), phi0 = s.L.phi;
+  s.grab('hammer', s.g);
+  run(s, 0.6, G_DT, t => { s.hand.q = ramp(s.hand.at, s.hand.at + 0.08, 0.3)(t); });
+  assert.ok(c0 - crown(s) > 8, `lifted ${(c0 - crown(s)).toFixed(1)} mm`);
+  assert.equal(s.d, 0, 'the key stays put while the hammer is held up');
+  s.letGo();
+  let dMin = 0, dMax = 0, bounces = 0, wPrev = s.w;
+  const after = run(s, 1, G_DT, () => {
+    dMin = Math.min(dMin, s.d); dMax = Math.max(dMax, s.d);
+    if (wPrev < 0 && s.w > 0) bounces++;
+    wPrev = s.w;
+  });
+  assert.ok(dMin === 0 && dMax === 0, `the key didn't move (${dMin.toFixed(3)} to ${dMax.toFixed(3)} mm)`);
+  near(s.L.phi, phi0, 1e-12, 'the wippen');
+  assert.ok(bounces >= 2, `the hammer bounced on the jack (${bounces} times)`);
+  near(crown(s), c0, 0.01, 'and settled back on the jack');
+  assert.ok(s.onJack && !types(after).includes('strike') && !types(after).includes('bobble'), `no blow: ${types(after)}`);
+  // and the next blow is a clean note, not a bobble left over from the bounces
+  s.blow('mf'); const next = run(s, 0.3, G_DT);
+  assert.equal(next.filter(e => e.type === 'strike').length, 1); assert.ok(!types(next).includes('bobble'), `${types(next)}`);
+});
+
+test('grand: the hammer pressed down by hand onto a played key at rest stops on the jack; the key stays still', () => {
+  const s = grand(); s.blow('mf'); run(s, 0.3, G_DT); s.release(); run(s, 2, G_DT);
+  const c0 = crown(s), g0 = s.g, gR = GM.gRail(s.a);
+  let dMin = 0, dMax = 0;
+  const track = () => { dMin = Math.min(dMin, s.d); dMax = Math.max(dMax, s.d); };
+  s.grab('hammer', g0);
+  run(s, 0.6, G_DT, t => { s.hand.q = ramp(g0, gR, 0.3)(t); track(); });   // pushed toward the rest rail, past the jack
+  near(crown(s), c0, 0.01, 'stopped on the jack');
+  s.letGo(); run(s, 1, G_DT, track);
+  assert.ok(dMin === 0 && dMax === 0, `the key didn't move (${dMin.toFixed(3)} to ${dMax.toFixed(3)} mm)`);
+  near(crown(s), c0, 0.01, 'still on the jack after letting go');
+});
+
 test('grand: a checked hammer lifted out by hand and set back down stays checked', () => {
   const s = grand(); s.blow('mf'); run(s, 0.6, G_DT);   // the Strike and hold test's blow: a normal finger, which checks at the backcheck's face
   assert.ok(s.st.checked, 'checked after a strike and hold');
