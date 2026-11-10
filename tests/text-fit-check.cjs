@@ -93,7 +93,7 @@ function textFit(rootSel) {
     const openFolds = () => page.evaluate(() => document.querySelectorAll('aside details:not([open])').forEach(d => { d.open = true; }));
     const look = async where => {
       looks++;
-      for (const root of ['aside', '#partpop', '#partpop-u', '#keydock', '#views', '#toasts', '#framepad']) {
+      for (const root of ['aside', '#partpop', '#partpop-u', '#keydock', '#views', '#toasts', '#testlog', '#framepad']) {
         for (const b of await page.evaluate(textFit, root)) {
           const key = `${b.kind}: ${b.what}`;
           if (seen.has(key)) { seen.get(key).n++; continue; }

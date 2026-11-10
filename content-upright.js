@@ -105,7 +105,7 @@ export const STEPS = [
 //   ctx.view(name)                  turn to one of scene-upright.js's views
 //   ctx.run(seconds) -> Promise     run the Sim that long (drawn as it goes, in slow motion if the test sets scale)
 //   ctx.pause(seconds) -> Promise   wait in real time, the drawing still
-//   ctx.say(text, warn)             the event line and a toast
+//   ctx.say(text, warn)             the event line and the test's log over the picture (a toast if the log was closed)
 //   ctx.release() -> Promise        let the key up and bring everything to rest
 //   ctx.show(a, p) / ctx.show(null) draw a pose of its own (a hand on a part, the rail pulled) instead of the Sim
 //   ctx.grade(id)                   upright-model.js grade() of ctx.m at the current skill level
