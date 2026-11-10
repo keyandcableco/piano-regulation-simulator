@@ -106,7 +106,7 @@ const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if
   await said();
   await tap('[data-anchor="test:repeat"]');
   await page.waitForFunction(() => /Fastest from a half release|doesn't repeat at all/.test(document.querySelector('#mode').textContent), null, { timeout: 180000 });
-  const long = Math.round(await page.evaluate(() => window.__long)), counting = (await said()).filter(l => /trying \d+ a second/.test(l)).length;
+  const long = Math.round(await page.evaluate(() => window.__long)), counting = (await said()).filter(l => /trying \d+ blows a second/.test(l)).length;
   check(long < 200, `repeat: the longest stretch the page was held up while it played and counted: ${long} ms (headless software drawing included)`);
   check(counting >= 5, `repeat: ${counting} progress lines while it counted`);
   const rep = await page.evaluate(() => /At \d+ blows a second[^.]*\.[^.]*a second[^.]*/.exec(document.querySelector('#mode').textContent)?.[0]);

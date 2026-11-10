@@ -1329,6 +1329,11 @@ export class Sim {
   sub(dt) {
     const a = this.a, st = this.st;
     const dPrev = this.d;
+    // the key still on its back rail cloth with no finger on it: a hammer coming down onto the jack, or pressed onto it
+    // by hand, drives the key's back end into the cloth it already rests on, so the key can't give under it, as on a
+    // key held down on its front rail (below). homeLanding: the hammer is off the jack (lifted by hand, say)
+    const keyHome = dPrev === 0 && this.v === 0 && !(this.force > 0) && !st.escaped;
+    const homeLanding = keyHome && !this.onJack;
     const h = this.hand;
     if (h) { h.v += (HAND_W * HAND_W * (h.q - h.at) - 2 * HAND_W * h.v) * dt; h.at += h.v * dt; }
     // a blow in progress: the push, then the resting hand (or the finger gone)
@@ -1414,6 +1419,7 @@ export class Sim {
     const onCam = forced && !st.escaped && !handTrip && h?.hold !== 'jack' && Math.abs(this.psi - L.psiBtn) < 1e-9;
     let jackG = st.escaped ? -Infinity : onCam ? this.cam(this.d) : gOnJackAt(L, this.psi);
     let carried = false;   // the jack carried the hammer through this step (under a finger's force)
+    let offJack = false;   // the hammer bounced up off the jack of a key at rest: it isn't riding the jack
     // how fast the jack is lifting the hammer per mm of key, from the step just made; found afresh when the jack has
     // just come back under
     if (st.escaped) { this.gam = null; this.jgPrev = null; }
@@ -1487,13 +1493,18 @@ export class Sim {
       // meets it on a bottomed key and bounces off the knuckle: Hunt and Crossley's restitution for Hirschkorn's
       // damping factor of that contact. That is the double repeat Igrec puts down to too little aftertouch; here it
       // takes a key with almost none, since the model's jack escapes cleanly once its back passes the knuckle's center.
+      // A hammer dropped onto the jack of a key resting on its back rail meets a key that can't give either: it bounces
+      // the same way and the key and wippen stay where they are (homeLanding); a slow landing just settles, and a hand
+      // pressing the hammer down there stops it on the jack.
       // Anywhere else the key and wippen give under the knuckle and it settles.
       // A jack slipping back under lifts the knuckle a hair; that lift comes out of the bounce, not on top of it.
       const vk = -this.w * G.knuckleC[0] / 1000;   // the knuckle's downward speed, m/s
-      if (vk > BOUNCE_V && this.d >= this.dip - 0.02 && !held) {
+      if (vk > BOUNCE_V && (this.d >= this.dip - 0.02 || homeLanding) && !held) {
         w = Math.sqrt(Math.max(0, (Math.max(0, 1 - 2 / 3 * G.jackD * vk) * this.w) ** 2 - 2 * GA * Math.max(0, jackG - g)));
-        this.bounceD = this.d;   // a strike before the key comes back up is a bobble
+        if (homeLanding) offJack = w > 0;
+        else this.bounceD = this.d;   // a strike before the key comes back up is a bobble
       }
+      else if (keyHome && (held || (homeLanding && vk > 0))) w = 0;
       // otherwise the jack has it. Moved by a hand at a set speed, the jack simply drives it (one slipping back under
       // lifts it gently: WEDGE_T). Under a finger's force the key and the hammer share their momentum through the
       // jack: the hammer takes the speed that keeps its knuckle on the jack top, and the key gives up (or gains) what
@@ -1605,7 +1616,7 @@ export class Sim {
     // the hammer can still float up off the lever and strike again
     if (this.d < 0.5) this.struckD = this.floatD = null;
     if (g < gString() - 1e-4) { this.blocked = false; this.buzzing = false; }   // off the string: a new blow can block or buzz again
-    this.onJack = !st.escaped && Math.abs(g - jackG) < 1e-9;
+    this.onJack = !st.escaped && !offJack && Math.abs(g - jackG) < 1e-9;
     const Lwas = this.L, dWas = this.dL ?? dPrev; this.gCwas = gC;
     this.g = g; this.w = w; this.L = L; this.dL = dAt;
     if (forced) this.derivs(Lwas, dWas);

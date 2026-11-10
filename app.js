@@ -6,12 +6,13 @@ import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
 import { examMark, PASS, OP_NEEDS } from './examscore.js';
 import { TOOLBAG } from './toolbag.js';
-import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F, touch, dipAt, repeatRun, pedalFor } from './model.js';
+import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F, REPEAT_SOUNDS, touch, dipAt, repeatRun, pedalFor } from './model.js';
 import { initControls, markView, closeMenu, compact, onCompact, panelTo } from './controls.js';
 import { SPEC_SETS, specSet, setSpecSet, specSource } from './model.js';
 import { GAUGES, graduation, parseReading, judgeReading } from './gauge.js';
 import { mountBench } from './bench-ui.js';
 import { diffAdj } from './bench.js';
+import { createTestLog } from './testlog.js';
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -101,6 +102,9 @@ const waitSim = s => new Promise(r => waits.push({ at: simTime + s, r }));
 let busy = 0;
 let bench = null;   // the bench bar (bench-ui.js), mounted below once the action is up
 const benchEpoch = { learn: 0, diagnose: 0, sandbox: 0 };   // keys dealt, by mode: a new one is a new piece of work
+// a test that sums the action's events up itself (Repeat: a line for each blow) sees each one first; offLog: the event
+// being handled is one it summed up, so its own line stays off the test's log
+let watch = null, offLog = false;
 let forcedScale = null; // tests run at their own speed
 // How hard the finger plays (the Touch menu): Play, Strike & hold, Loop, Space and a press on the key all strike with
 // it. A blow is a finger's force on the key front (model.js BLOWS), not a key moved at a set speed.
@@ -118,6 +122,8 @@ catch (err) {
   $('#mode').replaceChildren();
   throw err;
 }
+// what a running test says, filling in on a card over the picture (testlog.js; toast() and say() hand it their lines)
+const testLog = createTestLog(el, $('#stage'), $('#toasts'));
 
 // side views follow the current note and fade the other two; sighting the hammer line shows all three at full strength,
 // and so do the Sandbox's views where the three stand side by side
@@ -344,6 +350,9 @@ const TESTS = {
   weighOff: { label: 'Weigh off the key (gram weights)', specs: [], view: 'keyfront', scale: 0.5, noExam: true, extra: () => touchBlock(),
     run: async () => {
       await releaseKey(); const wasDown = pedalDown; setPedal(true); await waitSim(0.2);
+      // (the steadied weight hovers where let-off begins to resist, and the lever touches its drop screw over and over:
+      // the test says what the weights do, so those lines stay off its log)
+      watch = e => e.type === 'tender' || e.type === 'dropscrew';
       const t = touch(adj); touchRead = { key: JSON.stringify(adj), t };
       if (t.down === null) { say('The key can\'t be weighed off: let-off begins as soon as it moves', 'warn'); if (!wasDown) setPedal(false); return; }
       const dw = Math.round(t.down), uw = Math.round(t.up);
@@ -368,14 +377,38 @@ const TESTS = {
   repeat: { label: 'Repeat the note (five quick blows)', specs: [], view: 'hammer', scale: 0.1, noExam: true, extra: () => repeatBlock(),
     run: async () => {
       await releaseKey();
-      const rate = REPEAT_SHOW, T = 1 / rate, to = sim.dip * 0.5;
-      for (let b = 0; b < 5; b++) { sim.push(REPEAT_F); await waitSim(T / 2); sim.ease(to, Math.max(1, sim.d - to) / (T / 2)); await waitSim(T / 2); }
+      const rate = REPEAT_SHOW, T = 1 / rate, to = sim.dip * 0.5, blows = [];
+      say(`Five quick blows, ${rate} a second, the key let up halfway between them (played at a tenth of real speed)`);
+      // each blow on a line of its own, filled in as it goes: how fast the hammer struck (too soft to sound under a
+      // third of the first blow's speed, as the count judges it), where it checked, and how far up the key had come when
+      // the jack got back under the knuckle. The event lines it sums up stay off the log.
+      const line = i => {
+        const x = blows[i], soft = x.v && blows[0].v && x.v < REPEAT_SOUNDS * blows[0].v, none = x.over && !x.v;
+        const parts = [x.v ? `struck ${x.v.toFixed(1)} m/s${soft ? ', too soft to sound' : ''}` : none ? 'no strike' : null,
+          x.check != null ? (revealed('check') ? `checked ${fmt(x.check)} from the string` : 'checked') : null,
+          x.up != null ? `jack back under at ${x.up}% up` : null].filter(Boolean);
+        testLog.add(el('span', {}, el('b', { class: 'tl-label' }, `Blow ${i + 1}`), parts.join(' · ') || '…'), soft || none ? 'warn' : '', `blow${i}`);
+      };
+      watch = e => {
+        const i = blows.length - 1, x = blows[i];
+        if (!x) return false;
+        if (e.type === 'strike') x.v = Math.max(x.v ?? 0, e.v);
+        else if (e.type === 'checked') x.check = e.dist;
+        else if (e.type === 'reset') x.up = Math.round(100 * (1 - e.d / sim.dip));
+        else return (e.type === 'letoff' && !e.hand) || e.type === 'tender' || e.type === 'dropscrew';
+        line(i); return true;
+      };
+      for (let b = 0; b < 5; b++) {
+        blows.push({}); line(b);
+        sim.push(REPEAT_F); await waitSim(T / 2); sim.ease(to, Math.max(1, sim.d - to) / (T / 2)); await waitSim(T / 2);
+        blows[b].over = true; line(b);
+      }
+      watch = null;
       sim.release(); await waitSim(0.3);
-      say('Counting how fast this key repeats…'); await waitReal(0.05);
-      const shown = await repeatSliced(rate, 0.5), half = await ceiling(0.5, 'from a half release'), full = await ceiling(1, 'with the key let all the way up');
+      say('Now how fast it can go: five blows at 3 a second, then 4, and so on, until one of the five doesn\'t sound'); await waitReal(0.05);
+      const shown = await repeatSliced(rate, 0.5), half = await ceiling(0.5, 'Let up halfway'), full = await ceiling(1, 'Let all the way up');
       repeatRead = { key: JSON.stringify(adj), shown, half, full };
-      const txt = repeatWords(repeatRead);
-      toast(txt, shown.ok && half >= REPEAT_SHOW ? '' : 'warn'); say(txt);
+      say(repeatWords(repeatRead), shown.ok && half >= REPEAT_SHOW ? '' : 'warn');
     } },
   damperSight: { label: 'Sight the damper heads on their strings', specs: ['damperSeat'], view: 'damperline', damper: true,
     run: async () => { await releaseKey(); await waitReal(1.6); view('dampers'); await waitReal(1.6); } },
@@ -525,12 +558,20 @@ async function repeatSliced(rate, up) {
   while (!(r = it.next()).done) if (performance.now() - t0 > 10) { await waitReal(0); t0 = performance.now(); }
   return r.value;
 }
+// The count climbs on one line of the test log: a chip for each rate tried, green if all five blows sounded, red for
+// the first that didn't, and the result at the end
 async function ceiling(up, how) {
   let best = 0;
+  const tried = [], line = now => el('span', { class: 'rates' }, el('span', { class: 'how' }, how),
+    tried.map(t => el('span', { class: `rate ${t.ok ? 'ok' : 'bad'}`, title: `${t.r} a second: ${t.sounded} of 5 sounded` }, t.r)),
+    now ? el('span', { class: 'rate try', title: `trying ${now} a second` }, now) : el('b', { class: 'res' }, best ? `${best} a second` : 'no repeat'));
   for (let r = 3; r <= 30; r++) {
-    say(`Counting how fast this key repeats ${how}: trying ${r} a second…`);
-    if ((await repeatSliced(r, up)).ok) best = r; else break;
+    say(`${how}: trying ${r} blows a second…`, '', { key: how, node: line(r) });
+    const res = await repeatSliced(r, up);
+    tried.push({ r, ok: res.ok, sounded: res.sounded });
+    if (res.ok) best = r; else break;
   }
+  say(`${how}: ${best ? `${best} blows a second` : 'it doesn\'t repeat'}`, best ? '' : 'warn', { key: how, node: line(null) });
   return best;
 }
 const repeatWords = r => `At ${r.shown.rate} blows a second from a half release, ${r.shown.sounded} of ${r.shown.blows.length} sounded. `
@@ -605,9 +646,10 @@ async function runTest(id) {
   view(t.view);
   if (mode === 'diagnose' || examActive()) testsUsed++;
   forcedScale = t.scale ?? 1;
+  testLog.start(t.label, () => JSON.stringify(adj));   // what it says fills in on a card over the picture
   refresh();
   const mode0 = mode, set0 = tested;   // (a rule put away by a change of tab marks nothing measured)
-  try { await t.run(); } finally { busy--; forcedScale = null; }
+  try { await t.run(); } finally { busy--; forcedScale = null; watch = null; testLog.done(); }
   // sighting the hammer line shows every hammer's height at once
   // (with the gauges on, sighting the line shows which hammer is high or low, not the blow distance: that is read off the rule)
   if (gen === generation && mode === mode0 && tested === set0 && !(gaugeMode && id === 'hammerLine')) (id === 'hammerLine' ? NOTES.map(n => n.tested) : [tested]).forEach(set => t.specs.forEach(s => set.add(s)));
@@ -1127,6 +1169,7 @@ function holdPressed(redraw) {
 function refresh() { holdPressed(redraw); }
 function redraw() {
   bench?.sync();
+  testLog.check();   // a finished test's log closes once the regulation it read has changed
   if (action === 'upright') {
     for (const b of document.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.mode === U.mode);
     const p = $('#mode');
@@ -1860,7 +1903,9 @@ function renderExamResult(p) {
 }
 
 // ---------- events from the simulation ----------
+// (during a test, its log takes the line)
 function toast(text, kind = '') {
+  if (busy && testLog.add(text, kind)) return;
   const box = $('#toasts');
   if ([...box.children].some(c => c.textContent === text && !c.classList.contains('out'))) return;   // already showing
   while (box.children.length >= 3) box.firstChild.remove();
@@ -1869,12 +1914,15 @@ function toast(text, kind = '') {
   setTimeout(() => t.classList.add('out'), 2600);
   setTimeout(() => t.remove(), 3200);
 }
-// What the key just did. While you simply play, it goes to the quiet line by the key buttons; during a test,
-// and for anything that is wrong (a block, a pop, a scrape), it pops up as well.
+// What the key just did. While you simply play, it goes to the quiet line by the key buttons, and anything that is
+// wrong (a block, a pop, a scrape) pops up as well; during a test, every line goes to the test's log too. key: a line
+// of the log that changes in place (progress); node: what the log shows for it, where text alone won't do
 const recentWarn = new Map();
-function say(text, kind = '') {
+function say(text, kind = '', { key = null, node = null } = {}) {
   $('#lastevent').textContent = text; $('#lastevent').title = text;
   canvas.said?.push(text);   // for the headless checks (tests/physics-app-check.cjs): every line, not just the last one in a frame
+  // (a line the test sums up itself, or progress, is only for the log: closed mid-test, they don't pop up instead)
+  if (busy && (offLog || testLog.add(node ?? text, kind, key) || key)) return;
   if (kind === 'warn') {
     if (performance.now() - (recentWarn.get(text) ?? -1e9) < 5000) return;   // not again on every loop
     recentWarn.set(text, performance.now());
@@ -1884,6 +1932,7 @@ function say(text, kind = '') {
 let letoffMark = null, checkMark = null, letoffD = null, contactD = {};
 function handleEvents() {
   for (const e of sim.events) {
+    offLog = !!watch?.(e);
     // (reading the gauges yourself, the status line gives no figures: the dip test's press would hand over let-off)
     const show = id => revealed(id) && !gaugeMode;
     if (e.type === 'letoff' && e.hand) say('Jack tripped by hand: the knuckle slips off it');
@@ -1932,6 +1981,7 @@ function handleEvents() {
     // a test lifts the key itself; Loop can't go on with it down
     if (e.type === 'keystuck' && !busy) { setLoop(false); say('The key stayed down: a tight bushing holds it. Press Let key up to lift it by hand', 'warn'); }
   }
+  offLog = false;
   // the pedal test listens for every damper landing, on every note
   NOTES.forEach((n, slot) => { if (landed) for (const e of n.sim.events) if (e.type === 'seated' && !landed.has(slot)) landed.set(slot, e.t); n.sim.events = []; });
 }
@@ -1939,7 +1989,10 @@ const FRONT_VIEWS = new Set(['jackfront', 'checkfront', 'checktop', 'hammerline'
 function updateCallouts() {
   if (sim.stackOff || sim.keyShown != null) { S.clearCallouts(); return; }   // the key and stack apart (key drop, wippen tilt): nothing to measure
   const nz = NOTE_Z[cur], z = 9 + nz, L = sim.L, g = hammerOverride ?? sim.g;
-  const atRest = sim.d < 0.01;
+  // up and still: a key let go comes back with a bounce, down into the back rail cloth and up off it with the hammer
+  // riding along, and passes through rest at every bounce. Read off the key's place alone, the lines measured at rest
+  // blinked on and off with each one; the key is still only once the bounce has died out (or it never moved).
+  const atRest = Math.abs(sim.d) < 0.01 && Math.abs(sim.v) < 1e-6;
   const show = id => revealed(id);
   // traveling: only a line straight up from where the head rests, like the lines on a traveling stick; a hammer
   // that travels true rises along it, one that doesn't drifts off it
@@ -2192,7 +2245,12 @@ function runCue() {
 $('#k-letoff').onclick = goToLetoff;
 for (const b of document.querySelectorAll('[data-view]')) b.onclick = () => view(b.dataset.view);
 for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
-  if (action === 'upright') { if (U.busy) return; showCredits = showLimits = false; U.setMode(b.dataset.mode); refresh(); return; }
+  if (action === 'upright') {
+    if (U.busy) return;
+    const was = U.mode; showCredits = showLimits = false; U.setMode(b.dataset.mode);
+    if (U.mode !== was && !testLog.running) testLog.close();   // another tab: the last test's log belongs to the one left
+    refresh(); return;
+  }
   if (b.dataset.mode === mode) return;
   if (mode === 'exam' && exam.started && !exam.done && b.dataset.mode !== 'exam' && !confirm('Leave the exam? Your progress will be lost.')) return;
   // the Learn key and the Find-the-fault customer are kept while another tab is open (looking a tool up, trying
@@ -2203,7 +2261,7 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   showCredits = showLimits = false;
   if (mode === 'drills') { drillsStop?.(); drillsEl = null; }
   if (mode === 'tools') { S.hideTool(); toolSel = null; S.setLabels(labelsOn); }
-  dropHand();
+  dropHand(); if (!testLog.running) testLog.close();   // (a test still running keeps its log to the end)
   mode = b.dataset.mode; tested = new Set(); verdict = null; S.clearCallouts(); setPaused(false); clearFrames(); closePop();
   touchRead = repeatRead = null;   // another key: not weighed, not played
   $('#framepad').hidden = true;
@@ -2657,7 +2715,7 @@ async function setAction(kind) {
   if (kind === 'upright' && !U) {
     try {
       loadingUpright ??= import('./upright-app.js').then(({ createUprightApp }) => {
-        U ??= createUprightApp({ el, put, toast, level, refresh });
+        U ??= createUprightApp({ el, put, toast, testLog, level, refresh });
         U.S.setBackground(stageColor());
       });
       await loadingUpright;
@@ -2672,7 +2730,7 @@ async function setAction(kind) {
     setLoop(false); clearPlan(); cue = null; setPaused(false); releaseOthers(); sim.press(0, 60); closePop(); S.highlight(null); tip.hidden = true;
     $('#framepad').hidden = true;
   }
-  closeMenu(); dropHand(); U?.dropHand();
+  closeMenu(); dropHand(); U?.dropHand(); testLog.close();
   action = kind; showCredits = showLimits = false;
   $('#app').classList.toggle('upright', kind === 'upright');
   for (const b of document.querySelectorAll('#action-switch button')) b.classList.toggle('on', b.dataset.action === kind);

@@ -151,6 +151,36 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -app
 .toast { background: var(--panel); border: 1px solid var(--line); padding: 6px 12px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.12); transition: opacity .5s; }
 .toast.warn { border-color: var(--warn); color: var(--warn); }
 .toast.out { opacity: 0; }
+/* a running test's log (testlog.js): fills in line by line, the newest marked and the earlier ones dimmed while it runs;
+   all of it plain once the test is done. Its left edge and the messages' top are set by the script */
+#testlog { position: absolute; top: 48px; left: 50%; width: min(480px, calc(100% - 24px)); max-height: min(45%, 360px); z-index: 2;
+  display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.18); font-size: 13px; line-height: 1.35; }
+#testlog[hidden] { display: none; }
+#testlog .tl-head { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 10px; border-bottom: 1px solid var(--line); }
+#testlog .tl-name { flex: 1; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#testlog .tl-state { flex: none; font-size: 11px; color: var(--accent); }
+#testlog .tl-state::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: currentColor; vertical-align: 1px; animation: tlpulse 1s ease-in-out infinite; }
+#testlog.done .tl-state { color: var(--muted); }
+#testlog.done .tl-state::before { animation: none; }
+@keyframes tlpulse { 50% { opacity: .25; } }
+#testlog .tl-close { flex: none; width: 28px; height: 28px; padding: 0; font-size: 17px; line-height: 1; }
+#testlog .tl-lines { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; overscroll-behavior: contain; }
+#testlog li { padding: 2px 10px 2px 7px; border-left: 3px solid transparent; color: var(--muted); font-variant-numeric: tabular-nums; }
+#testlog.done li { color: var(--ink); }
+#testlog li.now { color: var(--ink); border-left-color: var(--accent); }
+#testlog li.warn { color: var(--warn); }
+#testlog .tl-n { margin-left: 6px; font-size: 11px; font-weight: 600; }
+#testlog .tl-n:empty { display: none; }
+#testlog .tl-label { font-weight: 600; margin-right: 6px; }
+/* the repeat count: a chip for each rate tried */
+#testlog .rates { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
+#testlog .rates .how { margin-right: 4px; }
+#testlog .rate { min-width: 1.9em; padding: 0 3px; border-radius: 4px; text-align: center; font-size: 12px; background: var(--chip); }
+#testlog .rate.ok { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }
+#testlog .rate.bad { background: color-mix(in srgb, var(--bad) 20%, transparent); color: var(--bad); }
+#testlog .rate.try { outline: 1px solid var(--accent); color: var(--ink); animation: tlpulse 1s ease-in-out infinite; }
+#testlog .rates .res { margin-left: 4px; }
 .plabel { position: absolute; left: 0; top: 0; white-space: nowrap; font: 600 11px/1 system-ui; color: var(--ink);
   background: color-mix(in srgb, var(--panel) 85%, transparent); border: 1px solid var(--line); padding: 2px 5px; border-radius: 4px; margin: -8px 0 0 4px; pointer-events: none; }
 #inset-u { z-index: 1; }   /* over the main view's measurement labels */
@@ -393,6 +423,7 @@ table.compare tr.moved td { font-weight: 600; }
   .nudge, .nudge-side { flex: 1; }
   #keypos { display: none; }
   #toasts { top: 52px; font-size: 13px; width: calc(100% - 32px); }
+  #testlog { top: 52px; max-height: 45%; }
   #keystatus .sep { display: none; }
   /* Play, Let key up, Key & pedal and Speed fit a 360 px phone */
   .bar > button, .cat-btn { padding: 5px 6px; font-size: 13px; }

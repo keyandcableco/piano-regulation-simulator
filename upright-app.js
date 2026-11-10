@@ -61,9 +61,9 @@ const EVENT_TEXT = {
 const LOG_LINES = 4;
 const specsOf = st => [st.spec, ...(st.also ?? [])];
 
-// env: el and put (the app's DOM helpers), toast(text, kind), level() (the app's skill level: tolK, live), refresh()
-// (redraw the panel)
-export function createUprightApp({ el, put, toast, level, refresh }) {
+// env: el and put (the app's DOM helpers), toast(text, kind), testLog (testlog.js: the card a running test's lines fill
+// in), level() (the app's skill level: tolK, live), refresh() (redraw the panel)
+export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
   const $ = s => document.querySelector(s);
   const mark = e => { e.dataset.upright = ''; return e; };
   let active = false, mode = 'sandbox', labelsOn = false, speed = 0.1, softOn = false, sustainOn = false;
@@ -178,8 +178,10 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       else if (typeof plan === 'number' && sim.t >= plan) { plan = null; keyUp(); }
       for (const e of sim.events) {
         if (!e.hand) testEvents.push(e);   // (a jack tripped by hand isn't a let-off reading)
-        if (EVENT_TEXT[e.type]) { log.push(EVENT_TEXT[e.type](e)); if (log.length > LOG_LINES) log.shift(); }
-        if (e.type === 'rail' && releasedAt !== null) { log.push(`Hammer home in ${Math.round(1000 * (e.t - releasedAt))} ms`); if (log.length > LOG_LINES) log.shift(); releasedAt = null; }
+        // (during a test, its log gets each line too)
+        const line = text => { log.push(text); if (log.length > LOG_LINES) log.shift(); if (busy) testLog.add(text); };
+        if (EVENT_TEXT[e.type]) line(EVENT_TEXT[e.type](e));
+        if (e.type === 'rail' && releasedAt !== null) { line(`Hammer home in ${Math.round(1000 * (e.t - releasedAt))} ms`); releasedAt = null; }
       }
       sim.events = [];
       if (testRun && sim.t >= testRun.until - 1e-12) { const r = testRun.r; testRun = null; r(); }
@@ -231,7 +233,7 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     view,
     run: secs => new Promise(r => { testRun = { until: sim.t + secs, r }; }),
     pause: secs => new Promise(r => setTimeout(r, secs * 1000)),
-    say: (text, warn) => { toast(text, warn ? 'warn' : ''); log.push(text); if (log.length > LOG_LINES) log.shift(); },
+    say: (text, warn) => { if (!testLog.add(text, warn ? 'warn' : '')) toast(text, warn ? 'warn' : ''); log.push(text); if (log.length > LOG_LINES) log.shift(); },
     release: async () => {
       if (sim.d > 0.001 || sim.checked || sim.soft > 0 || sim.pedal > 0) { sim.press(0, UP); sim.setSoft(false); sim.setPedal(false); await ctx.run(0.4); }
       sim.reset(); testEvents = [];
@@ -247,9 +249,10 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     busy = true; plan = null; testScale = t.scale ?? 1; closeCard();
     softOn = sustainOn = false; softBtn.classList.remove('on'); susBtn.classList.remove('on');
     sim = new Sim(a); testEvents = []; log.length = 0;
+    testLog.start(t.label, () => JSON.stringify(a));   // what it says fills in on a card over the picture
     refresh(); view(t.view);
     try { await t.run(ctx); } catch (err) { console.error(err); }
-    override = null; testRun = null; busy = false; idle = false;
+    override = null; testRun = null; busy = false; idle = false; testLog.done();
     for (const sp of t.specs) tested.add(sp);
     refresh();
   }
