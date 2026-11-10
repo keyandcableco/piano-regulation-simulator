@@ -9,6 +9,7 @@ import { hand, UPRIGHT_HOLD, HOLD_NAMES, dragTo } from './hand.js';
 import { createUprightScene } from './scene-upright.js';
 import { STEPS, TESTS, TIPS, TOOLS, SPEC_NAMES, REPAIRS, SCENARIOS, bandText, readingText, callouts, deregulated, fairStart, creditOf, advise, alsoText } from './content-upright.js';
 import { markView } from './controls.js';
+import { examMark, OP_NEEDS } from './examscore.js';
 
 const DT = 0.0001;          // s: the Sim's step (its tests' and fit's)
 // At most this many steps a screen frame. Each costs about 0.2 ms of computing, so 120 is about 24 ms: real speed
@@ -426,18 +427,16 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
       const spread = v.every(x => x != null) ? Math.max(...v) - Math.min(...v) : null;
       return { id, spread, ok: spread !== null && spread <= evenTol(id, exam.level.tolK) + 1e-9 };
     });
-    const items = rows.flatMap(r => r.cells.filter(c => !c.skip).map(c => c.ok)).concat(even.map(e => e.ok));
-    let pct = Math.round(100 * items.filter(Boolean).length / items.length);
+    // a worn or broken part left in caps the mark below a pass, and so does an operation left out (examscore.js, as the grand's)
     const missed = exam.notes.some(n => n.a.damage);
-    if (missed) pct = Math.min(pct, 79);
-    return { rows, even, pct, missed };
+    return { rows, even, missed, ...examMark(rows, even, { missed }) };
   }
   function handIn() { if (busy || !exam.started || exam.done) return; exam.result = examScore(); exam.done = true; document.getElementById('level').disabled = false; refresh(); }
   function leaveExam() { exam = { started: false }; S.setPresent([true, true]); document.getElementById('level').disabled = false; }
   function renderExam(p) {
     if (!exam.started) {
       put(p, el('h2', {}, 'Upright exam: three notes'),
-        el('p', {}, 'Three neighboring notes, each knocked out of regulation, to regulate in the time: the same steps as Learn, with one hammer rail and soft pedal shared by all three. You\'re scored on each note against the specs, and on how even the three are: each reading\'s spread across the three within one note\'s tolerance (and never finer than one paper punching or capstan step moves it).'),
+        el('p', {}, 'Three neighboring notes, each knocked out of regulation, to regulate in the time: the same steps as Learn, with one hammer rail and soft pedal shared by all three. You\'re scored on each note against the specs, and on how even the three are: each reading\'s spread across the three within one note\'s tolerance (and never finer than one paper punching or capstan step moves it). No operation may be left out: a check that is out on more than one of the three notes caps the score below a pass.'),
         el('p', { class: 'muted small' }, 'PTG\'s vertical exam section is a disassembled three-note action model with pedals: you assemble it, then regulate all three notes and the pedals in 65 minutes, scored for their consistency and accuracy (Technical Exam Source Book Addendum, 2005). Here the model comes assembled and the scoring is the sim\'s own practice scoring, not PTG\'s sheet. At the top skill level one note may also hold a worn or broken part: in the real exam, repairs are a separate section.'),
         el('p', { class: 'muted small' }, 'An independent practice tool, not affiliated with or endorsed by the Piano Technicians Guild.'),
         el('div', { class: 'row' }, el('span', { class: 'muted' }, 'Clock:'), EXAM_CLOCKS.map(n => el('button', { class: n === examMinutes ? 'on' : '', onclick: () => { examMinutes = n; refresh(); } }, `${n} min`))),
@@ -446,8 +445,9 @@ export function createUprightApp({ el, put, toast, level, refresh }) {
     }
     if (exam.done) {
       const r = exam.result, note = ['Note 1', 'Note 2', 'Note 3'];
-      put(p, el('h2', {}, `Score: ${r.pct}%${r.pct >= 80 ? ', a pass' : ''}`),
+      put(p, el('h2', {}, `Score: ${r.pct}%${r.pass ? ', a pass' : ''}`),
         r.missed ? el('p', { class: 'verdict bad' }, 'A worn or broken part was left in the action, so the score is capped below a pass.') : null,
+        r.skipped.length ? el('p', { class: 'verdict bad', id: 'exam-skipped' }, `Left out: ${r.skipped.map(id => SPEC_NAMES[id]).join('; ')}. Each is out of tolerance on more than one note, so the operation counts as not done and the score is capped below a pass${r.raw > r.pct ? ` (the items alone come to ${r.raw}%)` : ''}. Every check has to be in on at least ${OP_NEEDS} of the three notes.`) : null,
         el('table', { class: 'specs score' }, el('thead', {}, el('tr', {}, el('th', {}, 'Check'), note.map(n => el('th', {}, n)))),
           el('tbody', {}, r.rows.map(row => el('tr', {}, el('td', {}, SPEC_NAMES[row.id]),
             row.cells.map(c => c.skip ? el('td', { class: 'muted' }, '—') : el('td', { class: c.ok ? 'okc' : 'badc' }, `${c.ok ? '✓' : '✗'} ${c.txt}`)))))),
