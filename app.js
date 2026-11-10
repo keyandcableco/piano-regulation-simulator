@@ -600,6 +600,7 @@ function revealed(id) {
 // rails that serve every note: one setting for all three on the exam model
 const SHARED = new Set(['restRail', ...ADJ.filter(d => d.shared).map(d => d.id)]);
 function setAdj(id, v) {
+  if (neighborsOn() && cur !== 0) { toast('This neighbor is regulated: it is there to compare against. Adjust the customer\'s key, the middle one.', 'warn'); return; }
   clearFrames();   // frames played before the change can't be stepped back into
   const d = ADJ.find(x => x.id === id);
   adj[id] = Math.max(d.min, Math.min(d.max, v));
@@ -866,6 +867,7 @@ const SCENARIOS = [
     answer: 'A tight balance rail bushing: the key still has its side play at the front, but twisted at its front it has none at the balance pin, and with the stack off it drops slowly. Let go after a blow it takes about twice as long to come back up, and weighed off it takes about 12 g more to go down and lifts 12 g less: all friction. Ease the balance bushing with key easing pliers.' },
 ];
 function newScenario() {
+  store(); cur = 0; ({ adj, sim, m, tested } = NOTES[0]);   // the customer's key is the middle one
   const pool = [...SCENARIOS].sort(() => Math.random() - 0.5);
   const s = pool[0];
   scenario = { ...s, faults: { ...s.faults } };
@@ -882,7 +884,44 @@ function newScenario() {
   tested = new Set(); testsUsed = 0; verdict = null; checks = 0; gaveUp = false; hint = false;
   touchRead = repeatRead = null;
   applyAdj();
+  seatNeighbors();
   $('aside').scrollTop = 0;
+}
+// ---------- Find the fault beside its neighbors (GT-24) ----------
+// On the bench a faulty note is judged against the notes either side of it. The customer's key is the middle note of
+// three; its neighbors (toward the bass and the treble) are regulated, on the same rails and pedal and as worn as it
+// is. They can be played, sighted across and tested, to see what right looks like; only the customer's key is adjusted
+// and checked. (The three-note model is the exam's: NOTES, multi().)
+let faultNeighbors = true;
+function neighborsOn() { return mode === 'diagnose' && faultNeighbors && !!scenario; }
+function seatNeighbors() {
+  const on = neighborsOn(), a0 = NOTES[0].adj;
+  if (on) for (const i of [1, 2]) putNote(NOTES[i], { ...FACTORY, wear: a0.wear || 0, ...sharedOf(a0) });
+  S.setNoteCount(on ? 3 : 1); S.setFocus(focusFor(viewNow)); S.clearCallouts();
+}
+function setFaultNeighbors(on) {
+  if (on === faultNeighbors || busy) return;
+  setLoop(false); clearPlan(); clearFrames(); closePop();
+  NOTES.forEach(n => { if (n.sim.dTarget > 0) n.sim.press(0, 60); });
+  store(); cur = 0; ({ adj, sim, m, tested } = NOTES[0]);
+  faultNeighbors = on; seatNeighbors(); view(viewNow); refresh();
+}
+const NEIGHBOR_NAMES = { 0: 'The customer\'s key', 1: 'Bass neighbor', 2: 'Treble neighbor' }, NEIGHBOR_SHORT = { 0: 'Customer\'s key', 1: 'Bass side', 2: 'Treble side' };
+function neighborBar() {
+  const dis = busy ? '' : false;
+  return el('div', { id: 'neighbors' },
+    el('div', { class: 'row notes' }, el('button', { class: faultNeighbors ? 'on' : '', disabled: dis, onclick: () => setFaultNeighbors(true) }, 'With its neighbors'),
+      el('button', { class: faultNeighbors ? '' : 'on', disabled: dis, onclick: () => setFaultNeighbors(false) }, 'One key')),
+    !faultNeighbors ? null : [
+      el('p', { class: 'muted small' }, 'The customer\'s key stands between two regulated neighbors, as on the bench. Play them, sight across the three, or pick a neighbor and run a test on it to see what right looks like. Only the customer\'s key can be adjusted.'),
+      el('div', { class: 'row notes' }, EXAM_ORDER.map(slot =>
+        el('button', { class: slot === cur ? 'on' : '', disabled: dis, 'data-note': slot, title: NEIGHBOR_NAMES[slot], onclick: () => { selectNote(slot); view(viewNow); } }, NEIGHBOR_SHORT[slot]))),
+      el('div', { class: 'row' }, el('button', { disabled: dis, onclick: () => chord(false) }, 'Play all three'),
+        el('button', { disabled: dis, onclick: () => chord(true) }, 'Press all three slowly'),
+        el('button', { disabled: dis, onclick: () => view('hammerline') }, 'Sight across the hammers'),
+        el('button', { disabled: dis, onclick: () => view('keytop') }, 'Look down on the keys')),
+      cur === 0 ? null : el('p', { class: 'note', id: 'on-neighbor' }, `You are on the ${NEIGHBOR_NAMES[cur].toLowerCase()}, which is regulated: its tests and readings are your reference. `,
+        el('button', { class: 'linkish', onclick: () => { selectNote(0); view(viewNow); } }, 'Back to the customer\'s key'))]);
 }
 const rnd = (lo, hi) => lo + Math.random() * (hi - lo), pm = x => rnd(-x, x);
 function deregulated() {
@@ -1287,6 +1326,7 @@ const howTo = () => el('ol', { class: 'how' },
 // a solved verdict no longer holds once anything is turned again
 const unsolve = () => { if (verdict && !verdict.bad.length) verdict = null; };
 function checkWork() {
+  if (neighborsOn() && cur !== 0) { selectNote(0); if (cur !== 0) return; view(viewNow); }   // the work checked is the customer's key
   checks++;
   verdict = { bad: Object.keys(SPEC).filter(id => !gradeL(id, m).ok) };
   refresh();
@@ -1301,14 +1341,14 @@ const unmeasured = (n, more) => `${n}${more ? ' more' : ''} in readings you have
 function renderDiagnose(p) {
   if (!scenario) {
     put(p, el('h2', {}, 'Find the fault'),
-      el('p', {}, 'A customer describes a problem with one key. Find what is out of regulation and put it right.'),
+      el('p', {}, 'A customer describes a problem with one key. Find what is out of regulation and put it right. The key stands between two regulated neighbors to compare it with, as on the bench.'),
       howTo(),
       el('div', { class: 'row' }, el('button', { class: 'primary', onclick: newScenario }, 'Next customer')));
     return;
   }
   const solved = !!verdict && !verdict.bad.length;
   const answer = () => el('p', {}, el('b', {}, 'What was wrong: '), scenario.answer, scenario.second ? ` Also: ${scenario.second.answer}` : '');
-  const hintBad = Object.keys(SPEC).filter(id => !gradeL(id, m).ok).map(id => SPEC[id].name);
+  const hintBad = Object.keys(SPEC).filter(id => !gradeL(id, NOTES[0].m).ok).map(id => SPEC[id].name);
   put(p, el('div', { class: 'complaint' }, el('div', { class: 'muted small' }, 'The customer says'), el('p', {}, `“${scenario.complaint}”`)),
     verdict ? el('div', { class: 'verdict ' + (solved ? 'ok' : 'bad'), id: 'verdict' },
       el('h3', {}, solved ? 'Regulated. Nice work.' : `Last check: ${verdict.bad.length} still out of spec`),
@@ -1320,6 +1360,8 @@ function renderDiagnose(p) {
         : el('button', { onclick: () => { gaveUp = true; refresh(); } }, 'Show what was wrong'))) : null,
     hint && level().hints && !solved ? el('p', { class: 'note' }, 'Hint: look at ', hintBad.join('; ') || 'nothing: it looks regulated', '.') : null,
     solved ? null : fold('how', 'How it works', howTo()),
+    neighborBar(),
+    neighborsOn() ? el('h3', {}, NEIGHBOR_NAMES[cur]) : null,
     AREAS.map(areaPanel),
     repairs());
   // the bar is the panel's last child, so it can stay pinned to the bottom edge
@@ -1498,7 +1540,7 @@ const examSpecs = () => Object.keys(SPEC).filter(id => (exam.dampers || !SPEC[id
 let exam = { started: false, done: false };
 const examActive = () => mode === 'exam' && exam.started;
 // three notes in play: the exam model, or the Sandbox's three keys
-const multi = () => examActive() || (mode === 'sandbox' && threeKeys);
+const multi = () => examActive() || (mode === 'sandbox' && threeKeys) || neighborsOn();
 function startExam() {
   setPaused(false); $('#framepad').hidden = true; clearFrames(); closePop();
   const restRail = deregulated().restRail;
@@ -1527,7 +1569,7 @@ function startExam() {
 // back to one note, from the exam or the Sandbox's three keys
 function toOneNote() {
   clearFrames(); closePop();
-  const wasThree = exam.started || threeKeys;
+  const wasThree = exam.started || threeKeys || neighborsOn();
   exam = { started: false, done: false }; threeKeys = false;
   $('#level').disabled = false;
   NOTES.forEach(n => { if (n.sim.dTarget > 0) n.sim.press(0, 60); });
@@ -1869,6 +1911,7 @@ const snapSim = s => Object.fromEntries(Object.entries(s).filter(([k]) => !SNAP_
 const idleNow = () => NOTES.every(({ sim: s }) => s.d === 0 && s.dTarget === 0 && Math.abs(s.w) < 1e-9 && Math.abs(s.vd) < 1e-9 && s.pedal === s.pedalTarget);
 let lastIdle = false;
 canvas.idle = () => idleNow();   // for the headless checks: the key up and the hammer home and still
+canvas.bench = () => ({ notes: multi() ? 3 : 1, cur, adj: NOTES.map(n => ({ ...n.adj })), factory: { ...FACTORY }, busy, view: viewNow });   // and what is on the bench
 // each frame the action moves: every note's state, and what the panel was marking (so markers and messages step back too)
 function snapshot() {
   const idle = idleNow();
@@ -1971,7 +2014,7 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   // the Learn key and the Find-the-fault customer are kept while another tab is open (looking a tool up, trying
   // something in the Sandbox), and are there again on coming back
   if (mode === 'learn') kept.learn = { adj: { ...adj }, tested: new Set(tested), stepIdx };
-  if (mode === 'diagnose' && scenario) kept.diagnose = { adj: { ...adj }, tested: new Set(tested), scenario, testsUsed, verdict, checks, gaveUp, hint };
+  if (mode === 'diagnose' && scenario) { store(); kept.diagnose = { adj: { ...NOTES[0].adj }, tested: new Set(NOTES[0].tested), scenario, testsUsed, verdict, checks, gaveUp, hint }; }
   toOneNote();
   showCredits = showLimits = false;
   if (mode === 'drills') { drillsStop?.(); drillsEl = null; }
@@ -1991,7 +2034,8 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
     scenario = null; adj = { ...FACTORY };
     if (k) ({ adj, scenario, testsUsed, checks, gaveUp, hint } = k);
     applyAdj();
-    if (k) { tested = k.tested; verdict = k.verdict; store(); refresh(); }
+    if (k) { tested = k.tested; verdict = k.verdict; store(); }
+    seatNeighbors(); refresh();
   }
   else { adj = { ...FACTORY }; applyAdj(); }
 };
