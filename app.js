@@ -5,7 +5,7 @@ import { createScene, NOTE_Z, BASS } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
 import { TOOLBAG } from './toolbag.js';
-import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled } from './model.js';
+import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F, touch, dipAt, repeatTest, repeatCeiling } from './model.js';
 import { initControls, markView, closeMenu } from './controls.js';
 
 const $ = s => document.querySelector(s);
@@ -95,6 +95,11 @@ const waits = [];
 const waitSim = s => new Promise(r => waits.push({ at: simTime + s, r }));
 let busy = 0;
 let forcedScale = null; // tests run at their own speed
+// How hard the finger plays (the Touch menu): Play, Strike & hold, Loop, Space and a press on the key all strike with
+// it. A blow is a finger's force on the key front (model.js BLOWS), not a key moved at a set speed.
+let touchNow = 'mf';
+const strike = (s = sim) => s.blow(touchNow);
+const PLAY_HOLD = 0.1;   // Play holds the key down this long (s of the action's own time) before letting it go
 
 const canvas = $('#c'), overlay = $('#overlay');
 let S;
@@ -161,7 +166,7 @@ const STEPS = [
   { spec: 'jackPos', also: ['wippenSpacing'], title: 'Jack position under the knuckle', knobs: ['jackScrew', 'wippenSpace', 'wippenTravel'], test: 'sightJack', tests: ['sightJack', 'sightJackFront'],
     what: 'Line up the back of the jack with the back of the knuckle core: the thin wood tongue through the middle of the felt roll, which runs up into the shank. Follow the line of the tongue\'s back face down: it should meet the back of the jack\'s top corner. Seen from the front, the jack should also stand centered under the knuckle.',
     how: 'Turn the jack regulating screw to move it front to back. Too far back and the jack drags as it escapes and is slow to get back under the knuckle; too far forward and it has less of the knuckle to push on. To center it side to side, loosen the wippen flange screw and shift the whole wippen, or put traveling paper behind one side of the wippen flange, between it and the rail: the wippen swings like a gate and the jack moves toward the side the paper is on.',
-    note: 'Near its mark, jack position changes how let-off feels (forward lightens the bump) more than where it happens; the sim models where, not the feel. Set too far forward, the knuckle slips off the back of the jack before the button trips it: let-off comes early and the blow is weak. The knuckle rides on the jack\'s rounded, slick back corner, so moving the jack also moves the hammer a little: recheck the wink and blow after. Spacing the hammers moves the knuckles sideways, so center the jacks after the hammers. Steinway\'s guide (written for its uprights) also centers the jack\'s toe on its button, and calls for a compromise when the two disagree.' },
+    note: 'Near its mark, jack position changes how let-off feels (forward lightens the bump) more than where it happens; the sim models where, and shows the bump only as grams (weigh off the key in the Sandbox: the trace under it). Set too far forward, the knuckle slips off the back of the jack before the button trips it: let-off comes early and the blow is weak. The knuckle rides on the jack\'s rounded, slick back corner, so moving the jack also moves the hammer a little: recheck the wink and blow after. Spacing the hammers moves the knuckles sideways, so center the jacks after the hammers. Steinway\'s guide (written for its uprights) also centers the jack\'s toe on its button, and calls for a compromise when the two disagree.' },
   { spec: 'wink', title: 'Repetition lever height', knobs: ['restRail', 'repStop'], test: 'wink',
     what: 'Trip the jack with the key at rest: the hammer should "wink", dropping a little (about 1/16") onto the repetition lever, and the jack should slip back under the knuckle when you let it go. Put another way, the top of the lever sits just below the top of the jack, about the thickness of a thin front punching.',
     how: 'First lower the rest rail out of the way: a hammer that sits on the rail, or lands on it when the jack is tripped, tells you nothing about the lever. Then turn the repetition lever height screw. If the shank is clear of the rail and the hammer doesn\'t move, the lever is too high: it holds the hammer off the jack (lost motion, uneven hammer line). If it drops and the jack can\'t get back under, the lever is too low and the note won\'t repeat.',
@@ -184,7 +189,7 @@ const STEPS = [
     note: 'Press slowly and watch the two contacts: the sim tells you which came first and by how much key travel. Chris Brown regulates one sample note so they meet together, then matches the rest to its let-off and drop. Rough in the repetition springs first: with a spring too weak to carry the hammer, drop can\'t be set.' },
   { spec: 'dip', title: 'Key dip', knobs: ['frontPunch'], test: 'dipBlock',
     what: 'Dip is how far the key front travels. A common grand starting point is 3/8"; makers specify about 10 mm. On a real piano or the exam model you work to the given spec.',
-    how: 'Change the front rail punchings. Thicker punchings stop the key sooner and give less dip. Measure with moderate pressure, about the weight of your hand: pressing hard squashes the punching.',
+    how: 'Change the front rail punchings. Thicker punchings stop the key sooner and give less dip. Measure with moderate pressure, about the weight of your hand: pressing hard squashes the punching. The reading here is the key just touching it; on this key\'s front felt (Hirschkorn measured it) 250 g of pressure adds about 0.1 mm and a kilogram 0.5, which the weigh-off test in the Sandbox prints.',
     note: 'Dip moves checking with it, and how far the lever lifts the hammer back at the bottom, so recheck those. If the hammer blocks before the key bottoms, let-off may be too close, the dip too shallow, or there is lost motion: find which first.' },
   { spec: 'aftertouch', title: 'Aftertouch', knobs: ['frontPunch', 'capstan'], test: 'slowPress',
     what: 'Aftertouch is the key travel left after let-off. It is what makes sure the jack escapes on the softest blow. Regulated to the textbook dip, blow and let-off, this action gives about 1.5 mm (1/16"). The books differ: Igrec gives about 1 mm (0.8 to 1.5 mm); Steinway 3/64" to 1/16", about the thickness of a new penny. The sim\'s target is 1.7 mm, and it passes 1.2 to 2.2 mm at Journeyman level.',
@@ -264,7 +269,7 @@ const TESTS = {
     } },
   wiggle: { label: 'Wiggle the hammer, play it, and listen', specs: ['hammerSound'], view: 'hammer',
     run: async () => {
-      await releaseKey(); sim.press(sim.dip, 250); await waitSim(0.3); sim.press(0, 60); await waitSim(0.3);
+      await releaseKey(); sim.blow('mf'); await waitSim(0.3); sim.release(); await waitSim(0.3);
       // (a broken jack spring is not the hammer's fault: the hammer and shank are sound, and the wink test finds it)
       const d = m.hammerSound ? DAMAGE[sim.a.damage] : null, play = m.hammerPlay > 0;
       toast(d ? `You notice ${d.signs}.` : play ? 'You notice play at the center pin, and a click on the blow.' : 'Solid on its center, no play, and quiet.', d || play ? 'warn' : '');
@@ -287,16 +292,16 @@ const TESTS = {
   slowPress: { label: 'Press slowly to the bottom', specs: ['letoff', 'drop', 'aftertouch'], view: 'hammer',
     run: async () => { await releaseKey(); sim.press(sim.dip, 6); await waitSim(2.2); await waitReal(1.2); } },
   strikeHold: { label: 'Strike and hold', specs: ['check'], view: 'backcheck', scale: 0.12,
-    run: async () => { await releaseKey(); sim.press(sim.dip, 250); await waitSim(0.5); await waitReal(1); } },
+    run: async () => { await releaseKey(); sim.blow('mf'); await waitSim(0.5); await waitReal(1); } },
   hammerLine: { label: 'Sight the hammer line', specs: ['blow'], view: 'hammerline', threeOnly: true,
     run: async () => { await releaseKey(); await waitReal(1.5); } },
   easeUp: { label: 'Strike, hold, then ease up', specs: ['spring'], view: 'hammer', scale: 0.25,
-    run: async () => { await releaseKey(); sim.press(sim.dip, 250); await waitSim(0.4); await waitReal(0.6);
+    run: async () => { await releaseKey(); sim.blow('mf'); await waitSim(0.4); await waitReal(0.6);
       sim.press(sim.dip - 1.2, 10); await waitSim(0.6); await waitReal(1); } },
   // side to side, sighted straight along the action through a slice of it
   sightJackFront: { label: 'Sight the jack from the front', specs: ['wippenSpacing'], view: 'jackfront', run: async () => { await releaseKey(); await waitReal(2); } },
   sightBackcheck: { label: 'Strike, hold, and sight the backcheck', specs: ['backcheckAlign'], view: 'checkfront',
-    run: async () => { await releaseKey(); sim.press(sim.dip, 250); await waitSim(0.5); await waitReal(1.4); view('checktop'); await waitReal(1.8); view('checkfront'); } },
+    run: async () => { await releaseKey(); sim.blow('mf'); await waitSim(0.5); await waitReal(1.4); view('checktop'); await waitReal(1.8); view('checkfront'); } },
   // the key barely started down: does the hammer move with it?
   topPlay: { label: 'Press lightly at the top of the key', specs: ['lostMotion'], view: 'hammer',
     run: async () => {
@@ -305,6 +310,38 @@ const TESTS = {
       const lost = !gradeL('lostMotion', m).ok;
       say(lost ? `The key went down ${fmt(m.lostMotion)} before the hammer started up: lost motion` : 'The hammer started up the moment the key moved', lost ? 'warn' : '');
       await releaseKey();
+    } },
+  // Touchweight, as it is taken at the bench: the pedal down so the damper is off the key, gram weights on the key
+  // front. The figures come from the same weights, springs and frictions the key is played by (model.js touch()); the
+  // weights are then set on the key so you watch it go down and come back.
+  weighOff: { label: 'Weigh off the key (gram weights)', specs: [], view: 'keyfront', scale: 0.5, noExam: true, extra: () => touchBlock(),
+    run: async () => {
+      await releaseKey(); const wasDown = pedalDown; setPedal(true); await waitSim(0.2);
+      const t = touch(adj); touchRead = { key: JSON.stringify(adj), t };
+      if (t.down === null) { say('The key can\'t be weighed off: let-off begins as soon as it moves', 'warn'); if (!wasDown) setPedal(false); return; }
+      const dw = Math.round(t.down), uw = Math.round(t.up);
+      sim.push(dw + 3); say(`${dw + 3} g on the key front: it goes down`); await waitSim(1.6);
+      say(`Downweight ${dw} g: the least that takes the key down to where let-off begins to resist`); await waitReal(1.2);
+      if (t.returns) { sim.push(Math.max(0, uw - 3)); say(`${Math.max(0, uw - 3)} g left on it: the key lifts it back up`); await waitSim(1.6); say(`Upweight ${uw} g: the most the key will lift back`); }
+      else say('Upweight: none. The key won\'t come back up on its own, even with no weight on it', 'warn');
+      await waitReal(1.2);
+      sim.release(); await waitSim(0.3); if (!wasDown) setPedal(false);
+      toast(t.returns ? `Down ${dw} g, up ${uw} g: balance weight ${Math.round(t.balance)} g, friction ${Math.round(t.friction)} g. Getting through let-off takes ${Math.round(t.peak ?? 0)} g`
+        : `Down ${dw} g, and the key does not come back up: friction ${Math.round(t.friction)} g against a balance weight of ${Math.round(t.balance)} g`, t.returns ? '' : 'warn');
+    } },
+  // Repetition: five quick blows from a half release, played on the model, then how fast the key can go on repeating
+  // (model.js repeatTest: every blow has to sound), worked out away from the screen so it doesn't depend on the frame rate
+  repeat: { label: 'Repeat the note (five quick blows)', specs: [], view: 'hammer', scale: 0.1, noExam: true, extra: () => repeatBlock(),
+    run: async () => {
+      await releaseKey();
+      const rate = REPEAT_SHOW, T = 1 / rate, to = sim.dip * 0.5;
+      for (let b = 0; b < 5; b++) { sim.push(REPEAT_F); await waitSim(T / 2); sim.ease(to, Math.max(1, sim.d - to) / (T / 2)); await waitSim(T / 2); }
+      sim.release(); await waitSim(0.3);
+      say('Counting how fast this key repeats…'); await waitReal(0.05);
+      const shown = repeatTest(adj, rate), half = await ceiling(0.5), full = await ceiling(1);
+      repeatRead = { key: JSON.stringify(adj), shown, half, full };
+      const txt = repeatWords(repeatRead);
+      toast(txt, shown.ok && half >= REPEAT_SHOW ? '' : 'warn'); say(txt);
     } },
   damperSight: { label: 'Sight the damper heads on their strings', specs: ['damperSeat'], view: 'damperline', damper: true,
     run: async () => { await releaseKey(); await waitReal(1.6); view('dampers'); await waitReal(1.6); } },
@@ -442,12 +479,64 @@ const TESTS = {
       sim.ulShown = null;
     } },
 };
+// ---------- touchweight and repetition: what the last test read, shown under its button ----------
+let touchRead = null, repeatRead = null;
+const REPEAT_SHOW = 8;   // blows a second the Repeat test plays on the model
+// the fastest rate at which every blow sounds, counted up a blow a second at a time (the page stays alive between counts)
+async function ceiling(up) {
+  let best = 0;
+  for (let r = 3; r <= 30; r++) { await waitReal(0); if (repeatTest(adj, r, { up }).ok) best = r; else break; }
+  return best;
+}
+const repeatWords = r => `At ${r.shown.rate} blows a second from a half release, ${r.shown.sounded} of ${r.shown.blows.length} sounded. `
+  + (r.half ? `Fastest from a half release: ${r.half} a second` : 'From a half release it doesn\'t repeat at all')
+  + (r.full ? `; letting the key all the way up: ${r.full} a second` : '; nor with the key let all the way up');
+// the readings of the last weigh-off, while the key is still as it was weighed, and force against key travel
+function touchBlock() {
+  if (!touchRead || touchRead.key !== JSON.stringify(adj)) return el('p', { class: 'muted small' }, touchRead ? 'Changed since it was weighed: weigh it off again.' : 'Not weighed yet.');
+  const t = touchRead.t, g = v => v === null ? '—' : `${Math.round(v)} g`;
+  const rows = [['Downweight', g(t.down), 'about 50 g'], ['Upweight', t.returns ? g(t.up) : 'none: stays down', '20 to 30 g'], ['Balance weight (half their sum)', g(t.balance), ''],
+    ['Friction (half their difference)', g(t.friction), ''], ['Through let-off, at most', g(t.peak), ''], ['To hold the key down', g(t.bottom), '']];
+  // (in thousandths of an inch or hundredths of a millimetre: the squash is smaller than the 64ths the readings print in)
+  const d0 = dipAt(adj, 0, t), more = w => { const x = dipAt(adj, w, t) - d0; return units === 'in' ? `${(x / IN).toFixed(3)}"` : `${x.toFixed(2)} mm`; };
+  const dips = `${fmt(d0)} with the key just resting on it; 250 g on the key squashes it ${more(250)} deeper, 1 kg ${more(1000)}`;
+  return el('div', { class: 'weighed' },
+    el('table', { class: 'specs bare' }, el('tbody', {}, rows.map(([n, v, typ]) => el('tr', {}, el('td', {}, n), el('td', { class: 'muted' }, typ), el('td', {}, v))))),
+    el('p', { class: 'muted small' }, 'Middle column: usual on a grand (Stanwood\'s example, PTG 2022: 50 down, 24 up). Not graded: this model\'s key has no leads to move.'),
+    forceTrace(t),
+    el('p', { class: 'muted small' }, `Key dip by how hard the key is pressed (the front punching gives): ${dips}.`));
+}
+// grams at the key front against key travel on a slow press: going down (solid) and what the key lifts coming up (dashed)
+function forceTrace(t) {
+  const W = 300, H = 130, x0 = 30, y0 = 112, tr = t.trace, dMax = tr[tr.length - 1].d, top = Math.max(150, Math.ceil(Math.max(...tr.map(r => r.down + r.damper)) / 50) * 50);
+  const X = d => x0 + d / dMax * (W - x0 - 6), Y = v => y0 - Math.max(0, Math.min(top, v)) / top * (y0 - 8);
+  const path = f => tr.map((r, i) => `${i ? 'L' : 'M'}${X(r.d).toFixed(1)} ${Y(f(r)).toFixed(1)}`).join('');
+  const first = s => tr.find(r => r.state === s), marks = [['screw', 'drop screw'], ['tender', 'button'], ['escaped', 'let-off']].map(([s, n]) => [first(s), n]).filter(([r]) => r);
+  const dmp = tr.find(r => r.damper > 0);
+  const box = el('div', { class: 'trace', role: 'img', 'aria-label': `Force at the key front against key travel: ${Math.round(t.down ?? 0)} grams to go down, rising to ${Math.round(t.peak ?? 0)} grams through let-off` });
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%">
+    <line x1="${x0}" y1="${y0}" x2="${W - 6}" y2="${y0}" class="ax"/><line x1="${x0}" y1="8" x2="${x0}" y2="${y0}" class="ax"/>
+    ${[0, top / 2, top].map(v => `<text x="${x0 - 4}" y="${Y(v) + 3}" text-anchor="end">${v}</text>`).join('')}
+    <text x="${x0}" y="${H - 4}">0</text><text x="${W - 6}" y="${H - 4}" text-anchor="end">key travel ${fmt(dMax)}</text>
+    ${marks.map(([r]) => `<line x1="${X(r.d)}" y1="8" x2="${X(r.d)}" y2="${y0}" class="mk"/>`).join('')}
+    ${dmp ? `<path d="${path(r => r.down + r.damper)}" class="dm"/>` : ''}
+    <path d="${path(r => r.up)}" class="up"/><path d="${path(r => r.down)}" class="dn"/></svg>`;
+  return el('div', {}, box, el('p', { class: 'muted small' }, `Grams at the key front through a slow press. Solid: what it takes to go down. Dashed: what the key lifts coming back up. `
+    + (dmp ? `Thin line: with the damper on the key (pedal up), from ${fmt(dmp.d)} of travel. ` : '')
+    + `Marks, left to right: ${marks.map(([r, n]) => `${n} at ${fmt(r.d)}`).join(', ') || 'none'}. The rise between them is the bump you feel at let-off.`));
+}
+function repeatBlock() {
+  if (!repeatRead || repeatRead.key !== JSON.stringify(adj)) return el('p', { class: 'muted small' }, repeatRead ? 'Changed since it was played: repeat it again.' : 'Not played yet.');
+  return el('p', { class: 'small' }, repeatWords(repeatRead), el('span', { class: 'muted' }, ' A good grand manages about 10 to 14 (Scott Murphy\'s high-speed clip of a fast repetition: 24 blows in 2.45 s).'));
+}
 // move one of the key tests' drawn values (sim.keyRock, keyTwist, keyShown) from a to b over a few screen frames
 const sway = async (field, a, b, steps = 8) => { for (let i = 1; i <= steps; i++) { sim[field] = a + (b - a) * i / steps; await waitReal(0.03); } };
 const waitReal = s => new Promise(r => setTimeout(r, s * 1000));
 let landed = null; // pedal test: when each note's damper seated
 async function releaseKey() {
-  if (sim.d > 0.001 || sim.st.checked) { sim.press(0, 60); await waitSim(0.35); }
+  // let go, and wait for the key to come up and the hammer to come home and settle (it bounces: up to 0.7 s)
+  const home = () => sim.d === 0 && Math.abs(sim.w) < 1e-9;
+  if (!home() || sim.st.checked) { sim.release(); for (let i = 0; i < 14 && !home(); i++) await waitSim(0.05); }
   sim.reset();
 }
 function solveG(zKnuckle) {
@@ -667,25 +756,29 @@ function measureTable(ids, { head = true, short = false } = {}) {
 // ---------- scenarios for diagnose mode ----------
 const SCENARIOS = [
   { complaint: 'Soft notes on this key feel uneven and hard to control next to its neighbors.', faults: { letoff: +0.2 }, answer: 'Let-off set too close: the jack trips barely half a millimetre from the string. A hair closer and the hammer blocks against the string.' },
-  { complaint: 'I can\'t play this note quietly, it either thumps or misses.', faults: { letoff: -1.0 }, answer: 'Let-off too far from the string.' },
+  { complaint: 'I can\'t play this note quietly, it either thumps or misses.', faults: { letoff: -1.0 }, answer: 'Let-off too far from the string: the jack lets go of the hammer 7 mm out, so the same finger gives a weaker blow at every touch (pick Touch pp and Play: about a fifth slower than a regulated key), and the softest touches don\'t reach the string. The tripped jack also runs onto its stop felt before the key reaches the front punching, so the key bottoms on the jack.' },
   { complaint: 'The key feels shallow, and soft notes are hard to control.', faults: { frontPunch: +1.0 }, answer: 'Dip too shallow: too little aftertouch, so the jack barely escapes. The damper settings move with it and come right once dip is set.' },
-  { complaint: 'The key feels deep and mushy at the bottom.', faults: { frontPunch: -0.8 }, answer: 'Dip too deep: too much aftertouch.' },
-  { complaint: 'Played firmly, this note sometimes sounds twice, like a stutter.', faults: { frontPunch: +1.7 }, alone: true, answer: 'Dip far too shallow: the key bottoms before the jack can escape, so there is no let-off and no aftertouch. After the blow the hammer falls back onto the jack, bounces off it and strikes again (the double repeat Igrec warns of). The damper settings move with dip and come right once it is set.' },
-  { complaint: 'Fast repeated notes and trills fail on this key.', faults: { repSpring: -0.6 }, answer: 'Repetition spring too weak.' },
-  { complaint: 'There\'s a little bump in the key when I let it up slowly.', faults: { repSpring: +0.7 }, answer: 'Repetition spring too strong.' },
+  { complaint: 'The key feels deep and mushy at the bottom.', faults: { frontPunch: -0.8 }, answer: 'Dip too deep: too much aftertouch. The key goes on down after let-off and carries the repetition lever up with it, so a soft blow (Touch pp) comes back off the lever and touches the string a second time. The weigh-off prints the dip.' },
+  // sized so a normal blow shows it (Play at Touch mf) and a hard one doesn't: the front punching squashes under a hard
+  // blow far enough to let the jack out (at +1.7 only blows softer than mf stuttered)
+  { complaint: 'This note often sounds twice, like a stutter, unless I play it hard.', faults: { frontPunch: +1.9 }, alone: true, answer: 'Dip far too shallow: on a slow press the key bottoms before the jack can escape, so there is no let-off and no aftertouch. A hard blow squashes the front punching far enough to get the jack out. A soft or a normal one doesn\'t: the hammer falls back onto the jack, bounces off it and strikes again (the double repeat Igrec warns of). Play it with Touch at pp, mf and ff and watch the difference. The damper settings move with dip and come right once it is set.' },
+  // sized so the complaint is true in play: at -0.6 the lever's friction still held the hammer up for the jack, and the
+  // key repeated from a half release almost as fast as a regulated one
+  { complaint: 'Fast repeated notes and trills fail on this key.', faults: { repSpring: -0.8 }, answer: 'Repetition spring too weak: let go of, the hammer sinks with the lever instead of being held up for the jack to get back under. Repeat shows it: from a half release the note doesn\'t repeat at all, and the key has to come all the way up. The key is slow coming back too, since the spring is most of what starts it up. On the weigh-off, the bump at let-off is smaller than its neighbors\'.' },
+  { complaint: 'There\'s a little bump in the key when I let it up slowly.', faults: { repSpring: +0.7 }, answer: 'Repetition spring too strong. Eased up from check the hammer pops. In play a soft blow (Touch pp) is thrown back up off the lever and strikes twice, and a hard one (ff) jumps out of check and comes back to the string. Repeat shows what that does to quick notes: from a half release the key hardly repeats at all, the hammer being thrown at the string between blows. Weigh the key off: getting through let-off takes about 160 g where its neighbors take 140, and holding the key down takes half as much again.' },
   { complaint: 'When I play loud and hold the key down, the hammer doesn\'t stay back: it bounces up and sits right under the string.', faults: { backcheck: -3.0 }, alone: true, answer: 'Backcheck bent too far back: it misses the tail, so nothing catches the hammer and it comes back up on the repetition lever.' },
   // sized so the play can be felt and the lost-motion test shows it: about half a millimetre at the key (at -0.4 it was 0.1)
   { complaint: 'There\'s free play at the top of this key: it goes down a little before anything happens.', faults: { capstan: -0.6 }, answer: 'Capstan too low: the hammer rests on the rail, so the key goes down about half a millimetre before it lifts anything (lost motion). The blow is too long as well, which leaves almost no aftertouch; both come right when the capstan is brought back up.' },
   { complaint: 'The hammer on this key sits higher than its neighbors, and the key goes on down a long way after the note sounds.', faults: { capstan: +0.5 }, answer: 'Capstan too high: the blow is short, so aftertouch grows. Let-off doesn\'t move: the button still trips the jack at the same point. The jack position reading shifts a little with the hammer\'s height, and the damper now starts to lift a little late as a share of the hammer\'s shorter travel: both come right with the capstan.' },
   { complaint: 'This key sits higher than the others.', faults: { balPunch: +0.5 }, answer: 'Too many balance rail punchings: key too high (and the dip changed with it).' },
-  { complaint: 'Soft repeated notes on this key feel draggy compared with its neighbors.', faults: { jackScrew: -1.4 }, answer: 'Jack set too far back under the knuckle: it drags as it escapes and is slow to get back under. Sight the back of the jack against the back of the knuckle core. Moving it shifts the hammer\'s height a little too, so blow and wink come right once it is back in place.' },
+  { complaint: 'Soft repeated notes on this key feel draggy compared with its neighbors.', faults: { jackScrew: -1.4 }, answer: 'Jack set too far back under the knuckle: it drags as it escapes and is slow to get back under. In play the same soft finger (Touch pp) gives a blow about a tenth weaker than its neighbors\', and weighed off the key takes about 3 g more to go down, all of it friction. Sight the back of the jack against the back of the knuckle core. Moving it shifts the hammer\'s height a little too, so blow and wink come right once it is back in place.' },
   { complaint: 'Soft notes on this key buzz, as if something is touching the string.', faults: { drop: +2.0 }, alone: true, answer: 'Drop screw too high: after let-off the repetition lever carries the hammer back up against the string on a soft blow.' },
   { complaint: 'Trills and fast repeated notes on this key feel unreliable.', faults: { repStop: -0.3 }, answer: 'Repetition lever too low: tripped at rest, the hammer drops so far that the jack can\'t get back under the knuckle. A strong spring can still throw the hammer up for it in play, which is why the wink test is how you find it. With the lever riding low, the hammer also drops further after let-off; that comes right with the lever.' },
   { complaint: 'The hammer on this key sits a little higher than its neighbors.', faults: { repStop: +0.25 }, answer: 'Repetition lever too high above the jack: it holds the hammer off the jack (no wink), so the hammer line is uneven.' },
   { complaint: 'Notes ring on after I let go, and the sustain pedal leaves a little smear.', faults: { damperDrag: +0.5 }, answer: 'A damper wire binding in its guide rail bushing: that damper falls late.' },
   { complaint: 'This note keeps ringing faintly after I let the key up, even without the pedal.', faults: { damperLevel: +0.6 }, answer: 'The damper head isn\'t seated: its back end sits up off the strings, so a string goes on ringing. Bend the wire, as seen from the side, until both ends sit with equal force.' },
   { complaint: 'One string of this note rings on after I let go.', faults: { damperCenter: +2.0 }, answer: 'The damper head sits off center on its unison, so its felt doesn\'t cover one string properly. Bend the top of the wire to center it.' },
-  { complaint: 'The key feels heavier right at the top of the stroke than the ones next to it.', faults: { damperGap: -1.5 }, answer: 'The damper lifts too early: the key picks up the underlever before the hammer is a third of the way up. Lifting earlier also lifts it further, which eats the stop rail clearance and leaves the pedal short of the key lift: they come right once the timing is fixed.' },
+  { complaint: 'The key feels heavier right at the top of the stroke than the ones next to it.', faults: { damperGap: -1.5 }, answer: 'The damper lifts too early: the key picks up the underlever before the hammer is a third of the way up. Lifting earlier also lifts it further, which eats the stop rail clearance and leaves the pedal short of the key lift: they come right once the timing is fixed. Weigh the key off and read the trace: with the pedal up, the damper\'s weight (the thin line, about 11 g at the key) comes in at 2 mm of key travel where its neighbors\' comes in past 3.5.' },
   { complaint: 'There\'s a thump when I put the sustain pedal down.', faults: { pedalLift: +2 }, answer: 'Pedal lift too high: it drives the dampers into the stop rail (put the pedal down and the sim says so). The pedal should lift them no higher than the keys do, and stop short of the rail.' },
   { complaint: 'This note sounds thinner than its neighbors, and there\'s a little click. The hammer looks a bit crooked.', faults: { damage: 'splitShank' }, alone: true,
     answer: 'A split hammer shank, not yet broken: it flexes on the blow (less power), clicks, and the head wobbles. Burning or traveling won\'t hold; replace the shank, then travel, space and square the new one.' },
@@ -695,17 +788,17 @@ const SCENARIOS = [
     answer: 'The hammer head is loose on its shank (a failed glue joint). Reglue it square.' },
   // action centers (research/wippen/spec.md §8.2): the symptoms here are what the sim shows; its tests find the center
   { complaint: 'Since the summer, soft repeated notes on this key feel a little sluggish next to its neighbors.', faults: { center: 'hammerTight' }, alone: true,
-    answer: 'A tight hammer flange center: swing-tested, the hammer makes only 3 half-swings, about 7 g on a gauge at 23 mm (Renner: 2 to 5). In play it barely shows, which is why techs swing-test. The cloth is swollen, not worn: ease the bushing. Turning up the spring only covers it up.' },
+    answer: 'A tight hammer flange center: swing-tested, the hammer makes only 3 half-swings, about 7 g on a gauge at 23 mm (Renner: 2 to 5). In play it barely shows, which is why techs swing-test; at the key it shows as friction: weighed off, the key takes 2 to 3 g more to go down and lifts 2 to 3 g less than its neighbors, the balance weight unchanged. The cloth is swollen, not worn: ease the bushing. Turning up the spring only covers it up.' },
   { complaint: 'There\'s a click in this note, and the hammer seems to move about.', faults: { center: 'hammerLoose' }, alone: true,
     answer: 'A loose hammer flange center: the pin is loose in its cloth. It swings on for 14 half-swings (1.5 g at 23 mm), and with the flange held down the pin moves in its bushing. The flange screw is tight, so it\'s the center: repin it with the next half size up.' },
   { complaint: 'This note clicks, and when I look inside its hammer looks a little loose sideways.', faults: { center: 'hammerWorn' }, alone: true,
     answer: 'A worn hammer flange bushing: its friction is fine (about 7 half-swings, 3 g), but with the flange held down the pin moves in its bushing, one side of the cloth worn. Repinning won\'t stop a wobble: rebush it (Renner).' },
   { complaint: 'Since the summer this key comes back up a little lazily, and quick repeated notes feel heavy.', faults: { center: 'wippenTight' }, alone: true,
-    answer: 'A tight wippen flange center: tilted, the wippen falls back slowly, and it drags the key on its way up. The key drops freely with the stack off, so it isn\'t the key bushings. Ease the flange center (repinning works too).' },
+    answer: 'A tight wippen flange center: tilted, the wippen falls back slowly, and it drags the key on its way up: let go after a normal blow, the key takes nearly twice as long to come back as a free one, and weighed off it takes about 4 g more to go down and lifts 4 g less. The key drops freely with the stack off, so it isn\'t the key bushings. Ease the flange center (repinning works too).' },
   { complaint: 'There\'s a faint tick from inside the piano when I play this key.', faults: { center: 'wippenLoose' }, alone: true,
     answer: 'A loose wippen flange center: wiggled at the tender, the whole wippen moves on its flange, jack and all. Repin the wippen flange a half size up (Igrec).' },
   { complaint: 'Sometimes this note won\'t play again unless I let the key nearly all the way up.', faults: { center: 'jackTight' }, alone: true,
-    answer: 'A tight jack center: the jack spring can barely push it back under the knuckle, so it gets back late on the way up, and tripped at rest it doesn\'t come back at all (the wink test says so). It isn\'t the repetition lever: with the spring unhooked the jack won\'t fall under its own weight. Ease it, or repin it (Steve Howard tries a center lubricant first, then repins).' },
+    answer: 'A tight jack center: the jack spring can barely push it back under the knuckle, so it gets back late on the way up (Play it and read the line: the jack is back under with the key about half way up, where a free jack is back at four tenths), and tripped at rest it doesn\'t come back at all (the wink test says so). It isn\'t the repetition lever: with the spring unhooked the jack won\'t fall under its own weight. Ease it, or repin it (Steve Howard tries a center lubricant first, then repins).' },
   { complaint: 'Played softly, this note gives a little tick.', faults: { center: 'jackLoose' }, alone: true,
     answer: 'A loose jack center: wiggled at the tender, the jack rocks on its pin in the wippen, and with the spring unhooked it drops and flops. Repin the jack (Igrec).' },
   { complaint: 'Quick repeated notes feel a little slow on this key, as if the hammer were slow to come back up after a loud note.', faults: { center: 'repTight' }, alone: true,
@@ -723,7 +816,7 @@ const SCENARIOS = [
   { complaint: 'Since the summer this key stays down after I play it, and I have to lift it back up.', faults: { bushing: 'frontTight' }, alone: true,
     answer: 'A tight front rail bushing: the cloth swelled in the humid months and grips the front pin, so the key has no side play and the action\'s weight can\'t bring it back up. Ease it with key easing pliers. Rebushing would work too, but the cloth is sound.' },
   { complaint: 'This key comes back up slowly, lazier than the ones next to it.', faults: { bushing: 'balTight' }, alone: true,
-    answer: 'A tight balance rail bushing: the key still has its side play at the front, but twisted at its front it has none at the balance pin, and with the stack off it drops slowly. Ease the balance bushing with key easing pliers.' },
+    answer: 'A tight balance rail bushing: the key still has its side play at the front, but twisted at its front it has none at the balance pin, and with the stack off it drops slowly. Let go after a blow it takes about twice as long to come back up, and weighed off it takes about 12 g more to go down and lifts 12 g less: all friction. Ease the balance bushing with key easing pliers.' },
 ];
 function newScenario() {
   const pool = [...SCENARIOS].sort(() => Math.random() - 0.5);
@@ -740,6 +833,7 @@ function newScenario() {
     if (s2) { adj = both(s2); scenario.second = s2; }
   }
   tested = new Set(); testsUsed = 0; verdict = null; checks = 0; gaveUp = false; hint = false;
+  touchRead = repeatRead = null;
   applyAdj();
   $('aside').scrollTop = 0;
 }
@@ -903,7 +997,6 @@ let showCredits = false;
 // list): a trainer's blind spots are part of what it teaches.
 const LIMITS = {
   both: [
-    ['No feel.', 'The key and its punchings are rigid, and the key moves at a set speed, not under a finger\'s weight. There is no touchweight, no let-off bump, no punching that squashes under pressure: dip and aftertouch read the same however the key is pressed.'],
     ['No sound.', 'Blocking, buzzing, bobbling and ringing strings are told in words, not heard. Nothing here trains the ear, and voicing and hammer-to-string mating are not modelled.'],
     ['One natural key.', 'No sharp: nothing on sharp height, sharp dip, or the damper and pedal settings the makers check on a sharp. The three-note model is three naturals.'],
     ['One note\'s geometry.', 'One place in the scale. No taper from bass to treble (let-off, springs, damper play), no bass dampers with springs.'],
@@ -914,11 +1007,14 @@ const LIMITS = {
   grand: [
     ['Measured, with stand-ins.', 'The hammer action is one measured Boston GP-178 note (Hirschkorn, 2004). The dampers and their lift tray are drawn to suit, not measured.'],
     ['No una corda or sostenuto, and no pedal trapwork.', 'The damper pedal lifts the tray by itself: no pitman, no free play to regulate.'],
-    ['Parts are rigid.', 'The knuckle does not settle into the repetition lever, the backcheck and its wire do not give, felts do not compress under a blow. The fingertip check of jack against lever, and "as high as it goes without scraping" for the backcheck, don\'t come out as they do on a bench.'],
+    ['Feel is a number and a picture, not a feel.', 'The key has weight and is pushed by a finger\'s force: the weigh-off test gives downweight and upweight in grams, the trace under it shows the bump at let-off, and the key comes back up by its own weight and springs. You read all that; you don\'t feel it. The finger forces behind pp, mf, ff and staccato are the sim\'s own, picked to give hammer speeds in the range Askenfelt and Jansson measured; a real finger\'s push rises through the stroke. The weights and friction are one measured Boston key\'s (Hirschkorn); sliding friction at the capstan and knuckle is left out, and the key has no leads to move.'],
+    ['Some parts give, most are rigid.', 'The front punching and the back rail cloth squash as Hirschkorn measured them, so dip depends on how hard the key is pressed and the hammer comes home with a bounce. The knuckle does not settle into the repetition lever or the jack, the key does not bend, and the backcheck\'s give is a fitted figure: a key with a little too little aftertouch still plays cleanly here, where Igrec warns below about 0.8 mm. The fingertip check of jack against lever, and "as high as it goes without scraping" for the backcheck, don\'t come out as they do on a bench.'],
+    ['A key with lost motion still sits up on its back rail.', 'By its measured weights this key is front-heavy without the hammer on it, so with the hammer down on the rest rail its front would hang low until the jack met the knuckle. The sim keeps it up, with free play at the top, as the lost-motion reading has it. Not checked on a bench.'],
     ['The repetition spring is graded by a number, not the eye.', 'The rise you watch is a simplified one, fitted to slow-motion video; the grade is the spring\'s net lift.'],
     ['Wear amounts are the sim\'s own estimates.', 'The directions are right; the sizes have no published source.'],
   ],
   upright: [
+    ['No feel.', 'The key and its punchings are rigid, and the key moves at a set speed, not under a finger\'s weight. There is no touchweight, no let-off bump, no punching that squashes under pressure: dip and aftertouch read the same however the key is pressed.'],
     ['Built on a filmed one-note action model.', 'Its parts and motion come from Renner\'s catalog, Steinway\'s vertical guide, Bill Spurlock\'s writing and Jim Ellis\'s high-speed clips. The key and rail dimensions are stand-ins until a real one is measured.'],
     ['No pedal linkage.', 'The pedals move the dampers and the hammer rail by themselves: no lift rod, trap levers or lost motion in them to regulate.'],
     ['No tool models for the upright yet.', 'The tool bag shows the grand\'s tools.'],
@@ -1014,10 +1110,10 @@ function centerRepairs(ids, { fold = false } = {}) {
 // Find the fault, Sandbox and Exam work part by part: each part of the action with its tests, readings and adjustments together
 // (hammerLine shows only with three notes, the exam's or the Sandbox's, where there are three hammers to sight)
 const AREAS = [
-  { id: 'key', name: 'Key', tests: ['straightedge', 'dipBlock', 'rockKey', 'keyDrop'], knobs: ['balPunch', 'frontPunch'], repairs: bushingRepairs },
+  { id: 'key', name: 'Key', tests: ['straightedge', 'dipBlock', 'rockKey', 'keyDrop', 'weighOff'], knobs: ['balPunch', 'frontPunch'], repairs: bushingRepairs },
   { id: 'hammer', name: 'Hammer, blow and rest rail', tests: ['travelLift', 'alignSight', 'wiggle', 'blowGauge', 'hammerLine', 'restRail', 'topPlay'],
     knobs: ['hammerTravel', 'hammerSpace', 'hammerSquare', 'capstan', 'restRail'] },
-  { id: 'jack', name: 'Jack and repetition lever', tests: ['sightJack', 'sightJackFront', 'wink', 'slowPress', 'easeUp'],
+  { id: 'jack', name: 'Jack and repetition lever', tests: ['sightJack', 'sightJackFront', 'wink', 'slowPress', 'easeUp', 'repeat'],
     knobs: ['jackScrew', 'wippenSpace', 'wippenTravel', 'repStop', 'letoff', 'drop', 'repSpring'] },
   { id: 'backcheck', name: 'Backcheck', tests: ['strikeHold', 'sightBackcheck'], knobs: ['backcheck', 'backcheckSpace', 'backcheckSquare'] },
   { id: 'dampers', name: 'Dampers and pedal', tests: ['damperSlow', 'pedalTest', 'damperSight'],
@@ -1045,7 +1141,7 @@ function areaPanel(a) {
   const under = t => knobs.filter(k => !placed.has(k) && (KNOB_FOR[k] || []).some(s => TESTS[t].specs.includes(s)) && placed.add(k));
   const blocks = tests.map(t => {
     const ks = under(t);
-    return el('div', { class: 'testblock' }, testButton(t), measureTable(TESTS[t].specs, { head: false }),
+    return el('div', { class: 'testblock' }, testButton(t), TESTS[t].specs.length ? measureTable(TESTS[t].specs, { head: false }) : null, TESTS[t].extra?.(),
       ks.length ? el('div', { class: 'knobs' }, ks.map(id => knobRow(id, { readings: true }))) : null);
   });
   const rest = knobs.filter(k => !placed.has(k));
@@ -1268,7 +1364,7 @@ function setThreeKeys(on) {
 function chord(slow) {
   if (busy) return;
   setLoop(false); clearPlan(); cue = null;
-  NOTES.forEach(n => n.sim.press(n.sim.dip, slow ? 6 : 250));
+  NOTES.forEach(n => slow ? n.sim.press(n.sim.dip, 6) : strike(n.sim));
   if (!slow) { plan = 'all'; planAt = null; }
   pausedNote();
 }
@@ -1502,6 +1598,7 @@ function toast(text, kind = '') {
 const recentWarn = new Map();
 function say(text, kind = '') {
   $('#lastevent').textContent = text; $('#lastevent').title = text;
+  canvas.said?.push(text);   // for the headless checks (tests/physics-app-check.cjs): every line, not just the last one in a frame
   if (kind === 'warn') {
     if (performance.now() - (recentWarn.get(text) ?? -1e9) < 5000) return;   // not again on every loop
     recentWarn.set(text, performance.now());
@@ -1532,6 +1629,7 @@ function handleEvents() {
     if (e.type === 'jumpcheck') say('The hammer jumped out of check', 'warn');
     if (e.type === 'softcheck') say(show('check') ? `Too soft to stay checked: the backcheck slowed it ${fmt(e.dist)} from the string and the repetition lever lifted it back out`
       : 'Too soft to stay checked: the repetition lever lifted the hammer back out');
+    if (e.type === 'railbounce' && e.v > 0.1) say('The shank came down on the rest rail\'s felt and bounced off it');
     if (e.type === 'damperbounce') say('The damper bobbled on the strings', 'warn');
     // the pedal taking the dampers up into the stop rail (a regulated pedal stops short of it); a hard blow that
     // throws a damper up to the rail is what the rail is there for, and is only noted
@@ -1652,7 +1750,14 @@ const clearPlan = () => { plan = null; planAt = null; };
 const explain = text => { say(text); toast(text); };
 // paused, a key button sets the key going, but nothing moves until the action is stepped or run
 const pausedNote = () => { if (paused) explain('Paused: Frame ▶ steps it on (hold it down to keep going), Run plays it'); };
-$('#k-play').onclick = () => { if (!busy) { cue = null; sim.press(sim.dip, 250); plan = 'up'; planAt = null; pausedNote(); } };
+$('#k-play').onclick = () => { if (!busy) { cue = null; strike(); plan = 'up'; planAt = null; pausedNote(); } };
+// (the choices are in the Touch menu, and again in Key & pedal's where a narrow phone's bar has no Touch button)
+for (const b of document.querySelectorAll('[data-touch]')) b.onclick = () => {
+  touchNow = b.dataset.touch;
+  document.querySelectorAll('[data-touch]').forEach(x => x.classList.toggle('on', x.dataset.touch === touchNow));
+  say(`Touch: ${BLOWS[touchNow].say}. Play, Strike & hold, Loop and Space use it`);
+};
+for (const b of document.querySelectorAll('#k-repeat, [data-repeat]')) b.onclick = () => runTest('repeat');
 // Loop: play the key over and over, a normal blow each time it has come back up and settled
 let looping = false, restSince = null;
 const setLoop = on => { looping = on; restSince = null; $('#k-loop').classList.toggle('on', on); };
@@ -1667,7 +1772,7 @@ for (const id of ['#k-strike', '#k-slow', '#k-ease', '#k-release']) $(id).addEve
 const releaseOthers = () => NOTES.forEach(n => { if (n.sim !== sim && n.sim.dTarget > 0) n.sim.press(0, 60); });
 for (const id of ['#k-play', '#k-loop', '#k-strike', '#k-slow', '#k-letoff']) $(id).addEventListener('click', () => { if (!busy) releaseOthers(); });
 $('#k-slow').onclick = () => { if (!busy) { clearPlan(); cue = null; sim.press(sim.dip, 6); pausedNote(); } };
-$('#k-strike').onclick = () => { if (!busy) { clearPlan(); cue = null; sim.press(sim.dip, 250); pausedNote(); } };
+$('#k-strike').onclick = () => { if (!busy) { clearPlan(); cue = null; strike(); pausedNote(); if (touchNow === 'staccato') say('Staccato lets go by itself: pick another touch to hold the key down'); } };
 // Ease up lets a held key up a little. Pressed while the key is still going down (a blow, or any press while paused),
 // it waits for the key to get there and the hammer to check: strike, hold, then ease up, as the spring test does.
 const easeNow = () => sim.press(Math.max(0, Math.min(sim.d, sim.dip) - 1.2), 10);
@@ -1706,12 +1811,13 @@ let paused = false, stepFrames = 0, frameNo = 0, frameHold = null;
 const FRAME_S = 1 / 60, H_STEP = 0.0002;   // 0.2 ms steps keep the escapement timing stable
 const frameHistory = [], HISTORY_MAX = 900;   // about 15 s of frames
 const clearFrames = () => { frameHistory.length = 0; cue = null; };
-const SNAP_SKIP = new Set(['a', 'L', 'events', 'dip', 'hand', 'keyRock', 'keyTwist', 'keyShown', 'stackOff', 'jackRock', 'wippenRock', 'hammerRock', 'ulShown']), SNAP_LAZY = ['strikes', 'popped', 'buzzing'];   // fields a Sim sets only later
+const SNAP_SKIP = new Set(['a', 'L', 'events', 'dip', 'hand', 'camT','keyRock', 'keyTwist', 'keyShown', 'stackOff', 'jackRock', 'wippenRock', 'hammerRock', 'ulShown']), SNAP_LAZY = ['strikes', 'popped', 'buzzing'];   // fields a Sim sets only later
 const snapSim = s => Object.fromEntries(Object.entries(s).filter(([k]) => !SNAP_SKIP.has(k)).map(([k, v]) => [k, v && typeof v === 'object' ? structuredClone(v) : v]));
 // nothing moving: keys up, hammers and dampers still (a damper can rest up on the pedal's tray), the pedal not moving
 // (a hammer at rest can keep a speed of 1e-16 or so from the last step's rounding)
 const idleNow = () => NOTES.every(({ sim: s }) => s.d === 0 && s.dTarget === 0 && Math.abs(s.w) < 1e-9 && Math.abs(s.vd) < 1e-9 && s.pedal === s.pedalTarget);
 let lastIdle = false;
+canvas.idle = () => idleNow();   // for the headless checks: the key up and the hammer home and still
 // each frame the action moves: every note's state, and what the panel was marking (so markers and messages step back too)
 function snapshot() {
   const idle = idleNow();
@@ -1726,7 +1832,7 @@ function restoreFrame(h) {
   $('#lastevent').textContent = h.line; recentWarn.clear();   // a warning shows again when its frame is replayed
   NOTES.forEach((n, i) => {
     for (const k of SNAP_LAZY) if (!(k in h.notes[i])) n.sim[k] = undefined;
-    Object.assign(n.sim, h.notes[i]); n.sim.L = linkage(n.sim.a, n.sim.d); n.sim.events = [];
+    Object.assign(n.sim, h.notes[i]); n.sim.L = linkage(n.sim.a, n.sim.d, true); n.sim.events = [];
   });
   pedalDown = NOTES[0].sim.pedalTarget > 0; $('#k-pedal').classList.toggle('on', pedalDown);
   lastIdle = false;
@@ -1821,6 +1927,7 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => {
   if (mode === 'tools') { S.hideTool(); toolSel = null; S.setLabels(labelsOn); }
   dropHand();
   mode = b.dataset.mode; tested = new Set(); verdict = null; S.clearCallouts(); setPaused(false); clearFrames(); closePop();
+  touchRead = repeatRead = null;   // another key: not weighed, not played
   $('#framepad').hidden = true;
   if (mode === 'tools') { S.setLabels(false); if (sim.dTarget > 0) sim.press(0, 60); if (TOOLBAG.length) pickTool(TOOLBAG[0].id); }
   if (mode === 'exam' || mode === 'drills' || mode === 'tools') { exam = { started: false, done: false }; refresh(); return; }
@@ -1853,7 +1960,7 @@ window.addEventListener('keydown', e => {
   if (mode === 'tools' || action === 'upright') return;   // no key on the bench while a tool is out; the upright has its own keys
   if (e.code === 'Escape') { setLoop(false); letUp(); closePop(); }
   if ((e.key === 'p' || e.key === 'P') && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !busy && e.target === document.body) setPedal(!pedalDown);
-  if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); clearPlan(); cue = null; releaseOthers(); sim.press(sim.dip, 250); pausedNote(); }
+  if (e.code === 'Space' && !e.repeat && !busy && e.target === document.body) { e.preventDefault(); setLoop(false); clearPlan(); cue = null; releaseOthers(); strike(); pausedNote(); }
   // frame keys work wherever focus is (often a button just clicked), but not while typing or choosing in a field
   if (!/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && !e.ctrlKey && !e.metaKey && !e.altKey) {
     // by the character typed, so the keys named in the titles work on any keyboard layout
@@ -1865,7 +1972,7 @@ window.addEventListener('keydown', e => {
     if (b) $(b).click();
   }
 });
-const KEY_BUTTONS = { h: '#k-strike', s: '#k-slow', e: '#k-ease', l: '#k-loop', g: '#k-letoff' };
+const KEY_BUTTONS = { h: '#k-strike', s: '#k-slow', e: '#k-ease', l: '#k-loop', g: '#k-letoff', r: '#k-repeat' };
 window.addEventListener('keyup', e => { if (mode !== 'tools' && action === 'grand' && e.code === 'Space' && !busy && e.target === document.body) letGo(); });
 
 // hover names, press the key by clicking it
@@ -1896,7 +2003,7 @@ canvas.addEventListener('pointerdown', e => {
   // Ctrl still slides the view)
   const hold = e.button === 0 && e.isPrimary && !e.shiftKey && !e.ctrlKey && !e.metaKey ? holdOf(hit) : null;
   if (hold) { S.controls.enabled = false; grab = { id: e.pointerId, x: e.clientX, y: e.clientY, hit, hold, slot: cur, started: false }; tip.hidden = true; return; }
-  if (part === 'key' && !busy) { keyHeld = e.pointerId; S.controls.enabled = false; setLoop(false); clearPlan(); cue = null; releaseOthers(); sim.press(sim.dip, 250); pausedNote(); }
+  if (part === 'key' && !busy) { keyHeld = e.pointerId; S.controls.enabled = false; setLoop(false); clearPlan(); cue = null; releaseOthers(); strike(); pausedNote(); }
   else clickAt = clickAt || e.button !== 0 || !e.isPrimary ? null   // a second finger, or a right or middle button, turns the view
     : { x: e.clientX, y: e.clientY, id: e.pointerId, hit, shift: e.shiftKey || e.ctrlKey };
 });
@@ -2069,25 +2176,27 @@ function advance(dtSim) {
     // on a step thousands of times shorter than the one before (down to 1e-18 s, from rounding, when the frame was a whole
     // number of steps), and a jack lifting the hammer just after a reset (WEDGE_T, timed by the step before) threw it at up
     // to 40 rad/s in it: a phantom blow of up to 5.5 m/s.
-    const k = Math.max(1, Math.ceil(dtSim / H_STEP - 1e-6));
-    for (let i = 0; i < k; i++) n.sim.step(dtSim / k);
+    // (the Sim cuts the time into its own fixed steps and carries what is left over to the next frame, so the action
+    // does the same thing at every playback speed and screen rate)
+    n.sim.step(dtSim);
   }
   simTime += dtSim; frameNo++;
   const did = sim.events.map(e => e.type);
   for (let i = waits.length - 1; i >= 0; i--) if (simTime >= waits[i].at) { waits[i].r(); waits.splice(i, 1); }
   handleEvents();
-  // Play (and Play all three, 'all') lets the key up a moment after it gets down (0.12 s of screen time at the chosen
-  // speed); Ease up pressed on the way down eases it 0.15 s of action time after, by when a struck hammer has checked.
-  // Both are counted in the action's own time so a paused or stepped stroke does the same on the same frame every time.
-  if (plan && planAt === null && (sim.d >= sim.dTarget - 0.01 || sim.blocked)) planAt = simTime + (plan === 'ease' ? 0.15 : 0.12 * (forcedScale ?? timeScale));
+  // Play (and Play all three, 'all') lets the key up a moment after it gets down (PLAY_HOLD of the action's own time,
+  // so the same blow at every playback speed); Ease up pressed on the way down eases it 0.15 s of action time after, by
+  // when a struck hammer has checked. Counted in the action's time, a paused or stepped stroke does the same on the
+  // same frame every time.
+  if (plan && planAt === null && (sim.d >= sim.dTarget - 0.01 || sim.blocked)) planAt = simTime + (plan === 'ease' ? 0.15 : PLAY_HOLD);
   if (planAt !== null && simTime >= planAt) {
     const p = plan; clearPlan();
     if (p === 'up') sim.press(0, 60); else if (p === 'all') NOTES.forEach(n => n.sim.press(0, 60)); else easeNow();
   }
   if (looping && (busy || mode === 'tools')) setLoop(false);
-  if (looping && !plan && sim.d === 0 && sim.dTarget === 0) {
+  if (looping && !plan && sim.d === 0 && sim.dTarget === 0 && Math.abs(sim.w) < 1e-9) {   // (the key up and the hammer home and still)
     if (restSince === null) restSince = simTime;
-    else if (simTime - restSince > 0.35) { sim.press(sim.dip, 250); plan = 'up'; restSince = null; }
+    else if (simTime - restSince > 0.35) { strike(); plan = 'up'; restSince = null; }
   } else restSince = null;
   return did;
 }

@@ -107,6 +107,9 @@ const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'keyfront', 'whole', 'wippen'
 
     // the key: Play, Let key up, and the Key & pedal menu
     const keyDown = () => page.evaluate(() => document.getElementById('keystate').textContent);
+    // wait (up to 40 s) for the key's state line to say so: a blow and a key's return take the action's own time,
+    // at Slow x10 unless the speed was changed, and a slow headless frame rate stretches that further
+    const untilKey = re => page.waitForFunction(src => new RegExp(src).test(document.getElementById('keystate').textContent), re.source, { timeout: 40000 }).catch(() => {});
     await pick('cat-speed', '[data-speed="1"]');
     check((await page.$eval('#speed-btn .v', e => e.textContent)) === 'Real speed', t('Speed: Real speed named on the button'));
     await tap('#k-play'); await page.waitForTimeout(150);
@@ -120,7 +123,8 @@ const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'keyfront', 'whole', 'wippen'
     check(!(await menuOpen(`menu-${escCat}`)) && /held/.test(await keyDown()), t(`Escape closes the ${escCat} menu and leaves the held key down`));
     await keyPick('#k-ease'); await page.waitForTimeout(600);
     check(/held|coming up/.test(await keyDown()), t(`Ease up lets it up a little (${await keyDown()})`));
-    await tap('#k-release'); await page.waitForTimeout(1200);
+    // (the key comes up on its own and bounces a little on its back rail before it is at rest: waited for, not timed)
+    await tap('#k-release'); await untilKey(/rest/);
     check(/rest/.test(await keyDown()), t(`Let key up lets it up (${await keyDown()})`));
     await keyPick('#k-slow'); await page.waitForTimeout(400);
     check(/going down|held/.test(await keyDown()), t(`Press slowly presses (${await keyDown()})`));
@@ -200,7 +204,7 @@ const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'keyfront', 'whole', 'wippen'
       check(padOut && pedal && (await page.$eval('#k-pause', e => e.textContent)) === 'Pause', t('K pauses with the frame buttons out, K runs, P works the pedal'));
       await tap('#frames-done');
       // the letters shown on the key buttons: H holds, E eases it up, Esc lets it up, S presses slowly, L loops and stops
-      await page.keyboard.press('h'); await page.waitForTimeout(1500); const dH = await kp(), sH = await keyDown();
+      await page.keyboard.press('h'); await untilKey(/held/); await page.waitForTimeout(1500); const dH = await kp(), sH = await keyDown();
       await page.keyboard.press('e'); await page.waitForTimeout(2500); const dE = await kp(), sE = await keyDown();
       check(/held/.test(sH) && dE !== dH && !/rest/.test(sE), t(`H strikes and holds (${sH}, ${dH}), E eases it up (${sE}, ${dE})`));
       await page.keyboard.press('Escape'); await page.waitForTimeout(2500);
@@ -221,9 +225,10 @@ const UPRIGHT_VIEWS = ['action', 'angle', 'front', 'keyfront', 'whole', 'wippen'
 
       // narrower windows: the bar pulls in, then the buttons go back in the menu; widened with Key & pedal open, the
       // menu closes as its buttons come out; a resize while in Tools is caught up on the way back
-      await page.setViewportSize({ width: 1100, height: h }); await page.waitForTimeout(500);
-      check(await keysOut() && await page.$eval('#keybar', e => e.classList.contains('tight')), t('1100 wide: key buttons out, the bar pulled in'));
-      await fit('1100 wide');
+      // (1200: with the Touch button on the bar the buttons stay out, pulled in, down to about 1160 px wide; it was 1100)
+      await page.setViewportSize({ width: 1200, height: h }); await page.waitForTimeout(500);
+      check(await keysOut() && await page.$eval('#keybar', e => e.classList.contains('tight')), t('1200 wide: key buttons out, the bar pulled in'));
+      await fit('1200 wide');
       await page.setViewportSize({ width: 1000, height: h }); await page.waitForTimeout(500);
       check(!(await keysOut()), t('1000 wide: key buttons in the menu'));
       await fit('1000 wide');

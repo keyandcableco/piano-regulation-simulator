@@ -73,7 +73,10 @@ const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if
     const kp = await text('#keypos');
     await page.screenshot({ path: `${out}/c-wippen.png` });
     check(!/key 0"? down/.test(kp) && !/key 0 mm down/.test(kp), `grand: lifting the wippen presses the key (${kp})`);
-    await page.mouse.up(); await page.waitForTimeout(2500);
+    // (waited for, up to 30 s: the page plays at Slow x10 and a headless frame rate stretches that further; a fixed
+    // 2.5 s was too short for the key's return even before it had to settle on its back rail)
+    await page.mouse.up();
+    await page.waitForFunction(() => /key 0"? down|key 0 mm down/.test(document.querySelector('#keypos').textContent), null, { timeout: 30000 }).catch(() => {});
     check(/key 0"? down|key 0 mm down/.test(await text('#keypos')), 'grand: let go, the key comes back up');
   }
   await tap('[data-view="escapement"]'); await page.waitForTimeout(1500);

@@ -85,6 +85,20 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -app
 .cat-btn .v { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
 #view-btn { width: 14.4em; }
 #speed-btn { width: 11.2em; }
+/* force against key travel, under the weigh-off test */
+.trace svg { display: block; max-width: 420px; }
+.trace text { font-size: 9px; fill: var(--muted); }
+.trace .ax { stroke: var(--muted); stroke-width: 1; }
+.trace .mk { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 1 3; }
+.trace path { fill: none; }
+.trace .dn { stroke: var(--accent); stroke-width: 1.8; }
+.trace .up { stroke: currentColor; stroke-width: 1.2; stroke-dasharray: 5 3; }
+.trace .dm { stroke: var(--muted); stroke-width: 1; }
+#touch-btn { width: 7em; }
+.touch-in-key { display: none; }
+@media (max-width: 480px) { #cat-touch { display: none; } .touch-in-key { display: block; } }
+#keybar.tight #touch-btn { width: 4.6em; }
+#keybar.tight #touch-btn .wide { display: none; }
 .kplay { font-weight: 600; }
 #stage .kplay:not(:disabled) { border-color: var(--accent); }
 /* a dot on Key & pedal while something in it stays on: Loop, a pedal */
@@ -333,6 +347,7 @@ a { color: var(--accent); }
   .bar { gap: 4px; }
   #view-btn { width: 14em; }
   #speed-btn { width: 7.5em; }
+  #touch-btn { width: 4.4em; }
   .cat-btn { gap: 4px; }
   .cat-btn .wide { display: none; }   /* the Speed button names just the speed */
   /* the frame buttons two by two under the view button, clear of the bottom bar even with the browser's own bars
@@ -492,6 +507,36 @@ a { color: var(--accent); }
             <button id="k-ease" role="menuitem" data-grand data-key="E" title="Let a held key up a little, each time it's pressed (E; pressed while the key is still going down, it waits until the hammer has checked)"><b>Ease up</b><small>let a held key up a little</small></button>
             <button id="k-loop" role="menuitemcheckbox" data-grand data-key="L" title="Keep playing the key, one normal blow after another, so you can watch the action work (L)"><b>Loop</b><small>one normal blow after another</small></button>
             <button id="k-pedal" role="menuitemcheckbox" data-grand data-key="P" title="Damper pedal down or up (P)"><b>Pedal</b><small>the damper pedal</small></button>
+          </div>
+          <!-- a narrow phone's bar has no room for the Touch button: there its choices are here -->
+          <div class="touch-in-key" role="group" aria-labelledby="sh-touch-phone" data-grand>
+            <div class="mhead" id="sh-touch-phone">Touch: how hard the finger plays</div>
+            <div class="mgrid">
+              <button role="menuitemradio" data-touch="pp"><b>Soft (pp)</b><small>a 100 g finger</small></button>
+              <button role="menuitemradio" data-touch="mf" class="on"><b>Normal (mf)</b><small>a 400 g finger</small></button>
+              <button role="menuitemradio" data-touch="ff"><b>Hard (ff)</b><small>a 1.8 kg finger</small></button>
+              <button role="menuitemradio" data-touch="staccato"><b>Staccato</b><small>a jab, then the finger is gone</small></button>
+              <button role="menuitem" data-repeat><b>Repeat</b><small>five quick blows, the key let half way up</small></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- how hard the finger plays: Play, Strike & hold, Loop and Space all use the touch picked here -->
+      <div class="cat" id="cat-touch" data-value="Touch" data-grand>
+        <button class="cat-btn" id="touch-btn" title="How hard the finger plays the key (Play, Strike &amp; hold, Loop and Space use it), and repeated blows"><span class="k wide">Touch</span><span class="v">mf</span></button>
+        <div class="menu" id="menu-touch" role="menu" aria-label="Touch" hidden>
+          <div class="mhead">How hard the finger plays</div>
+          <div class="mgrid" id="touchmenu">
+            <button role="menuitemradio" data-touch="pp" data-short="pp"><b>Soft (pp)</b><small>a 100 g finger</small></button>
+            <button role="menuitemradio" data-touch="mf" data-short="mf" class="on"><b>Normal (mf)</b><small>a 400 g finger</small></button>
+            <button role="menuitemradio" data-touch="ff" data-short="ff"><b>Hard (ff)</b><small>a 1.8 kg finger</small></button>
+            <button role="menuitemradio" data-touch="staccato" data-short="stacc."><b>Staccato</b><small>a jab, then the finger is gone</small></button>
+          </div>
+          <div role="group" aria-labelledby="sh-repeat">
+            <div class="mhead" id="sh-repeat">Repeated blows</div>
+            <div class="mgrid">
+              <button id="k-repeat" role="menuitem" data-key="R" title="Five quick blows, the key let half way up between them, and how fast this key can repeat (R)"><b>Repeat</b><small>five quick blows, the key let half way up</small></button>
+            </div>
           </div>
         </div>
       </div>
