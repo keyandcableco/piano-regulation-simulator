@@ -100,6 +100,19 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -app
 #keybar.tight #touch-btn { width: 4.6em; }
 #keybar.tight #touch-btn .wide { display: none; }
 .kplay { font-weight: 600; }
+/* Play and Press slowly hold the key down while pressed (keyfader.js): no scrolling, selecting or long-press menu under
+   a thumb on them, and the slider that comes up over them while held, its handle under the thumb */
+[data-hold] { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.menu.held { opacity: .12; transition: opacity .15s; }
+#keyfader { position: fixed; left: 0; right: 0; height: 54px; z-index: 50; pointer-events: none; font-size: 12px; }
+#keyfader[hidden] { display: none; }
+#keyfader .kf-cap { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; padding: 1px 8px; border-radius: 6px;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line); }
+#keyfader .kf-track { position: absolute; top: 30px; height: 8px; border-radius: 4px; background: var(--btn); border: 1px solid var(--line); box-sizing: border-box; overflow: hidden; }
+#keyfader .kf-fill { position: absolute; right: 0; top: 0; bottom: 0; background: var(--accent); opacity: .55; }
+#keyfader .kf-handle { position: absolute; top: 24px; width: 6px; height: 20px; margin-left: -3px; border-radius: 3px; background: var(--accent); box-shadow: 0 0 0 2px var(--panel); }
+#keyfader .kf-end { position: absolute; top: 40px; color: var(--muted); white-space: nowrap; }
+#keyfader .kf-up { transform: translateX(-100%); }
 #stage .kplay:not(:disabled) { border-color: var(--accent); }
 /* a dot on Key & pedal while something in it stays on: Loop, a pedal */
 .cat.latched .cat-btn::before { content: ''; position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
@@ -563,6 +576,7 @@ table.compare tr.moved td { font-weight: 600; }
         <li><b>Move a part by hand:</b> turn on <b>✋&nbsp;Move parts</b> on the right, then drag the part: lift the wippen, trip the jack, raise the hammer, and watch what follows. Dragging empty space still turns the view.</li>
         <li><b>Hide panel</b> (top right) gives the picture the whole window.</li>
         <li>Or use the buttons on the right: <b>+</b> and <b>−</b> zoom<span class="wide"> and the arrows slide</span>. <b>Reset view</b> puts it back if you get lost, and <b>?&nbsp;Help</b> brings this back.</li>
+        <li><b>Play and Press slowly:</b> hold the button down and the key stays down till you let go. While it's held a slider comes up over it: slide right to ease the key up, left to press it down again (off the check and back, or through let-off on a slow press).</li>
         <li class="mouse" data-grand><b>Keys:</b> hold Space to hold the key down, or <b>H</b> strikes and holds it, <b>S</b> presses slowly, <b>E</b> eases it up a little, <b>Esc</b> lets it up; <b>L</b> loops and <b>P</b> works the pedal. <b>K</b> pauses, then <b>comma</b> and <b>full stop</b> step a frame back and forward (hold to keep going); <b>G</b> goes to let-off. The buttons show their keys where there's room.</li>
         <li class="mouse" data-upright><b>Keys:</b> hold Space to hold the key down, or <b>H</b> strikes and holds it, <b>S</b> presses slowly, <b>Esc</b> lets it up; <b>P</b> works the sustain pedal. The buttons show their keys where there's room.</li>
       </ul>
@@ -579,7 +593,7 @@ table.compare tr.moved td { font-weight: 600; }
          room (controls.js), and are a menu where it hasn't; the speeds are a menu. data-key: the key on the keyboard
          that does the same, shown on the button where there is a keyboard -->
     <div id="keybar" class="bar" role="toolbar" aria-label="Play the key">
-      <button id="k-play" class="kplay" data-grand title="Strike the key and let it come back up"><span class="glyph">▶ </span>Play</button>
+      <button id="k-play" class="kplay" data-grand title="Strike the key and let it come back up. Hold it down to hold the key down; then slide right to ease the key up and left to press it again, and let go to drop it"><span class="glyph">▶ </span>Play</button>
       <button id="k-release" data-grand data-key="Esc" title="Let the key all the way up (Esc)">Let key up</button>
       <div class="cat" id="cat-key" data-dot>
         <button class="cat-btn" title="More ways to play the key, and the pedal">Key &amp; pedal<span data-upright>s</span></button>
@@ -587,7 +601,7 @@ table.compare tr.moved td { font-weight: 600; }
           <div class="mhead">Play the key</div>
           <div class="mgrid" id="keymenu">
             <button id="k-strike" role="menuitem" data-grand data-key="H" title="Strike and keep holding the key down (H; or hold Space, or press and hold on the key)"><b>Strike &amp; hold</b><small>strike, and keep it down</small></button>
-            <button id="k-slow" role="menuitem" data-grand data-key="S" title="Press the key slowly to the bottom and hold it there (S)"><b>Press slowly</b><small>to the bottom, and hold it</small></button>
+            <button id="k-slow" role="menuitem" data-grand data-key="S" title="Press the key slowly to the bottom and hold it there (S). Hold the button down and slide to work the key up and down through let-off by hand: right lets it up, left presses it; let go to drop it"><b>Press slowly</b><small>to the bottom, and hold it</small></button>
             <button id="k-ease" role="menuitem" data-grand data-key="E" title="Let a held key up a little, each time it's pressed (E; pressed while the key is still going down, it waits until the hammer has checked)"><b>Ease up</b><small>let a held key up a little</small></button>
             <button id="k-loop" role="menuitemcheckbox" data-grand data-key="L" title="Keep playing the key, one normal blow after another, so you can watch the action work (L)"><b>Loop</b><small>one normal blow after another</small></button>
             <button id="k-pedal" role="menuitemcheckbox" data-grand data-key="P" title="Damper pedal down or up (P)"><b>Pedal</b><small>the damper pedal</small></button>

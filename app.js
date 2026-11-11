@@ -10,6 +10,7 @@ import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F
 import { initControls, markView, closeMenu, compact, onCompact, panelTo } from './controls.js';
 import { SPEC_SETS, specSet, setSpecSet, specSource } from './model.js';
 import { GAUGES, graduation, parseReading, judgeReading } from './gauge.js';
+import { holdKey } from './keyfader.js';
 import { mountBench } from './bench-ui.js';
 import { diffAdj } from './bench.js';
 import { createTestLog } from './testlog.js';
@@ -2120,6 +2121,14 @@ $('#k-release').onclick = letUp;
 // letting go of Space or the key on screen: paused, before the key has got down, it goes down and comes back up as
 // Play does (a tap can't be stepped through otherwise)
 const letGo = () => { if (paused && sim.dTarget > sim.d + 0.01) { plan = 'up'; planAt = null; } else sim.press(0, 60); };
+// Play and Press slowly held down keep the key down till they're let go, with a slider to ease it up and down by hand
+// (keyfader.js); a tap does what a click always did
+// (Play leaves Loop going, as its click always did; Press slowly stops it)
+const keyDown = press => { clearPlan(); cue = null; releaseOthers(); press(); pausedNote(); };
+holdKey($('#k-play'), { sim: () => sim, busy: () => busy, fmt, ready: s => s.d >= 0.9 * s.dip, up: letGo,
+  down: () => keyDown(() => strike()), tap: () => { plan = 'up'; planAt = null; } });
+holdKey($('#k-slow'), { sim: () => sim, busy: () => busy, fmt, ready: () => true, up: letGo,
+  down: () => { setLoop(false); keyDown(() => sim.press(sim.dip, 6)); }, tap: () => {} });
 let pedalDown = false;
 const setPedal = down => { pedalDown = down; NOTES.forEach(n => n.sim.setPedal(down)); $('#k-pedal').classList.toggle('on', down); };
 $('#k-pedal').onclick = () => { if (!busy) { setPedal(!pedalDown); pausedNote(); } };

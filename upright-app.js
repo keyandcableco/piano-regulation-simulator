@@ -9,6 +9,7 @@ import { hand, UPRIGHT_HOLD, HOLD_NAMES, dragTo } from './hand.js';
 import { createUprightScene } from './scene-upright.js';
 import { STEPS, TESTS, TIPS, TOOLS, SPEC_NAMES, REPAIRS, SCENARIOS, bandText, readingText, callouts, deregulated, fairStart, creditOf, advise, alsoText } from './content-upright.js';
 import { markView, compact, panelTo } from './controls.js';
+import { holdKey } from './keyfader.js';
 import { examMark, OP_NEEDS } from './examscore.js';
 import { diffAdj } from './bench.js';
 
@@ -97,10 +98,10 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
     item('menuitemradio', label, caption, { 'data-uspeed': s, 'data-short': label, class: s === speed ? 'on' : '', onclick: () => setSpeed(s) }));
   // Play and Let key up stay on the bar, after the grand's own; the others go in the Key & pedals menu
   const keyBtns = [
-    kb([el('span', { class: 'glyph' }, '▶ '), 'Play'], 'Strike the key and let it come back up', () => play('play'), { class: 'kplay' }),
+    kb([el('span', { class: 'glyph' }, '▶ '), 'Play'], 'Strike the key and let it come back up. Hold it down to hold the key down; then slide right to ease the key up and left to press it again, and let go to drop it', () => play('play'), { class: 'kplay' }),
     kb('Let key up', 'Let the key all the way up (Esc)', () => play('up'), { 'data-key': 'Esc' }),
     item('menuitem', 'Strike & hold', 'strike, and keep it down', { title: 'Strike and keep holding the key down (H; or hold Space, or press and hold on the key)', 'data-key': 'H', onclick: () => play('hold') }),
-    item('menuitem', 'Press slowly', 'to the bottom, and hold it', { title: 'Press the key slowly to the bottom and hold it there (S)', 'data-key': 'S', onclick: () => play('slow') }),
+    item('menuitem', 'Press slowly', 'to the bottom, and hold it', { title: 'Press the key slowly to the bottom and hold it there (S). Hold the button down and slide to work the key up and down through let-off by hand: right lets it up, left presses it; let go to drop it', 'data-key': 'S', onclick: () => play('slow') }),
     softBtn, susBtn];
   $('#k-release').after(...keyBtns.slice(0, 2));
   $('#keymenu').append(...keyBtns.slice(2));
@@ -671,6 +672,11 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
     return g;
   }
   const letUp = () => { if (!busy) { keyUp(); idle = false; } };
+  // Play and Press slowly held down, as the grand's (keyfader.js): the key stays down till they're let go, with a
+  // slider to ease it up and down by hand; a tap does what a click always did
+  const holdOpts = { sim: () => sim, busy: () => busy || !active, fmt: mm => `${mm.toFixed(1)} mm`, up: letUp };
+  holdKey(keyBtns[0], { ...holdOpts, ready: s => s.d >= 0.9 * s.dip, down: () => play('hold'), tap: () => { plan = 'up'; } });
+  holdKey(keyBtns[3], { ...holdOpts, ready: () => true, down: () => play('slow'), tap: () => {} });
   const endHold = e => {
     if (grab && (e.pointerId === undefined || e.pointerId === grab.id)) endGrab();
     if (keyHeld !== null && (e.pointerId === undefined || e.pointerId === keyHeld)) { keyHeld = null; S.controls.enabled = true; letUp(); }
