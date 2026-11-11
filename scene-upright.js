@@ -298,10 +298,10 @@ export function createUprightScene(canvas, overlay) {
     extPts(clip(TRACE.butt, 'y', BUTT_FORK.y, true), WIDTH.butt, 0, COLORS.wood, 'butt', hammer);
     extPts(clip(TRACE.butt, 'y', BUTT_FORK.y, false), BUTT_FORK.tongue, 0, COLORS.wood, 'butt', hammer);
     // the cushion: felt with a buckskin face where the jack lifts it [T: which layer is where]
-    extPts(TRACE.buttCushion, WIDTH.butt - 0.6, 0, COLORS.redfelt, 'cushion', hammer);
-    {
-      const c = TRACE.buttCushion, yb = Math.min(...c.map(p => p[1]));
-      extPts([[c[4][0], yb], [c[3][0], yb], [c[3][0], yb + 0.8], [c[4][0], yb + 0.8]], WIDTH.butt - 0.4, 0, COLORS.buckskin, 'cushion', hammer);
+    {   // the felt notched up over the leather strip, so its underside doesn't lie in the leather's
+      const c = TRACE.buttCushion, yb = Math.min(...c.map(p => p[1])), yt = yb + 0.8, [xl, xr] = [c[4][0], c[3][0]];
+      extPts([...c.slice(0, 4), [xr, yt], [xl, yt], ...c.slice(4)], WIDTH.butt - 0.6, 0, COLORS.redfelt, 'cushion', hammer);
+      extPts([[xl, yb], [xr, yb], [xr, yt], [xl, yt]], WIDTH.butt - 0.4, 0, COLORS.buckskin, 'cushion', hammer);
     }
     rodBetween(shankAt(SHANK.y0), shankAt(SHANK.y1), SHANK.r, COLORS.wood, 'shank', hammer, { metal: false });
     // head: the molding's end grain inside the underfelt inside the top felt, as a hammer's side shows them
@@ -309,10 +309,12 @@ export function createUprightScene(canvas, overlay) {
     extPts(TRACE.underfelt, WIDTH.head + 0.2, 0, COLORS.redfelt, 'hammer', hammer);
     extPts(TRACE.molding, WIDTH.head + 0.4, 0, COLORS.wood, 'hammer', hammer);
     rodBetween(CATCHER_SHANK.from, CATCHER_SHANK.to, CATCHER_SHANK.r, COLORS.wood, 'catcher', hammer, { metal: false });
-    extPts(TRACE.catcherHead, WIDTH.catcher, 0, COLORS.wood, 'catcher', hammer);
-    {   // buckskin on the check face [T]
-      const [p, q] = [TRACE.catcherHead[0], TRACE.catcherHead[5]], dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy), nx = -dy / l, ny = dx / l;
-      extPts([p, q, [q[0] + nx * 1, q[1] + ny * 1], [p[0] + nx * 1, p[1] + ny * 1]], WIDTH.catcher + 0.2, 0, COLORS.buckskin, 'catcher', hammer);
+    {   // buckskin on the check face [T]: its face is the traced one (where the backcheck catches), the wood stops 1 mm
+      // behind it, so no wood face lies in the leather's (two faces in one plane flicker through each other)
+      const h = TRACE.catcherHead, [p, q] = [h[0], h[5]], dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy), nx = -dy / l, ny = dx / l;
+      const inset = ([x, y]) => [x + nx * 1, y + ny * 1];   // 1 mm into the head
+      extPts([inset(p), ...h.slice(1, 5), inset(q)], WIDTH.catcher, 0, COLORS.wood, 'catcher', hammer);
+      extPts([p, q, inset(q), inset(p)], WIDTH.catcher + 0.2, 0, COLORS.buckskin, 'catcher', hammer);
     }
     center('hcenter', hammer, [0, 0], WIDTH.flange + 0.6);
 
