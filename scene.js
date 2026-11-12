@@ -28,7 +28,7 @@ const PART_NAMES = {
   wcenter: 'Wippen flange center pin (bushed in the flange)', jcenter: 'Jack center pin (bushed in the wippen)',
   rcenter: 'Repetition lever center pin (bushed in the support)', hcenter: 'Hammer flange center pin (bushed in the flange)',
   ucenter: 'Damper underlever center pin (bushed in its flange)',
-  drop: 'Drop screw', letoff: 'Let-off button', regrail: 'Regulating rail', restrail: 'Hammer rest rail',
+  drop: 'Drop screw', letoff: 'Let-off button: turned by the holes in its side', regrail: 'Regulating rail', restrail: 'Hammer rest rail',
   string: 'Strings', backcheck: 'Backcheck (buckskin face)', damper: 'Damper head', damperfelt: 'Damper felt: a pad under each end of the head, split so its points drop between the strings',
   damperwire: 'Damper wire', ulflange: 'Underlever top flange: its set screw holds the damper wire', underlever: 'Damper underlever',
   damperstop: 'Damper stop rail', lifttray: 'Damper lift tray (pedal)', guiderail: 'Damper guide rail', ulrail: 'Underlever flange rail', tail: 'Hammer tail (scored check surface)', keybed: 'Keybed', straightedge: 'Straightedge',
@@ -132,8 +132,13 @@ const R_BUTTON_FELT_H = 5;
 const CAP_R = 4.5;                   // capstan screw radius
 const CAP_H = G.capDomeR - Math.sqrt(G.capDomeR ** 2 - CAP_R ** 2);   // height of its dome
 const CAP_PITCH = 1.28;              // mm per turn: 1/32 turn is the knob's 0.04 mm step
-const LETOFF_FELT = 3;               // the let-off button's felt, mm thick
-const LETOFF_LEN = 20;               // the let-off button's screw, button to top: in its rail, clear of the flange rail, over the knob's range
+// The let-off button: a wood barrel with its felt punching underneath, fast on its screw, the two turning together in
+// the rail; cross-drilled so a pointed tool in a hole in its side turns it with the action in the piano. Howard Piano
+// Industries' replacement grand button: 11/32 in across, 7/32 in tall, punching about 1/8 in.
+const LETOFF_FELT = 3;               // the felt punching, mm thick
+const LETOFF_R = 4.37, LETOFF_H = 5.56;   // the wood barrel: radius and height. At the knob's top (100) it clears the rail by 0.4
+const LETOFF_LEN = 20;               // the screw, felt's top to its top: in its rail, clear of the flange rail, over the knob's range
+const LETOFF_PITCH = 0.4;            // mm per turn: ⅛ turn is the knob's 0.05 mm step
 const DROP_LEN = 16;                 // the drop screw, its end to the foot of its spade head: it stays through the flange over the knob's range
 const DROP_PITCH = 0.4;              // mm per turn: ⅛ turn is the knob's 0.05 mm step
 // the hammer flange screw: a round-head wood screw down through the flange's foot into the flange rail
@@ -270,7 +275,7 @@ export function createScene(canvas, overlay) {
   // the wippen flanges hang under their pins and screw to the back face of the wippen rail
   ext(rect(G.W[0] - 20, G.W[1] - 26, G.W[0] - 4, G.W[1] - 10), 80, 0, COLORS.rail, 'wippenrail', fixed);
   ext(rect(282, 124, 306, 140), 80, 0, COLORS.rail, 'flangerail', fixed);
-  ext(rect(281, 106, 305, 118), 80, 0, COLORS.rail, 'regrail', fixed);
+  ext(rect(281, 109, 305, 118), 80, 0, COLORS.rail, 'regrail', fixed);   // its underside clear of the let-off buttons' barrels
   // the hammer rest rail is one rail for every note
   const restRail = new THREE.Group(); fixed.add(restRail);
   ext(rect(G.restRailX - 8, -12, G.restRailX + 8, -2), 80, 0, COLORS.rail, 'restrail', restRail);
@@ -344,10 +349,23 @@ export function createScene(canvas, overlay) {
     lathe(FS_HEAD, COLORS.steel, 'flangescrew', fs, { metal: true });
     ext(shapeFrom(FS_SLOT), 0.7, 0, COLORS.dark, 'flangescrew', fs);
     cyl(FS_R, FS_LEN, 'y', [0, -FS_LEN / 2, 0], COLORS.steel, 'flangescrew', fs, { metal: true });
+    // let-off button: rides up and down with the knob (letoffBtn) and turns as it goes (letoffTurn, about its screw)
     n.letoffBtn = new THREE.Group(); root.add(n.letoffBtn);
-    n.letoffFelt = cyl(5, LETOFF_FELT, 'y', [G.letoffX, LETOFF_FELT / 2, 0], COLORS.redfelt, 'letoff', n.letoffBtn);
-    // its screw rides with it, up through the regulating rail, so turning it shows above the rail
-    cyl(1.2, LETOFF_LEN, 'y', [G.letoffX, 3 + LETOFF_LEN / 2, 0], COLORS.steel, 'letoff', n.letoffBtn, { metal: true });
+    const lt = n.letoffTurn = new THREE.Group(); lt.position.x = G.letoffX; n.letoffBtn.add(lt);
+    n.letoffFelt = cyl(LETOFF_R, LETOFF_FELT, 'y', [0, LETOFF_FELT / 2, 0], COLORS.redfelt, 'letoff', lt);
+    {
+      // the barrel, its edges eased and its side swelling a hair, on the punching
+      const r = LETOFF_R, h = LETOFF_H, y0 = LETOFF_FELT;
+      lathe([[0, y0], [r - 0.5, y0], [r - 0.12, y0 + 0.12], [r, y0 + 0.5], [r + 0.08, y0 + h / 2], [r, y0 + h - 0.5],
+        [r - 0.12, y0 + h - 0.12], [r - 0.5, y0 + h], [0, y0 + h]], COLORS.wood, 'letoff', lt);
+      // the turning holes: two drilled across it, four openings round its middle
+      for (let i = 0; i < 4; i++) {
+        const t = i * Math.PI / 2 + Math.PI / 4, hole = cyl(0.8, 0.6, 'x', [0, 0, 0], COLORS.dark, 'letoff', lt);
+        hole.position.set(Math.cos(t) * (r - 0.15), y0 + h / 2, -Math.sin(t) * (r - 0.15)); hole.rotation.y = t;
+      }
+    }
+    // its screw, from the barrel's top up through the regulating rail
+    cyl(1.2, LETOFF_LEN - LETOFF_H, 'y', [0, LETOFF_FELT + (LETOFF_LEN + LETOFF_H) / 2, 0], COLORS.steel, 'letoff', lt, { metal: true });
     // drop screw: down the middle of the flange's body, its rounded, flattened end stopping the felt on the repetition
     // lever's front end. The whole screw moves when it is regulated, and its spade head turns.
     const ds = n.dropScrew = new THREE.Group(); ds.position.set(G.dropX, 0, 0); fl.add(ds);
@@ -942,6 +960,7 @@ export function createScene(canvas, overlay) {
     n.balPunch.scale.y = Math.max(0.3, a.balPunch); n.balPunch.position.y = G.balRailY + Math.max(0.3, a.balPunch) / 2 - Math.max(0, 0.3 - a.balPunch);
     n.frontPunch.scale.y = Math.max(0.3, a.frontPunch); n.frontPunch.position.y = G.frontRailY + Math.max(0.3, a.frontPunch) / 2;
     n.letoffBtn.position.y = a.letoff;
+    n.letoffTurn.rotation.y = 2 * Math.PI * (a.letoff - WEAR.letoff * (a.wear || 0) - FACTORY.letoff) / LETOFF_PITCH;   // + raises it: anticlockwise from above; turned by the knob, not by wear
     // A jack jammed on its stop felt can't trip any further, while the model's key goes on down: the tender is drawn
     // squashing the button's felt (up to 60% of it) rather than passing through it.
     const squash = Math.max(0, Math.min(0.6 * LETOFF_FELT, L.jackPt(psiShown, [-25, 3])[1] + 2.1 - a.letoff));
