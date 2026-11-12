@@ -35,7 +35,7 @@ const KNOB_VIEW = { balPunch: 'whole', frontPunch: 'whole', railShim: 'action', 
 // (with each part's tests and condition checks, for Find the fault)
 const AREAS = [
   { name: 'Key', knobs: ['balPunch', 'frontPunch'], specs: ['keyHeight', 'dip'], tests: ['straightedge', 'dipBlock'] },
-  { name: 'Hammer and hammer rail', knobs: ['railShim', 'softFelt'], specs: ['blow', 'softPedal', 'buttSpring', 'buttCenter'], tests: ['blowGauge', 'softBlow', 'hammerLift'] },
+  { name: 'Hammer and hammer rail', knobs: ['railShim', 'softFelt'], specs: ['blow', 'softPedal', 'buttSpring', 'buttCenter'], tests: ['blowGauge', 'softBlow', 'hammerLift', 'hammerRock'] },
   { name: 'Wippen and jack', knobs: ['capstan', 'letoff'], specs: ['lostMotion', 'letoff', 'aftertouch', 'escapement', 'jackSpring', 'buttLeather'],
     tests: ['railPull', 'topPlay', 'jackReturn', 'slowPress', 'holdLook', 'jackPush', 'inspectLeather'] },
   { name: 'Backcheck and bridle', knobs: ['backcheck', 'bridle'], specs: ['check', 'bridle', 'catcherLeather', 'strap'], tests: ['strikeHold', 'softWatch', 'strapLook'] },
@@ -51,7 +51,7 @@ const VIEW_GROUPS = [
     ['wippen', 'Wippen', 'and the capstan'], ['butt', 'Jack & butt', 'lost motion, escapement'],
     ['jackfront', 'Jack from the keys', 'a slice through the jack'], ['check', 'Backcheck', 'check, bridle'], ['damper', 'Damper', 'damper lever and spoon']]],
 ];
-const TEST_VIEWS = { head: 'Hammer head' };   // views only a test uses, named on the View button
+const TEST_VIEWS = { head: 'Hammer head', headfront: 'Hammer from the keys' };   // views only a test uses, named on the View button
 const EVENT_TEXT = {
   // (a let-off distance only where the hammer was still on the jack: in a blow it has flown on and struck by then)
   letoff: e => e.hand ? 'Jack tripped by hand' : e.flown ? 'Jack escaped' : `Let off ${e.dist.toFixed(1)} mm from the strings`, strike: e => `Struck at ${e.v.toFixed(1)} m/s`,
@@ -381,22 +381,28 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
     verdict = null; gaveUp = false;
     setRegulation({ ...FACTORY, damage: null, ...scenario.make(FACTORY) }, { keepTested: false });
   }
+  // a repair puts right the damage it fixes (content-upright.js REPAIRS); one that fits the part but not the fault says why
   function repair(r) {
     if (busy) return;
-    if (r.repin && DAMAGE[a.damage]?.spec === r.spec) { repinAtBench(r); return; }
-    if (DAMAGE[a.damage]?.spec === r.spec) { setRegulation({ damage: null }); toast(`Done: ${r.label.toLowerCase()}`); }
+    const d = DAMAGE[a.damage];
+    if (d && r.fixes.includes(a.damage)) {
+      if (r.bench) { repinAtBench(d); return; }
+      setRegulation({ damage: null }); toast(`Done: ${r.label.toLowerCase()}`);
+    } else if (d?.spec === r.spec) toast(d.wrong?.[r.label] ?? `${r.label}: that won't put this right`, 'warn');
     else toast('That part was sound: nothing there to put right', 'warn');
   }
   // repinning is done at the bench (repin.js, as on the grand): the old pin measured with a micrometer, the new one
-  // picked off the size chart. A tight butt center keeps its size, its bushing reamed to the new pin
-  function repinAtBench(r) {
+  // picked off the size chart. A tight butt center keeps its size, its bushing reamed to the new pin; a loose one takes
+  // the next half size up
+  const REPINNED = {
+    tight: 'Repinned with a new polished pin the size of the old one, tight in the wood, and the bushing reamed to it: the hammer swings free on its center again.',
+    loose: 'Repinned with the next half size up, tight in the wood and sized in the bushing: the hammer no longer rocks on its center.',
+  };
+  function repinAtBench(d) {
     const gen = regGen, mode0 = mode, damage = a.damage;
-    openRepinBench($('#repin'), { center: 'Butt center', part: 'hammer butt and its flange', kind: r.repin, hints: !!level().hints,
+    openRepinBench($('#repin'), { center: 'Butt center', part: 'hammer butt and its flange', kind: d.center, hints: !!level().hints,
       stale: () => regGen !== gen || mode !== mode0 || !active || a.damage !== damage,
-      finish: () => {
-        setRegulation({ damage: null });
-        return { ok: true, text: 'Repinned with a new polished pin the size of the old one, tight in the wood, and the bushing reamed to it: the hammer swings free on its center again.' };
-      } });
+      finish: () => { setRegulation({ damage: null }); return { ok: true, text: REPINNED[d.center] }; } });
   }
   const repairButtons = specs => {
     const list = REPAIRS.filter(r => specs.includes(r.spec));

@@ -681,8 +681,18 @@ export const DAMAGE = {
   // filmed (118 ms against 110 with the strap, 218 against 126 without)
   buttSpringBroken: { spec: 'buttSpring', name: 'Butt spring broken', adj: { noSpring: true }, part: 'buttspring', repair: 'Replace the butt spring',
     signs: 'the butt spring is broken: nothing but its own weight brings the hammer back' },
-  buttCenterTight: { spec: 'buttCenter', name: 'Butt center tight', dyn: { frictionT: 6 }, part: 'hcenter', repair: 'Ease the butt center',
-    signs: 'the hammer drags on its center pin' },
+  // the butt center (Spurlock: centers free but not wobbly [S2]). A tight one is eased or repinned (a new pin the same
+  // size, the bushing reamed to it); a loose one, the pin loose in sound cloth, is repinned a half size up (the grand's
+  // CENTER_FAULTS rules). center: the kind the repin bench is told (repin.js). repairs: every repair that puts it right;
+  // wrong: what a repair that fits the part but not the fault says
+  buttCenterTight: { spec: 'buttCenter', center: 'tight', name: 'Butt center tight', dyn: { frictionT: 6 }, part: 'hcenter', repair: 'Ease the butt center',
+    repairs: ['Ease the butt center', 'Repin the butt center'], signs: 'the hammer drags on its center pin' },
+  // friction under Igrec's range (0.3 x 60 gf·mm, about 0.7 g at 25 mm against his 1.5-4.0 [S3]) and side play at the
+  // head: neither figure has a source (no book gives a loose center's play in mm, as for the grand), both the sim's own,
+  // the play sized so the rocking test shows it on screen
+  buttCenterLoose: { spec: 'buttCenter', center: 'loose', name: 'Butt center loose', dyn: { frictionT: 0.3 }, play: 1.5, part: 'hcenter',
+    repair: 'Repin the butt center', wrong: { 'Ease the butt center': 'Easing a loose center only makes it looser: it needs a bigger pin.' },
+    signs: 'the hammer rocks side to side on its center pin' },
   strapBroken: { spec: 'strap', name: 'Bridle strap broken', adj: { noStrap: true }, part: 'strap', repair: 'Replace the bridle strap',
     signs: 'the bridle strap is broken and hangs from the catcher' },
 };

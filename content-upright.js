@@ -27,9 +27,9 @@ export function sixtyFourths(mm) {
 // complete. A step: spec (graded), also (more graded specs), knobs (ADJ ids), test (the main one), tests.
 export const STEPS = [
   { spec: 'buttLeather', also: ['catcherLeather', 'jackSpring', 'buttSpring', 'buttCenter', 'strap'], id: 'prep', title: 'Before you regulate: prepare the action',
-    knobs: [], repairs: true, test: 'inspectLeather', tests: ['inspectLeather', 'jackPush', 'hammerLift', 'strapLook'],
+    knobs: [], repairs: true, test: 'inspectLeather', tests: ['inspectLeather', 'jackPush', 'hammerLift', 'hammerRock', 'strapLook'],
     what: 'Regulating over loose screws, worn parts or tight centers is wasted work, and no regulation makes up for worn-out parts. Tighten every screw, the action bracket bolts before the action comes out so the frame stays in line. Check that the felts and leathers are still usable, every center is free but not wobbly, and nothing rubs. Ease tight keys (Steinway: "A tight key will make other adjustments virtually useless."), reshape worn hammers, and take the lost motion out of the pedal rods and trapwork.',
-    how: 'In the sim: look at the butt leather and the catcher\'s buckskin for grooves and shine; push each jack out from under its butt and let it go (it should spring straight back); lift the hammer and let it go (the butt spring brings it back briskly, and a tight center drags); look at the bridle strap. A worn leather is re-covered, a weak or broken spring replaced, a tight center eased. Its screws, keys and trapwork start out sound.',
+    how: 'In the sim: look at the butt leather and the catcher\'s buckskin for grooves and shine; push each jack out from under its butt and let it go (it should spring straight back); lift the hammer and let it go (the butt spring brings it back briskly, and a tight center drags); hold the butt flange and rock the hammer side to side (a loose center lets it move on its pin); look at the bridle strap. A worn leather is re-covered, a weak or broken spring replaced, a tight center eased or repinned, a loose one repinned a half size up, the old pin measured with a micrometer at the bench. Its screws, keys and trapwork start out sound.',
     note: 'Wear in the butt leather adds lost motion, which Spurlock takes out with the capstans; leather worn past use (his first check) is re-covered, and in the sim a worn butt leather is put right only by re-covering it. Upright jacks, butts and dampers all return on springs, so a tired spring shows as a part that comes back slowly or not at all. Igrec tests a butt\'s center with its spring unhooked; the sim\'s test lifts the hammer with the spring on.' },
   { info: true, id: 'seat', title: 'Seat the action and check the strike point',
     what: 'Everything is measured from the strings, so the action has to sit right against them first. On the top treble note the hammer should strike about 1/8" below the V-bar (Spurlock). Find the best tone by ear, levering the action up or down while you play the note, then set the support posts so the action rests evenly on all of them. Bend the top posts so each bracket is snug under its stud: that keeps the lost motion and the dampers stable.',
@@ -213,11 +213,29 @@ export const TESTS = {
       sim.g = g0 + 0.45 * (gString() - g0); sim.w = 0;   // short of where the strap would go taut and lift the wippen
       const t0 = sim.t; let back = null;
       for (let i = 0; i < 12 && back === null; i++) { await ctx.run(0.05); back = ctx.lastEvent('rail')?.t ?? null; }
-      const ms = back === null ? null : Math.round(1000 * (back - t0)), d = DAMAGE[ctx.m.damage];
-      ctx.say(d?.spec === 'buttCenter' ? `It comes back slowly${ms != null ? `, ${ms} ms` : ''}, dragging on its center pin`
+      const ms = back === null ? null : Math.round(1000 * (back - t0)), d = DAMAGE[ctx.m.damage], tight = d?.center === 'tight';
+      // (a loose center swings as freely as a sound one: its side play is the rocking test's)
+      ctx.say(tight ? `It comes back slowly${ms != null ? `, ${ms} ms` : ''}, dragging on its center pin`
         : d?.spec === 'buttSpring' ? `It falls back on its own weight${ms != null ? `, ${ms} ms` : ''}: the butt spring isn\'t pushing`
-        : `It springs back to the rail in ${ms ?? '—'} ms`, d?.spec === 'buttCenter' || d?.spec === 'buttSpring');
+        : `It springs back to the rail in ${ms ?? '—'} ms`, tight || d?.spec === 'buttSpring');
       await ctx.run(0.2); await ctx.pause(0.6);
+    } },
+  // the butt flange held, the hammer head pushed side to side by hand, seen from the keys with its neighbors beside it:
+  // a loose center lets the hammer rock on its pin (Spurlock: centers free but not wobbly [S2]). The rock is about the
+  // pin, so the head moves its play and the butt next to nothing
+  hammerRock: { label: 'Hold the butt flange, rock the hammer side to side', specs: ['buttCenter'], view: 'headfront',
+    run: async ctx => {
+      await ctx.release(); await ctx.pause(0.6);
+      // (the head moves its height times the rock: its side shift at rest, the shank near upright; raised, it would be less)
+      const { a } = ctx, p = pose(a, 0), play = DAMAGE[ctx.m.damage]?.play ?? 0, head = crownAt(p.g)[1];
+      let rock = 0;
+      for (const to of [-0.5, 0.5, -0.5, 0.5, 0].map(s => s * play / head)) {
+        const from = rock;
+        for (let i = 1; i <= 10; i++) { rock = from + (to - from) * i / 10; ctx.show(a, { ...p, rock }); await ctx.pause(0.03); }
+      }
+      ctx.say(play ? `The head shifts about ${fmt(play)} side to side, with a click at each end: side play in the center`
+        : 'The hammer stays put on its pin: no side play', !!play);
+      await ctx.pause(1.2); ctx.show(null);
     } },
   strapLook: { label: 'Look at the bridle strap', specs: ['strap'], view: 'check',
     run: async ctx => { await ctx.release(); await ctx.pause(1.2); const d = DAMAGE[ctx.m.damage];
@@ -236,10 +254,14 @@ export const TESTS = {
     } },
 };
 // the repairs a step or a fault can call for: each puts right the damage that its spec finds
-// (a tight butt center is eased or repinned: repinning is done at the bench, repin.js, where the old pin is measured
-// with a micrometer and the new one picked off the size chart; kind is the center fault the bench is told)
-export const REPAIRS = [...new Map(Object.values(DAMAGE).map(d => [d.repair, { label: d.repair, spec: d.spec }])).values(),
-  { label: 'Repin the butt center', spec: 'buttCenter', repin: 'tight' }];
+// Each repair, with the damage it puts right (fixes): a damage's repair, or any of its repairs (a tight butt center is
+// eased or repinned). Repinning is done at the bench (bench: repin.js), where the old pin is measured with a micrometer
+// and the new one picked off the size chart for the kind of center (DAMAGE center)
+const fixesOf = d => d.repairs ?? [d.repair];
+export const REPAIRS = [...new Set(Object.values(DAMAGE).flatMap(fixesOf))].map(label => {
+  const fixes = Object.keys(DAMAGE).filter(k => fixesOf(DAMAGE[k]).includes(label));
+  return { label, spec: DAMAGE[fixes[0]].spec, fixes, bench: label.startsWith('Repin ') };
+});
 
 // ---------- readings: a spec's value in words ----------
 export const SPEC_NAMES = {
@@ -386,6 +408,10 @@ export const SCENARIOS = [
   { id: 'buttCenterTight', complaint: 'This key feels stiff, and soft notes don\'t always sound.', make: () => ({ damage: 'buttCenterTight' }),
     reads: ['buttCenter'], also: [],
     cause: 'The butt center is tight: the hammer drags on its pin (Igrec\'s table gives its healthy range)', fix: 'Ease or repin the butt center' },
+  { id: 'buttCenterLoose', complaint: 'There\'s a click in this note, and its hammer seems to wobble.', make: () => ({ damage: 'buttCenterLoose' }),
+    reads: ['buttCenter'], also: [],
+    cause: 'The butt center is loose: the pin is loose in its bushing cloth, so the hammer rocks side to side on it (Spurlock: centers free but not wobbly). The sim\'s hammer swings as freely as a sound one: the rocking test finds it',
+    fix: 'Repin the butt center with the next half size up' },
   { id: 'strapBroken', complaint: 'Quick repeated notes feel slow on this key.', make: () => ({ damage: 'strapBroken' }),
     reads: ['strap'], also: [],
     cause: 'The bridle strap is broken: nothing helps the hammer back from the backcheck on a quick release, so it gets home later (Ellis: 126 ms against 110 on film; about 125 against 111 here)', fix: 'Replace the bridle strap' },

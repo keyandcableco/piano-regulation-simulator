@@ -406,6 +406,7 @@ export function createUprightScene(canvas, overlay) {
     n.wippen.rotation.z = -p.phi;
     n.jack.rotation.z = p.psi;
     n.hammer.rotation.z = -p.g;
+    n.hammer.rotation.x = p.rock ?? 0;   // rocked side to side on its pin by hand (the rocking test: a loose center)
     n.damper.rotation.z = p.dl;
     n.spoon.rotation.z = spoonAngle(a); n.bc.rotation.z = bcAngle(a); n.bridle.rotation.z = bridleAngle(a);
     n.letoff.position.y = -a.letoff;
@@ -482,6 +483,7 @@ export function createUprightScene(canvas, overlay) {
     back: { t: at(10, 20), p: at(700, 60, -160), nb: true },         // from behind the strings
     top: { t: at(-10, 0), p: at(-10, 700, 0.1), nb: true },
     head: { t: at(-18, 136), p: at(-18, 140, 260) },
+    headfront: { t: at(-18, 128), p: at(-135, 142, 0), nb: true },   // the hammer head from the keys, its neighbors beside it
     butt: { t: at(-20, 0), p: at(-20, 4, 230) },                     // jack top under the cushion, catcher, flange
     buttangle: { t: at(-20, 0), p: at(-170, 70, 170) },
     // from the keys through a slice of the action (the rails in front cut away): the jack under the butt cushion

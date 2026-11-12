@@ -4,7 +4,7 @@
 // ~/.nvm/versions/node/v22.23.2/bin/node --test tests/upright-scenarios.test.mjs (a few minutes: every case is played)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FACTORY, Sim, measure, grade, stringGap, gRail, gString } from '../upright-model.js';
+import { FACTORY, DAMAGE, Sim, measure, grade, stringGap, gRail, gString } from '../upright-model.js';
 import { SCENARIOS, alsoText } from '../content-upright.js';
 
 const UP = 236;
@@ -61,6 +61,9 @@ const SYMPTOM = {
   damperSpringBroken: a => blow(a, 450).seatedAt === Infinity,
   damperSpringWeak: a => blow(a, 450).seatedAt > F.mf.seatedAt + 0.05,
   buttCenterTight: a => minStrike(a) > F.min,
+  // found by rocking the hammer on its pin (the rocking test): the side play a technician feels. In play it swings as
+  // freely as a sound one (the lift test can't tell them apart: home no later than the factory's, within 5%)
+  buttCenterLoose: a => (DAMAGE[a.damage]?.play ?? 0) >= 1 && Math.abs(liftHome(a) - F.lift) <= 0.05 * F.lift,
   // at the app's own release (236 mm/s, S15's), from check: the film has 126 ms against 110
   strapBroken: a => blow(a, 450).railAt > F.mf.railAt * 1.08,
 };

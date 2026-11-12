@@ -244,6 +244,40 @@ const SIZES = ['.048', '.049', '.050', '.051', '.052', '.053'];
     await fix('Repin the butt center').click(); await page.waitForTimeout(300);
     await dlg(page).getByRole('button', { name: 'Put it away' }).click(); await page.waitForTimeout(300);
     check(!(await dlg(page).isVisible()) && await sel.inputValue() === 'buttCenterTight', 'upright: the × puts the bench away, the center still tight');
+    // a loose butt center (Find the fault deals it; the upright's Sandbox shows readings, not tests): Ease says why it
+    // won't do, the rocking test shows the play, Repin takes the next half size up and Check my work passes
+    await page.locator('.tab[data-mode=diagnose]').click(); await page.waitForTimeout(500);
+    for (let i = 0; i < 120 && !/its hammer seems to wobble/.test(await page.locator('#mode').textContent()); i++) {
+      await page.locator('#actionbar button', { hasText: 'Next customer' }).click(); await page.waitForTimeout(60);
+    }
+    check(/its hammer seems to wobble/.test(await page.locator('#mode').textContent()), 'upright loose: Find the fault deals the loose butt center');
+    await page.evaluate(() => document.querySelectorAll('#mode details:not([open])').forEach(d => { d.open = true; }));
+    await fix('Ease the butt center').click(); await page.waitForTimeout(200);
+    check(/only makes it looser/.test(await page.locator('#toasts').textContent()), 'upright loose: Ease says it only makes it looser');
+    await page.locator('#mode button', { hasText: 'rock the hammer side to side' }).first().click();
+    await page.waitForTimeout(1200);
+    await page.screenshot({ path: path.join(out, 'upright-rock.png') });
+    await page.waitForFunction(() => /side play in the center/.test(document.getElementById('testlog')?.textContent ?? ''), null, { timeout: 30000 }).catch(() => {});
+    check(/side play in the center/.test(await page.locator('#testlog').textContent()), 'upright loose: the rocking test finds side play');
+    await page.waitForFunction(() => ![...document.querySelectorAll('#mode button.test')].some(b => b.disabled), null, { timeout: 30000 }).catch(() => {});
+    await fix('Repin the butt center').click(); await page.waitForTimeout(300);
+    const rl = await measure(page, null);
+    await page.locator('#rp-go').click(); await page.waitForTimeout(200);
+    const sl = await dlg(page).locator('.rp-chart tbody tr').evaluateAll(trs => trs.map(tr => tr.children[1].textContent));
+    const il = sl.findIndex(s => s === `${rl}"`);
+    await dlg(page).locator('.rp-chart tbody tr').nth(il).getByRole('button').click();
+    check((await result(page)).cls === 'badc', 'upright loose: the same size is refused');
+    await dlg(page).locator('.rp-chart tbody tr').nth(il + 1).getByRole('button').click();
+    await page.locator('#rp-go').click(); await page.waitForTimeout(200);
+    await button(page, 'Pin it and put it back').click(); await page.waitForTimeout(400);
+    check((await result(page)).cls === 'okc' && /next half size up/.test((await result(page)).text), `upright loose pinned: ${(await result(page)).text}`);
+    await button(page, 'Done').click(); await page.waitForTimeout(300);
+    await page.locator('#actionbar button', { hasText: 'Check my work' }).click(); await page.waitForTimeout(300);
+    check(/Fixed\./.test(await page.locator('#mode').textContent()), 'upright loose: Check my work says fixed');
+    // repinned, the rocking test finds no play
+    await page.locator('#mode button', { hasText: 'rock the hammer side to side' }).first().click();
+    await page.waitForFunction(() => /no side play/.test(document.getElementById('testlog')?.textContent ?? ''), null, { timeout: 30000 }).catch(() => {});
+    check(/no side play/.test(await page.locator('#testlog').textContent()), 'upright repinned: the rocking test finds no side play');
     check(!page.errors.length, `upright: no page errors (${page.errors.join(' | ')})`);
   }
   await browser.close();
