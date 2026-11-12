@@ -14,6 +14,7 @@ import { holdKey } from './keyfader.js';
 import { mountBench } from './bench-ui.js';
 import { diffAdj } from './bench.js';
 import { createTestLog } from './testlog.js';
+import { openRepinBench } from './repin.js';
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -1405,12 +1406,31 @@ const CENTER_FIXES = {
     tight: 'Rebushed, and it works, but the cloth was sound, only swollen: easing it would have taken a minute.',
     loose: 'Rebushed, and it works, but the cloth was sound: a pin a half size up would have done it.' } },
 };
+// Repinning a center that needs it is done at the bench (repin.js): the old pin is pushed out and measured with a
+// micrometer, and the new one is picked off the size chart by that reading. The micrometer's zero is checked once a visit.
+let micZeroed = false;
+function repinAtBench(id, kind) {
+  const gen = generation, mode0 = mode, adj0 = adj;
+  // repinning a worn bushing is the wrong repair, and costs a test as it always did: charged as the bench comes out, so
+  // putting it away again doesn't make it a free look at which center is at fault
+  if (!CENTER_FIXES.repin.fixes[kind] && (mode === 'diagnose' || examActive())) testsUsed++;
+  openRepinBench($('#repin'), { center: CENTERS[id].name, kind, hints: !!level().hints, zeroed: micZeroed,
+    onZero: () => { micZeroed = true; },
+    stale: () => generation !== gen || mode !== mode0 || adj !== adj0 || CENTER_FAULTS[adj.center]?.center !== id,
+    finish: () => {
+      const fx = CENTER_FIXES.repin, msg = fx.fixes[kind];
+      if (!msg) { refresh(); return { ok: false, text: fx.wrong[kind] }; }
+      adj.center = null; unsolve(); bushingChanged();
+      return { ok: true, text: msg };
+    } });
+}
 function centerRepairs(ids, { fold = false } = {}) {
   const f = CENTER_FAULTS[adj.center];
   const rows = ids.filter(id => id !== 'under' || !examActive() || exam.dampers).map(id => el('div', { class: 'row small' },
     el('span', { class: 'grow' }, CENTERS[id].name),
     Object.values(CENTER_FIXES).map(fx => el('button', { class: 'test', disabled: busy ? '' : false, onclick: () => {
       const kind = f?.center === id ? f.kind : null, msg = kind && fx.fixes[kind];
+      if (kind && fx === CENTER_FIXES.repin) { closePop(); repinAtBench(id, kind); return; }
       if (!msg) {
         if (mode === 'diagnose' || examActive()) testsUsed++;
         toast(kind ? fx.wrong[kind] : `${fx.label}: nothing wrong with the ${CENTERS[id].name.toLowerCase()}, so nothing changed.`); refresh(); return;
