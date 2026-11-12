@@ -12,6 +12,7 @@ import { markView, compact, panelTo } from './controls.js';
 import { holdKey } from './keyfader.js';
 import { examMark, OP_NEEDS } from './examscore.js';
 import { diffAdj } from './bench.js';
+import { openRepinBench } from './repin.js';
 
 const DT = 0.0001;          // s: the Sim's step (its tests' and fit's)
 // At most this many steps a screen frame. Each costs about 0.2 ms of computing, so 120 is about 24 ms: real speed
@@ -114,13 +115,14 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
   let m = measure(a), sim = new Sim(a), tested = new Set(), stepIdx = 0, carry = 0, plan = null, lagging = false;
   let busy = false, testRun = null, testScale = 1, override = null, testEvents = [], viewNow = 'action', cardPart = null;
   let idle = false;   // nothing moved on the last frame and nothing has been asked of the Sim since: its steps are skipped
+  let regGen = 0;     // bumped with every change of the regulation (a bench out on the bench goes stale with it)
   const log = [];
 
   // ---------- the regulation ----------
   function setRegulation(b, { keepTested = true, replace = false } = {}) {
     if (busy) return;   // a running test has the Sim
     if (replace) for (const k of Object.keys(a)) delete a[k];
-    Object.assign(a, b); m = measure(a);
+    Object.assign(a, b); m = measure(a); regGen++;
     verdict = null;   // a check of the work belongs to the work it checked
     sim = new Sim(a); sim.setSoft(softOn); sim.setPedal(sustainOn); sim.soft = softOn ? 1 : 0; sim.pedal = sustainOn ? 1 : 0;
     if (!keepTested) { tested = new Set(); dealt++; }   // a fresh key: a new piece of work for the bench bar
@@ -381,8 +383,20 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
   }
   function repair(r) {
     if (busy) return;
+    if (r.repin && DAMAGE[a.damage]?.spec === r.spec) { repinAtBench(r); return; }
     if (DAMAGE[a.damage]?.spec === r.spec) { setRegulation({ damage: null }); toast(`Done: ${r.label.toLowerCase()}`); }
     else toast('That part was sound: nothing there to put right', 'warn');
+  }
+  // repinning is done at the bench (repin.js, as on the grand): the old pin measured with a micrometer, the new one
+  // picked off the size chart. A tight butt center keeps its size, its bushing reamed to the new pin
+  function repinAtBench(r) {
+    const gen = regGen, mode0 = mode, damage = a.damage;
+    openRepinBench($('#repin'), { center: 'Butt center', part: 'hammer butt and its flange', kind: r.repin, hints: !!level().hints,
+      stale: () => regGen !== gen || mode !== mode0 || !active || a.damage !== damage,
+      finish: () => {
+        setRegulation({ damage: null });
+        return { ok: true, text: 'Repinned with a new polished pin the size of the old one, tight in the wood, and the bushing reamed to it: the hammer swings free on its center again.' };
+      } });
   }
   const repairButtons = specs => {
     const list = REPAIRS.filter(r => specs.includes(r.spec));

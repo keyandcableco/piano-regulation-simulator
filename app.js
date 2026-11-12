@@ -1407,15 +1407,13 @@ const CENTER_FIXES = {
     loose: 'Rebushed, and it works, but the cloth was sound: a pin a half size up would have done it.' } },
 };
 // Repinning a center that needs it is done at the bench (repin.js): the old pin is pushed out and measured with a
-// micrometer, and the new one is picked off the size chart by that reading. The micrometer's zero is checked once a visit.
-let micZeroed = false;
+// micrometer, and the new one is picked off the size chart by that reading
 function repinAtBench(id, kind) {
   const gen = generation, mode0 = mode, adj0 = adj;
   // repinning a worn bushing is the wrong repair, and costs a test as it always did: charged as the bench comes out, so
   // putting it away again doesn't make it a free look at which center is at fault
   if (!CENTER_FIXES.repin.fixes[kind] && (mode === 'diagnose' || examActive())) testsUsed++;
-  openRepinBench($('#repin'), { center: CENTERS[id].name, kind, hints: !!level().hints, zeroed: micZeroed,
-    onZero: () => { micZeroed = true; },
+  openRepinBench($('#repin'), { center: CENTERS[id].name, kind, hints: !!level().hints,
     stale: () => generation !== gen || mode !== mode0 || adj !== adj0 || CENTER_FAULTS[adj.center]?.center !== id,
     finish: () => {
       const fx = CENTER_FIXES.repin, msg = fx.fixes[kind];

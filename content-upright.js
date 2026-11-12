@@ -236,7 +236,10 @@ export const TESTS = {
     } },
 };
 // the repairs a step or a fault can call for: each puts right the damage that its spec finds
-export const REPAIRS = [...new Map(Object.values(DAMAGE).map(d => [d.repair, { label: d.repair, spec: d.spec }])).values()];
+// (a tight butt center is eased or repinned: repinning is done at the bench, repin.js, where the old pin is measured
+// with a micrometer and the new one picked off the size chart; kind is the center fault the bench is told)
+export const REPAIRS = [...new Map(Object.values(DAMAGE).map(d => [d.repair, { label: d.repair, spec: d.spec }])).values(),
+  { label: 'Repin the butt center', spec: 'buttCenter', repin: 'tight' }];
 
 // ---------- readings: a spec's value in words ----------
 export const SPEC_NAMES = {

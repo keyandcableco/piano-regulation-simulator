@@ -681,7 +681,7 @@ export const DAMAGE = {
   // filmed (118 ms against 110 with the strap, 218 against 126 without)
   buttSpringBroken: { spec: 'buttSpring', name: 'Butt spring broken', adj: { noSpring: true }, part: 'buttspring', repair: 'Replace the butt spring',
     signs: 'the butt spring is broken: nothing but its own weight brings the hammer back' },
-  buttCenterTight: { spec: 'buttCenter', name: 'Butt center tight', dyn: { frictionT: 6 }, part: 'hcenter', repair: 'Ease or repin the butt center',
+  buttCenterTight: { spec: 'buttCenter', name: 'Butt center tight', dyn: { frictionT: 6 }, part: 'hcenter', repair: 'Ease the butt center',
     signs: 'the hammer drags on its center pin' },
   strapBroken: { spec: 'strap', name: 'Bridle strap broken', adj: { noStrap: true }, part: 'strap', repair: 'Replace the bridle strap',
     signs: 'the bridle strap is broken and hangs from the catcher' },

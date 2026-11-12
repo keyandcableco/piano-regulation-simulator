@@ -18,12 +18,12 @@ const SIZES = ['.048', '.049', '.050', '.051', '.052', '.053'];
   fs.mkdirSync(out, { recursive: true });
   const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', headless: true,
     args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-  const open = async (viewport, scheme) => {
+  const open = async (viewport, scheme, action = 'grand') => {
     const page = await (await browser.newContext({ viewport, colorScheme: scheme })).newPage();
     page.errors = [];
     page.on('pageerror', e => page.errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error') page.errors.push(m.text()); });
-    await page.addInitScript(() => { try { localStorage.clear(); localStorage.setItem('regsim-movehelp', 'seen'); localStorage.setItem('regsim-level', 'apprentice'); } catch {} });
+    await page.addInitScript(a => { try { localStorage.clear(); localStorage.setItem('regsim-movehelp', 'seen'); localStorage.setItem('regsim-level', 'apprentice'); localStorage.setItem('regsim-action', a); } catch {} }, action);
     await page.goto(`${base}/index.html?t=${Date.now()}`, { timeout: 90000 });
     await page.waitForSelector('#mode table, #mode h2', { state: 'attached', timeout: 60000 });
     await page.waitForTimeout(1500);
@@ -209,6 +209,42 @@ const SIZES = ['.048', '.049', '.050', '.051', '.052', '.053'];
     await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     check(!(await dlg(page).isVisible()), 'with focus on the page, Escape puts the bench away');
     check(!page.errors.length, `phone: no page errors (${page.errors.join(' | ')})`);
+  }
+  // ---- the upright: a tight butt center, eased or repinned at the same bench ----
+  {
+    const page = await open({ width: 1280, height: 860 }, 'light', 'upright');
+    const sel = page.locator('#mode select[title="Wear or break one part"]');
+    await sel.selectOption({ label: 'Butt center tight' }); await page.waitForTimeout(400);
+    const fix = name => page.locator('#mode button', { hasText: name }).first();
+    check(await fix('Ease the butt center').count() === 1 && await fix('Repin the butt center').count() === 1, 'upright: Ease and Repin are two repairs');
+    await fix('Repin the butt center').click(); await page.waitForTimeout(300);
+    check(await dlg(page).isVisible() && /Repin the butt center/.test(await dlg(page).locator('#rp-title').textContent()), 'upright: Repin opens the bench');
+    check(/hammer butt and its flange/.test(await dlg(page).textContent()), 'upright: the butt and its flange come off');
+    const r = await measure(page, 'upright');
+    await page.locator('#rp-go').click(); await page.waitForTimeout(200);
+    const sz = await dlg(page).locator('.rp-chart tbody tr').evaluateAll(trs => trs.map(tr => tr.children[1].textContent));
+    const it = sz.findIndex(s => s === `${r}"`);
+    await dlg(page).locator('.rp-chart tbody tr').nth(it + 1).getByRole('button').click();
+    check((await result(page)).cls === 'badc', 'upright: a bigger pin is refused for a tight center');
+    await dlg(page).locator('.rp-chart tbody tr').nth(it).getByRole('button').click();
+    await page.locator('#rp-go').click(); await page.waitForTimeout(200);
+    await button(page, 'Pin it and put it back').click(); await page.waitForTimeout(400);
+    check((await result(page)).cls === 'okc', `upright pinned: ${(await result(page)).text}`);
+    await button(page, 'Done').click(); await page.waitForTimeout(300);
+    check(await sel.inputValue() === '', 'upright: all parts sound again');
+    // healthy: Repin says the part was sound and opens nothing; Ease still fixes a tight one at once
+    await fix('Repin the butt center').click(); await page.waitForTimeout(300);
+    check(!(await dlg(page).isVisible()), 'upright: Repin on a sound center opens no bench');
+    await sel.selectOption({ label: 'Butt center tight' }); await page.waitForTimeout(400);
+    await fix('Ease the butt center').click(); await page.waitForTimeout(300);
+    check(!(await dlg(page).isVisible()) && await sel.inputValue() === '', 'upright: Ease needs no bench');
+    // the × puts the bench away with nothing changed (the page behind the dialog can't be clicked while it is out, so
+    // the stale paths, a regulation, mode or action changed under it, aren't reached from here)
+    await sel.selectOption({ label: 'Butt center tight' }); await page.waitForTimeout(400);
+    await fix('Repin the butt center').click(); await page.waitForTimeout(300);
+    await dlg(page).getByRole('button', { name: 'Put it away' }).click(); await page.waitForTimeout(300);
+    check(!(await dlg(page).isVisible()) && await sel.inputValue() === 'buttCenterTight', 'upright: the × puts the bench away, the center still tight');
+    check(!page.errors.length, `upright: no page errors (${page.errors.join(' | ')})`);
   }
   await browser.close();
   console.log(failed ? `${failed} failed` : 'all ok');

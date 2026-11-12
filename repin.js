@@ -155,18 +155,19 @@ function drawMic(D, { r, pin, help, clicks }) {
 
 // ---------- the bench ----------
 // open the bench in the <dialog> host for one center:
-//   center: its name; kind: 'loose' | 'tight' | 'worn'; hints: the reading help offered (Apprentice)
-//   zeroed: the micrometer's zero already checked this visit; onZero(): it has been now
+//   center: its name; part: what comes off the action with it (by default the center's part, from its name);
+//   kind: 'loose' | 'tight' | 'worn'; hints: the reading help offered (Apprentice)
 //   stale(): the key or the mode changed under it (the bench is put away); finish(): repins it, returns { ok, text }
+// The grand's and the upright's benches share one micrometer: its zero is checked once a visit, on whichever comes first.
 let current = null;   // the bench that is out: one at a time
-export function openRepinBench(host, { center, kind, hints = false, zeroed = false, onZero = () => {}, stale = () => false, finish }) {
+let zeroed = false;
+export function openRepinBench(host, { center, part = center.replace(/ center$/i, '').toLowerCase(), kind, hints = false, stale = () => false, finish }) {
   current?.close();
   const D = buildMic();
   const old = oldPin();
   const mic = { r: 0.12, pin: { d: old.d, placed: false }, ratcheted: false, help: false, clicks: false };
   const STEPS = ['Pin out', 'Zero', 'Measure', 'New pin', 'Pin it'];
   let step = 0, done = false, raf = 0, picked = null, note = '';
-  const part = center.replace(/ center$/i, '').toLowerCase();
 
   const title = el('b', { id: 'rp-title', class: 'grow' }, `Repin the ${center.toLowerCase()}`);
   const body = el('div', { class: 'rp-body' });
@@ -290,7 +291,7 @@ export function openRepinBench(host, { center, kind, hints = false, zeroed = fal
 
   // ---- the steps ----
   function zeroChecked() {
-    onZero();
+    zeroed = true;
     note = 'It reads zero: the thimble\'s edge sits on the sleeve\'s 0 line and its 0 line on the index line.';
     render();
   }
@@ -322,7 +323,7 @@ export function openRepinBench(host, { center, kind, hints = false, zeroed = fal
   const next = () => { step++; note = ''; render(); later(() => body.querySelector('#rp-go:not([disabled]), .rp-ctl .primary, .rp-chart button')?.focus(), 50); };
   function content() {
     if (step === 0) return [
-      el('p', {}, `The ${part} comes off the action to the bench. Push the old pin out with a center pin punch and lay it by: it is measured before anything goes back in.`),
+      el('p', {}, `Take the ${part} off the action to the bench, push the old pin out with a center pin punch, and lay it by: it is measured before anything goes back in.`),
       el('p', { class: 'muted small' }, 'Center pins come in half sizes a thousandth of an inch apart, too close to tell by eye, so the old pin is measured with a micrometer and the new one picked by that reading.'),
       el('div', { class: 'row' }, el('button', { class: 'primary', id: 'rp-go', onclick: () => { if (zeroed) step++; next(); } }, 'Push the old pin out'))];
     if (step === 1) return [
