@@ -7,7 +7,7 @@
 // sideways offsets are drawn at BASS times (the grand's rule, scene.js).
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { H, KEY, CENTER, TRACE, SHANK, shankAt, CATCHER_SHANK, CAPSTAN, EYE, STRAP_T, BUTT_FORK, WIPPEN_FORK, DAMPER_FORK, SCREWS,
+import { H, KEY, CENTER, TRACE, SHANK, shankAt, CATCHER_SHANK, BUTT_LEATHER_T, CAPSTAN, EYE, STRAP_T, BUTT_FORK, WIPPEN_FORK, DAMPER_FORK, SCREWS,
   BRIDLE_Z, MAIN_RAIL, HAMMER_RAIL, LETOFF_RAIL, STRING, stringX, WIDTH, RAIL_N, SPOON_BASE, spoonAngle, BC_BEND, bcAngle,
   BRIDLE_BASE, bridleAngle, strapEnds, STRAP_LEN, STRAP_Z0, turn, wipPt, KEY_RAILS } from './upright-model.js';
 
@@ -22,16 +22,30 @@ const COLORS = {
   brass: 0xc9a24a, steel: 0xa9afb6, string: 0xcfd3d8, dark: 0x3a2c22, ghost: 0xf2efe7,
 };
 
+// a side-view path moved d to its right, square to each segment and mitred at the joints: the inner face of a strip
+// laid along the path (for a path with the part on its right)
+function offsetRight(P, d) {
+  const n = (a, b) => { const l = Math.hypot(b[0] - a[0], b[1] - a[1]); return [(b[1] - a[1]) / l, -(b[0] - a[0]) / l]; };
+  return P.map((p, i) => {
+    const n0 = i > 0 ? n(P[i - 1], p) : null, n1 = i < P.length - 1 ? n(p, P[i + 1]) : null;
+    if (!n0 || !n1) { const m = n0 || n1; return [p[0] + m[0] * d, p[1] + m[1] * d]; }
+    const k = d / (1 + n0[0] * n1[0] + n0[1] * n1[1]);
+    return [p[0] + (n0[0] + n1[0]) * k, p[1] + (n0[1] + n1[1]) * k];
+  });
+}
+
 export const PART_NAMES = {
   keybed: 'Keybed (stand-in)', key: 'Key (stand-in until measured)', balrail: 'Balance rail (stand-in)',
   frontrail: 'Front rail (stand-in)', backrail: 'Back rail and cloth (stand-in)', capstan: 'Capstan: a wooden dowel on a wire screwed into the key',
   wippen: 'Wippen', heel: 'Wippen cushion (on the capstan)', wflange: 'Wippen flange: hangs from the main rail, screwed at the back',
   wcenter: 'Wippen center pin', jackflange: 'Jack flange (on the wippen)', jack: 'Jack', jcenter: 'Jack center pin',
-  jackspring: 'Jack spring', spoon: 'Damper spoon', bcwire: 'Backcheck wire', backcheck: 'Backcheck (felt face)',
+  jackspring: 'Jack spring', spoon: 'Damper spoon', bcwire: 'Backcheck wire', backcheck: 'Backcheck: its felt face catches the catcher',
   bridle: 'Bridle wire', strap: 'Bridle strap: tape from the catcher, hooked on the bridle wire',
-  butt: 'Hammer butt', cushion: 'Butt cushion (felt and buckskin): the jack lifts it', bflange: 'Butt flange: on the main rail',
+  butt: 'Hammer butt', cushion: 'Butt cushion: felt under the butt leather, where the jack lifts the butt',
+  buttleather: 'Butt leather: buckskin over the cushion and up the butt, where the jack slides out and back under',
+  bflange: 'Butt flange: on the main rail',
   bscrew: 'Butt flange screw', hcenter: 'Butt center pin', buttspring: 'Butt spring', shank: 'Hammer shank',
-  hammer: 'Hammer head', catcher: 'Catcher (butt check)', mainrail: 'Main (action) rail', hammerrail: 'Hammer rail and its felt',
+  hammer: 'Hammer head', catcher: 'Catcher (butt check): buckskin on its face, which the backcheck catches', mainrail: 'Main (action) rail', hammerrail: 'Hammer rail and its felt',
   letoffrail: 'Let-off (regulating) rail', letoff: 'Let-off button', letoffscrew: 'Let-off regulating screw and its eye',
   jackstop: 'Jack stop rail and felt', lever: 'Damper lever', leverfelt: 'Damper lever felt (the spoon pushes it)',
   dflange: 'Damper flange', dcenter: 'Damper lever center pin', dspring: 'Damper spring', dwire: 'Damper wire',
@@ -297,11 +311,16 @@ export function createUprightScene(canvas, overlay) {
     const hammer = n.hammer = new THREE.Group(); root.add(hammer);
     extPts(clip(TRACE.butt, 'y', BUTT_FORK.y, true), WIDTH.butt, 0, COLORS.wood, 'butt', hammer);
     extPts(clip(TRACE.butt, 'y', BUTT_FORK.y, false), BUTT_FORK.tongue, 0, COLORS.wood, 'butt', hammer);
-    // the cushion: felt with a buckskin face where the jack lifts it [T: which layer is where]
-    {   // the felt notched up over the leather strip, so its underside doesn't lie in the leather's
-      const c = TRACE.buttCushion, yb = Math.min(...c.map(p => p[1])), yt = yb + 0.8, [xl, xr] = [c[4][0], c[3][0]];
-      extPts([...c.slice(0, 4), [xr, yt], [xl, yt], ...c.slice(4)], WIDTH.butt - 0.6, 0, COLORS.redfelt, 'cushion', hammer);
-      extPts([[xl, yb], [xr, yb], [xr, yt], [xl, yt]], WIDTH.butt - 0.4, 0, COLORS.buckskin, 'cushion', hammer);
+    // the cushion's felt and the butt leather (upright-model.js TRACE.buttLeather): one buckskin strip under the felt,
+    // round its player-side end and up the butt's face. The leather's outer face is the traced one (the jack's contacts);
+    // the felt stops under the leather, so no felt face lies in the leather's (two faces in one plane flicker), and up
+    // the butt the leather sinks a little into the wood. A hair wider than the butt, as a glued skin is.
+    {
+      const O = TRACE.buttLeather, I = offsetRight(O, BUTT_LEATHER_T), c = TRACE.buttCushion, top = Math.max(...c.map(p => p[1]));
+      extPts([...O, ...[...I].reverse()], WIDTH.butt + 0.2, 0, COLORS.buckskin, 'buttleather', hammer);
+      const end = O.findIndex(p => p[1] >= top);   // the leather's point at the cushion's top, on its player-side end
+      extPts([[Math.max(...c.map(p => p[0])), top], O[0], ...I.slice(0, end), [I[end][0] - (I[end][0] - I[end - 1][0]) * (I[end][1] - top) / (I[end][1] - I[end - 1][1]), top]],
+        WIDTH.butt - 0.6, 0, COLORS.redfelt, 'cushion', hammer);
     }
     rodBetween(shankAt(SHANK.y0), shankAt(SHANK.y1), SHANK.r, COLORS.wood, 'shank', hammer, { metal: false });
     // head: the molding's end grain inside the underfelt inside the top felt, as a hammer's side shows them
@@ -311,9 +330,9 @@ export function createUprightScene(canvas, overlay) {
     rodBetween(CATCHER_SHANK.from, CATCHER_SHANK.to, CATCHER_SHANK.r, COLORS.wood, 'catcher', hammer, { metal: false });
     {   // buckskin on the check face [T]: its face is the traced one (where the backcheck catches), the wood stops 1 mm
       // behind it, so no wood face lies in the leather's (two faces in one plane flicker through each other)
-      const h = TRACE.catcherHead, [p, q] = [h[0], h[5]], dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy), nx = -dy / l, ny = dx / l;
+      const h = TRACE.catcherHead, [p, q] = [h[0], h.at(-1)], dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy), nx = -dy / l, ny = dx / l;
       const inset = ([x, y]) => [x + nx * 1, y + ny * 1];   // 1 mm into the head
-      extPts([inset(p), ...h.slice(1, 5), inset(q)], WIDTH.catcher, 0, COLORS.wood, 'catcher', hammer);
+      extPts([inset(p), ...h.slice(1, -1), inset(q)], WIDTH.catcher, 0, COLORS.wood, 'catcher', hammer);
       extPts([p, q, inset(q), inset(p)], WIDTH.catcher + 0.2, 0, COLORS.buckskin, 'catcher', hammer);
     }
     center('hcenter', hammer, [0, 0], WIDTH.flange + 0.6);
@@ -441,7 +460,7 @@ export function createUprightScene(canvas, overlay) {
     [N0.hammer, [-50, 8, 6], 'Catcher'], [N0.hammer, [-20, 5, 6], 'Butt cushion'], [N0.bflange, [-2, -14, 6], 'Butt flange'],
     [N0.bflange, [4, 16, 2], 'Butt spring'], [N0.wippen, [-30, 0, 6], 'Wippen'], [N0.jack, [8, 40, 4], 'Jack'],
     [N0.wippen, [-41, -21, 6], 'Cushion'], [N0.root, [CAPSTAN.x, -120, 6], 'Capstan'], [N0.letoff, [-46.5, -52, 5], 'Let-off button'],
-    [fixed, [-47, -38, 41], 'Let-off rail'], [fixed, [-33, -18, 41], 'Jack stop rail'], [N0.wippen, [-78, 76, 6], 'Backcheck'],
+    [fixed, [-47, -38, 41], 'Let-off rail'], [fixed, [-33, -18, 41], 'Jack stop rail'], [N0.wippen, [-76, 89, 6], 'Backcheck'],
     [N0.root, [-60, -30, 4], 'Bridle strap'], [N0.wippen, [-68, 30, 4], 'Bridle wire'], [N0.wippen, [8, 18, 2], 'Spoon'],
     [N0.damper, [2, 20, 5], 'Damper lever'], [N0.damper, [24, 90, 7], 'Damper'], [N0.dflange, [12, -10, 5], 'Damper flange'],
     [N0.damper, [3, 60, 2], 'Damper wire'], [fixed, [-2, -40, 41], 'Main rail'], [hammerRail, [-45, 70, 41], 'Hammer rail'],

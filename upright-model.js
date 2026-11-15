@@ -59,13 +59,32 @@ export const TRACE = {
   // the molding runs on into the felt; its tip is hidden in the underfelt
   molding: [[-64.8, 125.9], [-35.6, 135.3], [-20, 139.6], [-6, 141.8], [-2, 141.2], [-6, 139.0], [-20, 134.2], [-33.5, 128.4],
     [-61.7, 115.8]],
-  // butt: the block the shank and catcher shank are glued into, round its centre pin [e]
+  // butt: the block the shank and catcher shank are glued into, round its centre pin [e]. Its heel (the underside and
+  // player face below the catcher shank) is built round the butt leather [T]: its underside 2.8 mm above the cushion's
+  // face, its player face 0.5 mm in from the leather's (the leather sinks a little into it)
   butt: [[-28, 24], [-26, 27.5], [-20, 29.3], [-12, 29.8], [-5, 29.0], [-2, 26], [-1, 18], [0.5, 10], [3.2, 4.5], [4, 0],
-    [3, -3], [0, -4], [-3, -3], [-6, 0], [-11, 4.5], [-16.5, 8.6], [-23, 9], [-26, 12], [-27.5, 18]],
-  // butt cushion: felt and buckskin under the butt's heel, where the jack top lifts it (red in the colour clip) [e]
-  buttCushion: [[-23.5, 9], [-16.5, 9], [-16.8, 5.2], [-17.5, 4.4], [-22.5, 4.4], [-23.5, 5.2]],
-  // catcher: a wooden head on a dowel from the butt; its left face is the check face (leather on it [T]) [e]
-  catcherHead: [[-55.5, 16], [-45, 17.5], [-44, 15], [-44, 0], [-48, -3], [-52.5, -2.5]],
+    [3, -3], [0, -4], [-3, -3], [-6, 0], [-11, 4.5], [-14.6, 7.2], [-23.75, 7.2], [-26.6, 14.4], [-27.5, 18]],
+  // butt cushion: felt and buckskin under the butt's heel, where the jack top lifts it: its face (the underside, and
+  // its rounded ends) as traced (red in the colour clip) [e]. 2.8 mm thick, felt 2 under the leather's 0.8 [T]: the
+  // traced patch is 4.6, but Greg (2026-11-14) found that felt too thick, standing out from the butt's face. Its
+  // player-side end is the leather's ramp up the face (below); its top is 0.2 mm into the wood (no shared faces)
+  buttCushion: [[-24.37, 7.4], [-16.5, 7.4], [-16.8, 5.2], [-17.5, 4.4], [-22.5, 4.4], [-23.5, 5.2]],
+  // the butt leather: one strip of buckskin (BUTT_LEATHER_T thick) over the cushion's felt, round its player-side end and
+  // on up the butt's player face to just under the catcher shank; a path along its outer face, string end first. The
+  // jack lifts the butt by it, slides out along it at let-off, and after the blow rides up the butt's face on it and
+  // slides back under to repeat: bare felt or wood there would hold the jack out (Greg 2026-11-14) [S17 Kawai's butt
+  // skin 15b, round the front corner; S18 Renner's render; S1 p. 3, the Model K's butt cushion 8; S2 fig. 4]. Its
+  // cushion part is the traced cushion's face (the contacts the model uses). From the end's foot it runs straight up
+  // the face to under the catcher shank, leaning out 21.5 degrees: the jack's path, smooth, no step where the felt
+  // stops (Greg 2026-11-14: "it's a smooth path") [T: where it ends, and its thickness]
+  buttLeather: [[-16.8, 5.2], [-17.5, 4.4], [-22.5, 4.4], [-23.5, 5.2], [-24.37, 7.4], [-25.79, 11], [-27.05, 14.2]],
+  // catcher: a wooden head square on the end of its shank, its face (buckskin on it) square to the shank and toward the
+  // player: listed from the face's top, round the head, to the face's bottom. The filmed model's head hangs below a
+  // level shank with its face nearly upright, which Greg found odd (2026-11-14); pianos' sit square on a shank square to
+  // the hammer shank [S17 Kawai fig. 1; S18 Renner; S1 p. 3, the Model K's butt check 5]. So it is built that way [T],
+  // the head 9 mm deep and 20 tall (its face 17, between cut corners), the face's middle kept where S15 filmed it [e]
+  // (54 mm out from the pin)
+  catcherHead: [[-57.2, 14.6], [-56.4, 16.6], [-49.5, 19.4], [-41.9, 0.9], [-48.8, -1.9], [-50.8, -1.1]],
   // butt spring: a wire from a coil on the flange, its end pressing the butt's back near the top [e]; a path. The coil
   // is drawn 1.6 mm in from the arc's visible start, so it sits on the flange's cheek.
   buttSpring: [[4.5, 1.5], [7, 9], [7, 13], [5.5, 18], [2.5, 23], [-1.5, 27.5]],
@@ -101,11 +120,15 @@ export const TRACE = {
   jackSpring: [[-46, -80.4], [-46, -66.8]],
   // backcheck and bridle wires, up from the wippen's front end [e]; paths, wippen end first (the backcheck wire's top is
   // hidden in its head: run on 5 mm into it)
-  backcheckWire: [[-59, -80.4], [-62.3, -67], [-65.5, -54], [-69.5, -37], [-72, -28], [-74, -19], [-76.6, -8]],
+  backcheckWire: [[-59, -80.4], [-62.3, -67], [-65.5, -54], [-69.5, -37], [-72, -28], [-74, -19], [-76.8, -7.1]],
   bridleWire: [[-55, -80.4], [-59, -70], [-64, -57], [-68.5, -46], [-70.5, -41]],
-  // backcheck head: wood, with a thick felt face toward the catcher (green in the colour clip) [e]
-  backcheck: [[-83, 17], [-77.5, 19.5], [-76, -10.5], [-80, -13]],
-  backcheckFelt: [[-77.5, 19.5], [-64, 19.5], [-62.5, -10.5], [-76, -10.5]],
+  // backcheck head: wood, with a felt face toward the catcher (green in the colour clip). Built [T] so its face meets
+  // the catcher's parallel where the factory checks (S2: "mate parallel"), which leans it about 22 degrees toward the
+  // player at rest, as pianos' do [S17 Kawai fig. 1; S18 Renner; S1 p. 3]; felt 6.5 mm, wood 8, 28 tall. The filmed
+  // head stood nearly upright, its felt 14 mm thick (research/upright/parts/backcheck.md). The felt is listed from its
+  // face's top and bottom (the face toward the catcher), then back.
+  backcheck: [[-81.7, 15.8], [-71.3, -10.2], [-78.7, -13.2], [-88.3, 10.9]],
+  backcheckFelt: [[-75.6, 18.2], [-65.2, -7.8], [-71.3, -10.2], [-81.7, 15.8]],
   // bridle strap: cloth tape from the catcher's string face, draped over the let-off screw's eye, its end hooked on the
   // bridle wire [e: S15 findings, fixing [-43, 4] and hook [-71, -41], by eye ±1.5 mm]; a path, catcher end first
   strap: [[-43.5, 4], [-41, -1], [-40.8, -8], [-42.5, -14], [-44.5, -19.8], [-46, -23.3], [-48.5, -23.9], [-53, -27.2],
@@ -143,8 +166,11 @@ export const SHANK = {
   y0: 20, y1: 128,             // from inside the butt to inside the molding
 };
 export const shankAt = y => [SHANK.x0 - Math.tan(SHANK.lean) * y, y];
-// the catcher shank: a dowel from the butt's player side out to the catcher head [e]
-export const CATCHER_SHANK = { from: [-24, 15.5], to: [-45, 15], r: 3 };   // from 3 mm inside the butt
+// the catcher shank: a dowel from the butt's player side out to the middle of the catcher head's back, square to the
+// hammer shank (TRACE.catcherHead) [T]; the filmed one was level [e]
+export const CATCHER_SHANK = { from: [-24.6, 18.8], to: [-45.7, 10.2], r: 3 };   // from 3 mm inside the butt
+// the butt leather's thickness (TRACE.buttLeather) [T]
+export const BUTT_LEATHER_T = 0.8;
 // the capstan: a wooden dowel on a wire screwed into the key [e: colour clip]
 export const CAPSTAN = { x: -41, top: -109, dowelBottom: -129, keyTop: -149, r: 5.5, wireR: 1.5 };
 // the let-off screw's eye: ring and wire radius [e: about 5.2 mm across]
@@ -383,8 +409,12 @@ const TOP_FACE = [...TRACE.jack].sort((p, q) => q[1] - p[1]).slice(0, 2).sort((p
 export const CORNER = TOP_FACE[1];
 const BUTTON_Y = Math.min(...TRACE.letoffFelt.map(p => p[1]));   // the button felt's face at factory 0 [e]
 const BUTTON_X = [Math.min(...TRACE.letoffFelt.map(p => p[0])), Math.max(...TRACE.letoffFelt.map(p => p[0]))];
-// the cushion's underside, butt frame: flat (its traced rounded ends left out) [e]
-const CUSH_FACE = { y: Math.min(...TRACE.buttCushion.map(p => p[1])), x: [Math.min(...TRACE.buttCushion.map(p => p[0])), Math.max(...TRACE.buttCushion.map(p => p[0]))] };
+// the cushion's underside, butt frame: flat (its traced rounded ends left out) [e]; x, its ends: where the rounded ends
+// meet the cushion's ends (its points within 1 mm of the face; above that the player-side end is the leather's ramp)
+const CUSH_FACE = (() => {
+  const c = TRACE.buttCushion, y = Math.min(...c.map(p => p[1])), low = c.filter(p => p[1] < y + 1);
+  return { y, x: [Math.min(...low.map(p => p[0])), Math.max(...low.map(p => p[0]))] };
+})();
 // The toe's highest point under the button's face (as the toe tilts it moves along the toe's top), taken at 17 points
 // along the toe's top. So the jack's angle steps a little where the contact moves from one point to the next, and the
 // jack's top with it (a few hundredths of a millimetre): the Sim keeps those steps from throwing the hammer (LIFT_RATIO).
@@ -450,6 +480,18 @@ export const gOnJack = (phi, psi) => solve(g => jackGap(phi, psi, g), 0, -0.3, 0
 const JACK_ARM = Math.hypot(...sub(CORNER, J0));
 // the jack's angle that keeps its corner at x in the butt's frame (hammer at g), the wippen at phi
 const psiAtX = (phi, g, x) => solve(psi => cornerInButt(phi, psi, g)[0], x, -0.4, 0.8, 40);
+// A let-off jack that the butt holds out rests its corner on the butt leather: against the cushion's player-side end, or
+// higher, on the leather up the butt's face, which leans out toward the player (TRACE.buttLeather). Until 2026-11-14
+// the end's x held it at every height, and a quick repeat ran the corner up to 0.9 mm into the butt's face.
+const LEATHER_UP = TRACE.buttLeather.slice(TRACE.buttLeather.findIndex(p => p[0] === CUSH_FACE.x[0]));  // the end's foot, up
+function leatherX(y) {   // the leather's outer face at height y, butt frame
+  const P = LEATHER_UP;
+  if (y <= P[0][1]) return P[0][0];
+  let i = 1; while (i < P.length - 1 && y > P[i][1]) i++;
+  return P[i - 1][0] + (P[i][0] - P[i - 1][0]) * (y - P[i - 1][1]) / (P[i][1] - P[i - 1][1]);
+}
+// the jack's angle that stands its corner EDGE off the leather, the wippen at phi and the hammer at g
+const psiOnLeather = (phi, g) => solve(psi => { const c = cornerInButt(phi, psi, g); return c[0] - leatherX(c[1]); }, -EDGE, -0.4, 0.8, 40);
 // where the corner meets the cushion: the wippen angle then, and the spot (butt frame); x is its place under the butt.
 // It depends only on the regulation, not the key's depth: kept for the next poses of a press.
 const contactOn = memo((gr, x) => ({ phiC: solve(phi => jackGap(phi, psiAtX(phi, gr, x), gr), 0, -0.1, 0.4, 40), q: [x, CUSH_FACE.y] }));
@@ -470,8 +512,8 @@ function chain(phi, c) {
 // Bending the wire turns the head (and the wire above its bend) about the bend; the knob is mm at the felt face.
 export const BC_BEND = TRACE.backcheckWire[1];                     // the bend: just above where the wire leaves the wippen [T]
 const BC_FACE_MID = (() => {                                       // the middle of the felt's face toward the catcher
-  const f = [...TRACE.backcheckFelt].sort((p, q) => q[0] - p[0]).slice(0, 2);
-  return [(f[0][0] + f[1][0]) / 2, (f[0][1] + f[1][1]) / 2];
+  const [f0, f1] = TRACE.backcheckFelt;
+  return [(f0[0] + f1[0]) / 2, (f0[1] + f1[1]) / 2];
 })();
 const BC_ARM = Math.hypot(...sub(BC_FACE_MID, BC_BEND));
 export const bcAngle = a => -a.backcheck / BC_ARM;                 // + toward the strings: clockwise about the bend
@@ -563,7 +605,7 @@ export function pose(a, d, { soft = false, held = false } = {}) {
     // let off, but the button hasn't yet turned the jack clear of the cushion where the hammer now sits: the cushion's
     // player-side end holds the jack out (it rests against the butt leather), as in the Sim
     else if (cornerInButt(phi, psi, g)[1] > CUSH_FACE.y - JACK_CLEAR) {
-      const pe = psiAtX(phi, g, CUSH_FACE.x[0] - EDGE);
+      const pe = psiOnLeather(phi, g);
       if (pe > psi && !jammed) { psi = pe; rests = true; }
     }
   }
@@ -663,11 +705,13 @@ export function factory(a0 = {}) {
 // bigger (protocol 3.4; tests/upright-scenarios.test.mjs). spec: the condition check that finds it.
 export const DAMAGE = {
   // modelled as the groove's depth at the jack, nothing more: 0.23 mm more lost motion (as the capstan 0.5 mm lower)
-  buttLeather: { spec: 'buttLeather', name: 'Butt leather worn', adj: { capstan: -0.5 }, part: 'cushion', repair: 'Re-cover the butt: new felt and buckskin',
+  buttLeather: { spec: 'buttLeather', name: 'Butt leather worn', adj: { capstan: -0.5 }, part: 'buttleather', repair: 'Re-cover the butt: new felt and buckskin',
     signs: 'a groove worn in the butt leather where the jack lifts it' },
-  // modelled as the thickness the buckskin has lost, nothing more: the backcheck meets the catcher 0.45 mm later. The
-  // slick leather sliding through the check on a hard blow is not modelled (the backcheck is a rigid outline: U4)
-  catcherLeather: { spec: 'catcherLeather', name: 'Catcher buckskin worn', adj: { backcheck: -0.45 }, part: 'catcher', repair: 'Re-cover the catcher with new buckskin',
+  // modelled as the thickness the buckskin has lost, nothing more: the backcheck meets the catcher 0.6 mm later, which
+  // checks about 3 mm farther off (0.45 did it with the filmed catcher and backcheck, whose faces met at an angle; since
+  // they meet face to face, 2026-11-14, a mm of wear moves the check less). The slick leather sliding through the check
+  // on a hard blow is not modelled (the backcheck is a rigid outline: U4)
+  catcherLeather: { spec: 'catcherLeather', name: 'Catcher buckskin worn', adj: { backcheck: -0.6 }, part: 'catcher', repair: 'Re-cover the catcher with new buckskin',
     signs: 'the catcher\'s buckskin worn thin and slick' },
   jackSpringWeak: { spec: 'jackSpring', name: 'Jack spring weak', dyn: { jackRate: 0.12 }, part: 'jackspring', repair: 'Replace the jack spring',
     signs: 'the jack creeps back under the butt' },
@@ -775,7 +819,7 @@ export function crownAt(g) {
 // blow Greg chose (SPEC.blow): aftertouch 1.36 mm, escapement 2.97. At the textbook 1-3/4 in they are 0.64 and 1.07.
 // (Until 2026-11-09 let-off was counted from where the jack stood clear of the cushion with the hammer in check, 0.34 mm
 // of key later than where the hammer drops off the jack: aftertouch then read 1.04 and 0.44. See pose().)
-export const FACTORY = {"balPunch":1.5,"frontPunch":1.5522,"railShim":0.5587,"capstan":0.7933,"letoff":0.0314,"backcheck":-6.9339,"spoon":-1.6704,"bridle":0.9719,"softFelt":9.7695};
+export const FACTORY = {"balPunch":1.5,"frontPunch":1.5522,"railShim":0.5587,"capstan":0.7933,"letoff":0.0314,"backcheck":0.0805,"spoon":-1.6704,"bridle":0.9719,"softFelt":9.7695};
 
 // =====================================================================================================================
 // Dynamics (C3): one note stepped in time.
@@ -942,15 +986,15 @@ export class Sim {
         if (h?.hold === 'key') { h.at = Math.min(h.at, dPrev); h.v = Math.min(h.v, 0); }
       }
     } else {
-      // let off: its spring swings it back toward its place under the butt, unless the cushion's player-side end is in
-      // the way (the corner still above the cushion's underside) or the button holds it out
+      // let off: its spring swings it back toward its place under the butt, unless the butt is in the way (the corner
+      // still above the cushion's underside: it rests on the butt leather, psiOnLeather) or the button holds it out
       const psiHome = psiAtX(phi, this.g, x0), q = cornerInButt(phi, psiHome, this.g);
       const clear = q[1] < CUSH_FACE.y - JACK_CLEAR;
       // (the button holds it only while the toe touches it: jackPsi's 0 is "not touching", not a stop. Taken as one, it
       // kept a slow jack from getting home under a hammer still on its way back, whose place for it is a hair past 0:
       // a weak jack spring then lost notes at 4 to 6 a second and none at 8 to 10. Critique 2026-11-09, U11)
       const hold = pb > 0 ? pb : -Infinity;
-      const psiTo = Math.max(hold, clear ? psiHome : psiAtX(phi, this.g, CUSH_FACE.x[0] - EDGE));
+      const psiTo = Math.max(hold, clear ? psiHome : psiOnLeather(phi, this.g));
       this.psi += Math.sign(psiTo - this.psi) * Math.min(Math.abs(psiTo - this.psi), DYN.jackRate * (this.k.jackRate ?? 1) * dt);
       if (clear && hold <= psiHome && Math.abs(this.psi - psiHome) < 1e-6) {
         this.jack = 'under';

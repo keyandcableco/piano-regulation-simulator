@@ -25,7 +25,7 @@ const bisect = (f, target, lo, hi, n = 40) => {   // f rising from lo to hi
 export const FILMED = { bridle: 1.4 };   // fitted: 6.1 mm of slack at rest (S15 by eye: 6-7), taut 57-60 ms (S15: 54-57 to 65-70)
 // The factory regulation at a 1-3/4 in blow, the blow S15's scale takes the filmed model to have (the sim's own factory
 // blow is shorter, Greg's call: SPEC.blow). The filmed regulation starts from it; the fit was made on it.
-export const FACTORY_AT_1_3_4 = {"balPunch":1.5,"frontPunch":1.5522,"railShim":-0.4964,"capstan":0.274,"letoff":0.0328,"backcheck":-5.7965,"spoon":-1.5527,"bridle":0,"softFelt":10.3664};
+export const FACTORY_AT_1_3_4 = {"balPunch":1.5,"frontPunch":1.5522,"railShim":-0.4964,"capstan":0.274,"letoff":0.0328,"backcheck":1.4891,"spoon":-1.5527,"bridle":0,"softFelt":10.3664};
 const filmedBase = (() => {
   const a = { ...FACTORY_AT_1_3_4 };
   a.frontPunch = bisect(v => -dipOf({ ...a, frontPunch: v }), -9.62, 0, 4);

@@ -23,7 +23,7 @@ export const UPRIGHT_HOLD = {
   wippen: 'wippen', heel: 'wippen', jackflange: 'wippen', jcenter: 'wippen', jackspring: 'wippen', spoon: 'wippen', bcwire: 'wippen',
   backcheck: 'wippen', bridle: 'wippen',
   jack: 'jack',
-  butt: 'hammer', cushion: 'hammer', shank: 'hammer', hammer: 'hammer', catcher: 'hammer',
+  butt: 'hammer', cushion: 'hammer', buttleather: 'hammer', shank: 'hammer', hammer: 'hammer', catcher: 'hammer',
   lever: 'damper', leverfelt: 'damper', dwire: 'damper', dblock: 'damper', damper: 'damper', damperfelt: 'damper',
 };
 export const HOLD_NAMES = { key: 'the key', wippen: 'the wippen', jack: 'the jack', rep: 'the repetition lever', hammer: 'the hammer', damper: 'the damper' };

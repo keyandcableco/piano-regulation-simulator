@@ -44,7 +44,7 @@ test('centre pins are where S15 measured them (findings.md, grey rest frame)', (
 });
 
 const PATHS = new Set(['buttSpring', 'strap', 'spoon', 'backcheckWire', 'bridleWire', 'damperSpring', 'damperWire', 'jackSpring',
-  'letoffScrew']);
+  'letoffScrew', 'buttLeather']);
 test('outlines are well formed: finite, and every closed one simple (no edges crossing)', () => {
   for (const [k, v] of Object.entries(TRACE)) {
     if (k === 'damperBlock' || k === 'letoffEye') continue;
@@ -110,7 +110,8 @@ test('everything on the wippen starts on its top face', () => {
     assert.ok(x > w0 && x < w1, `${k} base over the wippen`);
   }
   near(Math.min(...ys(TRACE.jackFlange)), top, 0.01, 'jack flange on the wippen');
-  assert.ok(edgeDist(TRACE.backcheckWire.at(-1), TRACE.backcheck) < 1.5, 'backcheck wire into the backcheck head');
+  const bw = TRACE.backcheckWire;
+  assert.ok(inside(bw.at(-1), TRACE.backcheck) && !inside(bw.at(-2), TRACE.backcheck), 'backcheck wire up into the backcheck head\'s wood');
   near(TRACE.jackSpring[1][1], Math.min(...ys(TRACE.jack.filter(p => p[0] < -38))), 0.01, 'jack spring under the toe');
 });
 
@@ -180,4 +181,26 @@ test('room to move: nothing touches that shouldn\'t at rest', () => {
   assert.ok(polyDist(TRACE.jack, TRACE.letoffFelt) > 3, 'toe below the let-off button at rest');
   assert.ok(polyDist(TRACE.jack, TRACE.buttFlange) > 1, 'jack clear of the butt flange');
   assert.ok(WIDTH.pitch > WIDTH.damperHead, 'neighbouring dampers clear');
+});
+
+test('the butt leather: on the cushion\'s traced contacts, then up the butt\'s face to the catcher shank', () => {
+  const O = TRACE.buttLeather, cush = TRACE.buttCushion, top = Math.max(...ys(cush));
+  const onCush = O.filter(p => p[1] <= top), up = O.filter(p => p[1] > top);
+  assert.ok(onCush.length >= 4 && onCush.every(p => edgeDist(p, cush) < 1e-9), 'over the cushion its outer face is the traced one');
+  assert.ok(onCush.some(p => p[1] === Math.min(...ys(cush))) && onCush.some(p => p[0] === Math.min(...xs(cush))), 'under it and round its player-side end');
+  assert.ok(up.length >= 2 && up.every(p => !inside(p, TRACE.butt) && edgeDist(p, TRACE.butt) < 0.6), 'then up the butt\'s face, laid on it');
+  // its top stops short of the catcher shank (the shank's axis, from its glued end out)
+  const t = O.at(-1), { from: a, to: b, r } = CATCHER_SHANK;
+  assert.ok(segDist(t, a, b) > r, `the leather stops under the catcher shank (${(segDist(t, a, b) - r).toFixed(2)} mm)`);
+});
+
+test('the catcher: its shank square to the hammer shank, its head square on the shank\'s end', () => {
+  const angle = (u, v) => Math.acos((u[0] * v[0] + u[1] * v[1]) / Math.hypot(...u) / Math.hypot(...v)) * 180 / Math.PI;
+  const s = [shankAt(100)[0] - shankAt(0)[0], 100], c = [CATCHER_SHANK.to[0] - CATCHER_SHANK.from[0], CATCHER_SHANK.to[1] - CATCHER_SHANK.from[1]];
+  near(angle(s, c), 90, 2, 'catcher shank to the hammer shank, degrees');
+  assert.ok(c[0] < 0 && c[1] < 0, 'out toward the player and down, at rest');
+  const h = TRACE.catcherHead, f = [h.at(-1)[0] - h[0][0], h.at(-1)[1] - h[0][1]], mid = [(h[0][0] + h.at(-1)[0]) / 2, (h[0][1] + h.at(-1)[1]) / 2];
+  near(angle(f, c), 90, 2, 'the face square to the catcher shank, degrees');
+  const l = Math.hypot(...c), off = Math.abs(c[0] * (mid[1] - CATCHER_SHANK.from[1]) - c[1] * (mid[0] - CATCHER_SHANK.from[0])) / l;
+  assert.ok(off < 0.5, `the shank's axis meets the face's middle (${off.toFixed(2)} mm off)`);
 });

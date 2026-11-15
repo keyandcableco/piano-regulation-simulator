@@ -100,7 +100,7 @@ test('dip: more dip gives more aftertouch and more escapement and checks closer'
   const deeper = with_('frontPunch', -0.1);
   assert.ok(deeper.dip > M0.dip && deeper.aftertouch > M0.aftertouch && deeper.escapement > M0.escapement && deeper.check < M0.check);
 });
-test('aftertouch and escapement: a shorter blow raises both; with checking at 9/16 in both pass from about 42.3 to 43.4 mm', () => {
+test('aftertouch and escapement: a shorter blow raises both; with checking at 9/16 in both pass from about 42.2 to 43.4 mm', () => {
   const solveKnob = (a, k, read, target, lo, hi) => {
     const up = read({ ...a, [k]: hi }) > read({ ...a, [k]: lo });
     for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if ((read({ ...a, [k]: mid }) < target) === up) lo = mid; else hi = mid; }
@@ -115,13 +115,13 @@ test('aftertouch and escapement: a shorter blow raises both; with checking at 9/
     return measure(a);
   };
   const both = m => grade('aftertouch', m).ok && grade('escapement', m).ok;
-  const s = at(42.2), lo = at(42.35), hi = at(43.35), l = at(43.55);
+  const s = at(42.05), lo = at(42.25), hi = at(43.35), l = at(43.55);
   assert.ok(s.aftertouch >= lo.aftertouch && lo.aftertouch > l.aftertouch && s.escapement > lo.escapement && lo.escapement > l.escapement, 'shorter blow, more of both');
-  assert.equal(grade('escapement', s).ok, false, '42.2: the jack too far clear');
+  assert.equal(grade('escapement', s).ok, false, '42.05: the jack too far clear');
   assert.equal(grade('aftertouch', l).ok, false, '43.55: too little aftertouch');
-  assert.ok(both(lo) && both(hi) && both(at(42.5)), '42.35, 42.5 and 43.35: both in');
+  assert.ok(both(lo) && both(hi) && both(at(42.5)), '42.25, 42.5 and 43.35: both in');
   // with the checking left where the rail put it, the window is narrower: why the step says to rough checking in first
-  assert.equal(both(at(42.35, false)), false, '42.35 without the checking reset: out');
+  assert.equal(both(at(42.2, false)), false, '42.2 without the checking reset: out (with it, both in)');
 });
 test('grading names the cause: no let-off for checking; the jack holding the hammer off its rail for the blow', () => {
   const noLetoff = measure({ ...FACTORY, letoff: -0.6 });

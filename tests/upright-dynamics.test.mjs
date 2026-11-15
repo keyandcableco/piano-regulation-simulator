@@ -116,3 +116,31 @@ test('in play: staccato strikes once and the hammer comes home', () => {
   assert.equal(r.types.filter(t => t === 'strike').length, 1, r.types.join(' '));
   assert.ok(r.types.includes('rail'), 'lands on the rail');
 });
+
+test('quick repeats: a let-off jack rides on the butt leather, never into the cushion felt or the butt\'s wood', async () => {
+  const { TRACE, CENTER, CORNER, turn, jackPt, polyGap } = await import('../upright-model.js');
+  // the leather's outer face up the butt, from the foot of the cushion's player-side end: its x at height y
+  const L = TRACE.buttLeather, low = Math.min(...L.map(p => p[1])), P = L.slice(L.findLastIndex(p => p[1] === low) + 1);
+  const faceX = y => { let i = 1; while (i < P.length - 1 && y > P[i][1]) i++; return P[i - 1][0] + (P[i][0] - P[i - 1][0]) * (y - P[i - 1][1]) / (P[i][1] - P[i - 1][1]); };
+  let worst = Infinity, highest = -Infinity, into = -Infinity;
+  for (const speed of [60, 150, 300, 500]) for (const part of [0.3, 0.5, 0.7]) {
+    const s = new Sim({ ...FACTORY }); s.press(s.dip, speed);
+    let phase = 0;
+    for (let i = 0; i < 4000; i++) {
+      s.step(1e-4);
+      if (phase === 0 && s.t > 0.08) { s.press(s.dip * part, 60); phase = 1; }
+      if (phase === 1 && s.t > 0.2) { s.press(s.dip, speed); phase = 2; }
+      if (s.jack === 'under') continue;
+      const J = TRACE.jack.map(p => turn(jackPt(s.phi, s.psi, p), CENTER.butt, s.g));
+      worst = Math.min(worst, polyGap(J, TRACE.butt), polyGap(J, TRACE.buttCushion));
+      const c = turn(jackPt(s.phi, s.psi, CORNER), CENTER.butt, s.g);
+      highest = Math.max(highest, c[1]);
+      if (c[1] > P[0][1]) into = Math.max(into, c[0] - faceX(c[1]));
+    }
+  }
+  assert.ok(worst > 0, 'the jack stays out of the butt and the cushion');
+  // the wood is 0.5 mm behind the leather's face: the corner must not cross the face itself
+  assert.ok(into <= 0, `the corner stays on the leather's face, never into it (${into.toFixed(3)} mm)`);
+  assert.ok(highest > Math.max(...TRACE.buttCushion.map(p => p[1])), `its top rides up past the cushion onto the butt's face (to ${highest.toFixed(1)} mm)`);
+  assert.ok(highest < Math.max(...TRACE.buttLeather.map(p => p[1])), 'and no higher than the leather goes');
+});

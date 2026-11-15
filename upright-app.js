@@ -26,7 +26,7 @@ const SETS = { balPunch: ['keyHeight', 'dip'], frontPunch: ['dip', 'aftertouch',
   capstan: ['lostMotion', 'check'], letoff: ['letoff', 'aftertouch'], backcheck: ['check'], spoon: ['damperTiming'], bridle: ['bridle'], softFelt: ['softPedal'] };
 // a clicked part's card: the knobs that work on it or on what it touches
 const PART_KNOBS = { key: ['balPunch', 'frontPunch'], balrail: ['balPunch'], frontrail: ['frontPunch'], hammerrail: ['railShim', 'softFelt'],
-  hammer: ['railShim'], shank: ['railShim'], capstan: ['capstan'], heel: ['capstan'], wippen: ['capstan'], jack: ['capstan', 'letoff'], cushion: ['capstan'],
+  hammer: ['railShim'], shank: ['railShim'], capstan: ['capstan'], heel: ['capstan'], wippen: ['capstan'], jack: ['capstan', 'letoff'], cushion: ['capstan'], buttleather: ['capstan'],
   butt: ['capstan'], letoff: ['letoff'], letoffscrew: ['letoff'], letoffrail: ['letoff'], backcheck: ['backcheck'], bcwire: ['backcheck'],
   catcher: ['backcheck', 'bridle'], bridle: ['bridle'], strap: ['bridle'], spoon: ['spoon'], lever: ['spoon'], leverfelt: ['spoon'] };
 const KNOB_VIEW = { balPunch: 'whole', frontPunch: 'whole', railShim: 'action', capstan: 'wippen', letoff: 'butt', backcheck: 'check', spoon: 'damper',

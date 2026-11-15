@@ -144,3 +144,14 @@ test('the slow press against S15: hammer swing to the strings, crown per key tra
   assert.ok(escaped(held.phi, held.psi, held.g), 'the jack has let off with the key held');
   near(inButt(rest) - inButt(held), 5, 2.5, 'its top\'s escape toward the player, mm');
 });
+
+test('the backcheck meets the catcher face to face where the factory checks (S2: "mate parallel")', () => {
+  const p = pose(FACTORY, dipOf(FACTORY), { held: true }), deg = ([a, b]) => Math.atan2(a[0] - b[0], a[1] - b[1]) * 180 / Math.PI;
+  assert.equal(p.on, 'backcheck');
+  const cat = TRACE.catcherHead, face = [cat[0], cat.at(-1)].map(q => turn(q, CENTER.butt, -p.g));
+  const bc = TRACE.backcheckFelt.slice(0, 2).map(q => wipPt(p.phi, turn(q, BC_BEND, bcAngle(FACTORY))));
+  near(deg(face), deg(bc), 2, 'catcher face against backcheck face, degrees from upright');
+  // pianos' lean toward the player at rest, about square to the hammer shank's lean [S17 Kawai fig. 1; S1 p. 3]
+  const r = pose(FACTORY, 0), rest = [cat[0], cat.at(-1)].map(q => turn(q, CENTER.butt, -r.g));
+  assert.ok(deg(rest) < -15 && deg(rest) > -30, `the catcher's face leans ${(-deg(rest)).toFixed(1)} degrees toward the player at rest`);
+});
