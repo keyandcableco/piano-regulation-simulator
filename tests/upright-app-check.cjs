@@ -32,7 +32,7 @@ if (!out) { console.error('usage: node tests/upright-app-check.cjs <out_dir> [ba
   check(await page.$eval('#c', e => getComputedStyle(e).display === 'none'), 'the grand picture is hidden');
   check((await text('header h1')) === 'Upright action regulation', 'header says upright');
   const tabs = await page.$$eval('.tab', bs => bs.filter(b => getComputedStyle(b).display !== 'none').map(b => b.textContent));
-  check(tabs.join() === 'Learn,Find the fault,Sandbox,Exam,Drills', `upright tabs: ${tabs.join(', ')}`);
+  check(tabs.join() === 'Learn,Find the fault,Sandbox,Exam,Drills,Tools', `upright tabs: ${tabs.join(', ')}`);
   check((await text('#mode')).includes('Factory regulation'), 'the Sandbox at factory');
   await shot('upright-sandbox');
   // the key: Play, then the events line

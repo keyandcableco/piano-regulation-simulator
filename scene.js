@@ -5,7 +5,7 @@
 // exam mode shows all three like the 3-note exam model.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { createToolStage } from './tools/stage.js';
 import { ruleTicks } from './gauge.js';
 import { G, FACTORY, NEIGHBOR_H, WEAR, TRAVEL_RISE, SIDE_K, WIPPEN_JACK_ARM, WIPPEN_PAPER, keyAngle, hamPt, repRho, knuckleBottom, linkage, dipOf, gFromTail, gOnJackAt, eff, trayLift } from './model.js';
 
@@ -831,7 +831,7 @@ export function createScene(canvas, overlay) {
   // the on-screen move buttons: zoom toward or away from the point looked at, slide across the screen, or go back
   function settle() {   // pressed during a change of view: finish the change, then move from there
     if (viewAnim) { controls.target.copy(viewAnim.toT); camera.position.copy(viewAnim.toP); camera.lookAt(controls.target); viewAnim = null; }
-    spin = false;   // a tool on the bench stops turning, as it does when dragged
+    tools.stop();   // a tool on the bench stops turning, as it does when dragged
   }
   function zoomBy(f) {   // f < 1 steps in
     settle();
@@ -847,9 +847,8 @@ export function createScene(canvas, overlay) {
     sideV.add(upV); camera.position.add(sideV); controls.target.add(sideV);
   }
   function resetView() {
-    if (!toolStage.visible) { setView(home.name, home.z); return; }
-    viewAnim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(),
-      toT: toolHome.t.clone(), toP: toolHome.off.clone().multiplyScalar(toolDistance() / toolHome.d).add(toolHome.t) };
+    if (!tools.visible) { setView(home.name, home.z); return; }
+    tools.goHome();
   }
 
   // ---------- highlight & hover ----------
@@ -1050,7 +1049,7 @@ export function createScene(canvas, overlay) {
     if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) {
       renderer.setSize(w, h, false);
       camera.aspect = w / h; camera.updateProjectionMatrix();
-      refitTool();
+      tools.refit();
     }
   }
   // ---------- key-front inset: the one part no side view keeps in frame, so you see the key travel beside the action ----------
@@ -1090,7 +1089,7 @@ export function createScene(canvas, overlay) {
   // every frame would send every material back through the shader cache)
   function renderInset() {
     const crown = insetMode === 'crown', V = crown ? INSET_CROWN : INSET;
-    const show = insetOn && !toolStage.visible && viewName !== (crown ? 'hammer' : 'keyfront') && !clipNow;
+    const show = insetOn && !tools.visible && viewName !== (crown ? 'hammer' : 'keyfront') && !clipNow;
     if (insetBox.hidden === show) insetBox.hidden = !show;
     if (!show) return;
     const r = insetRect(), y = r.sh - r.top - r.h;   // the renderer counts from the bottom
@@ -1113,7 +1112,7 @@ export function createScene(canvas, overlay) {
       camera.position.lerpVectors(viewAnim.fromP, viewAnim.toP, e);
       if (t >= 1) viewAnim = null;
     }
-    spinTool();
+    tools.turn();
     controls.update();
     updateLabels();
     for (const c of callouts.values()) c.line.visible = calloutsOn;
@@ -1155,69 +1154,14 @@ export function createScene(canvas, overlay) {
     }
   }
 
-  // ---------- tool bag: one tool on the bench at a time, in place of the action ----------
-  const toolStage = new THREE.Group(); toolStage.visible = false; scene.add(toolStage);
-  const grid = new THREE.GridHelper(300, 30, 0x9a8f80, 0xc9c1b4);   // 10 mm squares
-  toolStage.add(grid);
-  const toolHolder = new THREE.Group(); toolStage.add(toolHolder);
-  const AX = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
-  const axis = s => { const m = /([+-]?)\s*([xyz])/i.exec(s || ''); if (!m) return null; const v = new THREE.Vector3(...AX[m[2].toLowerCase()]); return m[1] === '-' ? v.negate() : v; };
-  let savedView = null, savedClip = null, spin = true, roomEnv = null, toolR = 0, toolHome = null;
-  // obj: a THREE.Object3D built for the tool (models of real tools, added one at a time)
-  async function showTool(obj, opts = {}) {
-    // polished steel and brass need something to reflect: a soft room, only while a tool is out
-    if (!roomEnv) { const pm = new THREE.PMREMGenerator(renderer); roomEnv = pm.fromScene(new RoomEnvironment(renderer), 0.04).texture; pm.dispose(); }
-    if (!savedView) { savedView = { p: camera.position.clone(), t: controls.target.clone() }; savedClip = clipNow; setClip(null); }
-    fixed.visible = false; notes.forEach(n => { n.root.visible = false; });
-    toolStage.visible = true;
-    scene.environment = roomEnv;
-    lightsForTools(true);
-    // each tool is built fresh; free the last one's buffers (materials are shared, so they stay)
-    toolHolder.traverse(o => o.geometry?.dispose());
-    toolHolder.clear();
-    const mesh = obj;
-    // turn the model so its length runs left-right and its natural up is up
-    const up = axis(opts.upAxis) || new THREE.Vector3(0, 0, 1);
-    let len = axis(opts.lengthAxis) || new THREE.Vector3(1, 0, 0);
-    if (Math.abs(len.dot(up)) > 0.9) len = Math.abs(up.x) > 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
-    const n = new THREE.Vector3().crossVectors(len, up);
-    const m4 = new THREE.Matrix4().set(len.x, len.y, len.z, 0, up.x, up.y, up.z, 0, n.x, n.y, n.z, 0, 0, 0, 0, 1);
-    mesh.applyMatrix4(m4);
-    const box = new THREE.Box3().setFromObject(mesh), c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
-    mesh.position.sub(new THREE.Vector3(c.x, box.min.y, c.z));
-    toolHolder.add(mesh);
-    toolHolder.rotation.y = 0;
-    toolR = Math.max(size.x, size.z, size.y * 1.5, 30);
-    viewAnim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(),
-      toT: new THREE.Vector3(0, size.y / 2, 0), toP: new THREE.Vector3(0.2, 0.9, 1.9).setLength(toolDistance()).add(new THREE.Vector3(0, size.y, 0)) };
-    toolHome = { t: viewAnim.toT.clone(), off: viewAnim.toP.clone().sub(viewAnim.toT), d: toolDistance() };
-    spin = !opts.still;
-    return { size: { x: size.x, y: size.y, z: size.z } };
-  }
-  // frame the whole tool with room to turn: its longest side fills about 80% of the width, even on a tall phone screen
-  function toolDistance() {
-    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    return Math.max(1.9 * toolR, 0.62 * toolR / (tanV * camera.aspect));
-  }
-  // the window changed shape (a phone turned): keep the view's direction, step in or out to fit again
-  function refitTool() {
-    if (!toolStage.visible || !toolR) return;
-    if (viewAnim) { viewAnim.toP.sub(viewAnim.toT).setLength(toolDistance()).add(viewAnim.toT); return; }
-    camera.position.sub(controls.target).setLength(toolDistance()).add(controls.target);
-  }
-  function hideTool() {
-    if (!toolStage.visible) return;
-    toolStage.visible = false; scene.environment = null; lightsForTools(false); fixed.visible = true; setNoteCount(noteCount);
-    if (savedView) { viewAnim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(), toT: savedView.t, toP: savedView.p }; savedView = null; setClip(savedClip); }
-  }
-  // the room already lights the tool from all round, so the direct lights step back while it is out
-  function lightsForTools(on) { hemi.intensity = on ? 0.45 : 1.6; sun.intensity = on ? 1.1 : 1.6; fill.intensity = on ? 0.3 : 0.5; }
-  controls.addEventListener('start', () => { spin = false; });
-  let spinT = 0;
-  function spinTool() {   // by the clock, so it turns at the same speed on any screen refresh rate
-    const now = performance.now(), dt = Math.min(0.1, (now - spinT) / 1000); spinT = now;
-    if (toolStage.visible && spin) toolHolder.rotation.y += dt * 0.35;
-  }
+  // ---------- tool bag: one tool on the bench at a time, in place of the action (tools/stage.js) ----------
+  let savedClip = null;
+  const tools = createToolStage({ scene, renderer, camera, controls, lights: { hemi, sun, fill },
+    anim: { get: () => viewAnim, set: v => { viewAnim = v; } },
+    hooks: { save: () => { savedClip = clipNow; setClip(null); }, restore: () => setClip(savedClip),
+      hide: () => { fixed.visible = false; notes.forEach(n => { n.root.visible = false; }); },
+      show: () => { fixed.visible = true; setNoteCount(noteCount); } } });
+  const showTool = tools.show, hideTool = tools.hide, spinTool = tools.turn;
 
   setNoteCount(1);
   return { render, update, setView, zoomBy, slideBy, resetView, showTool, hideTool, spinTool, highlight, pick, screenOf, setCallout, clearCallouts, setCallouts, backcheckGap, setBackground, controls, camera, setLabels,

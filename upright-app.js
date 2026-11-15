@@ -2,8 +2,8 @@
 // were; when the header's switch picks the upright it hands this module the picture, the panel, the loop and the move
 // buttons. The page's one class (#app.upright, index.html) hides the grand's canvas, view and key buttons and shows
 // this module's, which sit in the same bars so the phone layouts carry over.
-// The upright's model, drawing and content are upright-model.js, scene-upright.js and content-upright.js. It has Learn
-// and the Sandbox; Find the fault, the exam, drills and tools come with C5, C7 and C8.
+// The upright's model, drawing and content are upright-model.js, scene-upright.js and content-upright.js; its tool bag
+// is toolbag.js's UPRIGHT_TOOLBAG, shown on its own picture's tool bench.
 import { FACTORY, ADJ, DAMAGE, Sim, measure, grade, pose, evenTol, DAMPER_PEDAL_LIFT, keyAngle, capstanTop, wippenOn, gRail, gString } from './upright-model.js';
 import { hand, UPRIGHT_HOLD, HOLD_NAMES, dragTo } from './hand.js';
 import { createUprightScene } from './scene-upright.js';
@@ -13,6 +13,7 @@ import { holdKey } from './keyfader.js';
 import { examMark, OP_NEEDS } from './examscore.js';
 import { diffAdj } from './bench.js';
 import { openRepinBench } from './repin.js';
+import { UPRIGHT_TOOLBAG, renderToolBag } from './toolbag.js';
 
 const DT = 0.0001;          // s: the Sim's step (its tests' and fit's)
 // At most this many steps a screen frame. Each costs about 0.2 ms of computing, so 120 is about 24 ms: real speed
@@ -193,6 +194,7 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
   }
   const state = () => [sim.d, sim.dTarget, sim.g, sim.w, sim.phi, sim.v, sim.psi, sim.dl, sim.vd, sim.soft, sim.softTarget, sim.pedal, sim.pedalTarget];
   function frame(dtReal) {
+    if (mode === 'tools') { S.render(); return; }   // a tool on the bench in place of the action: nothing of the key to run
     if (override) S.update(override.a, override.p, 0);
     else {
       if (busy || plan || !idle || sim.hand) {
@@ -585,7 +587,7 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
   }
   function renderPanel(p) {
     if (mode === 'learn') renderLearn(p); else if (mode === 'diagnose') renderDiagnose(p); else if (mode === 'exam') renderExam(p);
-    else if (mode === 'drills') renderDrills(p); else renderSandbox(p);
+    else if (mode === 'drills') renderDrills(p); else if (mode === 'tools') renderTools(p); else renderSandbox(p);
     renderCard();
   }
   function renderCredits(p, back) {
@@ -597,6 +599,20 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
       el('h3', {}, 'The action'),
       el('p', {}, 'Traced from high-speed video of an upright action model in PTG\'s Education Hub (narrated by Scott Murphy RPT), with its timing fitted to Jim Ellis\'s bridle strap test. The steps follow Steinway\'s upright regulation chapter, Bill Spurlock\'s "Vertical Regulation" and Mario Igrec\'s Pianos Inside Out.'),
       el('div', { class: 'row' }, el('button', { onclick: back }, '← Back')));
+  }
+
+  // ---------- the tool bag: the upright's tools, one at a time on the bench in place of the action ----------
+  let toolSel = null;
+  const stepAt = id => STEPS.findIndex(s => s.spec === id || s.id === id);
+  function renderTools(p) {
+    renderToolBag(p, { el, put, tools: UPRIGHT_TOOLBAG, sel: toolSel, pick: pickTool, stepTitle: id => STEPS[stepAt(id)]?.title,
+      goLearn: id => { const i = stepAt(id); setMode('learn'); if (mode === 'learn' && i >= 0) goStep(i); refresh(); } });
+  }
+  async function pickTool(id) {
+    const t = UPRIGHT_TOOLBAG.find(x => x.id === id);
+    try { await S.showTool(t.build(), { upAxis: t.upAxis, lengthAxis: t.lengthAxis }); toolSel = id; }
+    catch (err) { console.error(err); toast('Could not load that model.', 'warn'); }
+    refresh();
   }
 
   // ---------- the part card: a clicked part's knobs and what they set ----------
@@ -704,7 +720,7 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
   window.addEventListener('pointerup', endHold); window.addEventListener('pointercancel', endHold); window.addEventListener('blur', endHold);
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   window.addEventListener('keydown', e => {
-    if (!active || busy || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (!active || busy || mode === 'tools' || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.code === 'Escape') { play('up'); closeCard(); }
     // H and S as the grand's: shown on their buttons
     const k = !e.repeat && !/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && { h: 'hold', s: 'slow' }[e.key.toLowerCase()];
@@ -721,13 +737,16 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
     active = true; view(viewNow);
     if (!insetSet) { insetSet = true; setInset(document.getElementById('stage').clientWidth >= 700); }
   }
-  function hide() { dropHand(); active = false; closeCard(); tip.hidden = true; plan = null; letUp(); }
+  // (a tool on the bench is put away: the next visit opens on the Sandbox, as the grand's switch does)
+  function hide() { if (mode === 'tools') setMode('sandbox'); dropHand(); active = false; closeCard(); tip.hidden = true; plan = null; letUp(); }
   function setMode(next) {
     if (busy || next === mode) return;
     if (exam.started && !exam.done && !confirm('Leave the exam? Your progress will be lost.')) return;
     if (exam.started) leaveExam();
-    mode = ['learn', 'diagnose', 'exam', 'drills'].includes(next) ? next : 'sandbox';
+    if (mode === 'tools') { S.hideTool(); toolSel = null; S.setLabels(labelsOn); }
+    mode = ['learn', 'diagnose', 'exam', 'drills', 'tools'].includes(next) ? next : 'sandbox';
     closeCard(); S.highlight([]);
+    if (mode === 'tools') { dropHand(); plan = null; S.setLabels(false); S.clearCallouts(); pickTool(UPRIGHT_TOOLBAG[0].id); return; }
     if (mode === 'exam') { exam = { started: false }; setRegulation({ ...FACTORY, damage: null }, { keepTested: false, replace: true }); return; }
     if (mode === 'learn') { setRegulation({ ...deregulated(), damage: null }, { keepTested: false }); goStep(0); }
     else if (mode === 'diagnose') { scenario = null; newCase(); }
@@ -740,7 +759,7 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
   const benchRows = mm => ALL_SPECS.map(id => { const r = grade(id, mm, level().tolK); return { id, name: SPEC_NAMES[id], txt: `${readingText(id, mm)}${r.note ? ` · ${r.note}` : ''}`, ok: r.ok, shown: revealed(id) }; });
   const bench = {
     name: 'upright', rules: BENCH_RULES,
-    can: () => ({ edit: mode === 'learn' || mode === 'sandbox' || (mode === 'diagnose' && !!scenario), print: mode !== 'drills' && (mode !== 'exam' || !!exam.started) }),
+    can: () => ({ edit: mode === 'learn' || mode === 'sandbox' || (mode === 'diagnose' && !!scenario), print: mode !== 'drills' && mode !== 'tools' && (mode !== 'exam' || !!exam.started) }),
     context: () => `${mode}|${dealt}`,
     snap: () => ({ notes: [tidy(a)] }),
     restore: st => { if (busy) return false; setRegulation({ damage: null, ...st.notes[0] }, { replace: true }); },

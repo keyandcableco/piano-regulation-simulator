@@ -7,6 +7,7 @@
 // sideways offsets are drawn at BASS times (the grand's rule, scene.js).
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { createToolStage } from './tools/stage.js';
 import { H, KEY, CENTER, TRACE, SHANK, shankAt, CATCHER_SHANK, BUTT_LEATHER_T, CAPSTAN, EYE, STRAP_T, BUTT_FORK, WIPPEN_FORK, DAMPER_FORK, SCREWS,
   BRIDLE_Z, MAIN_RAIL, HAMMER_RAIL, LETOFF_RAIL, STRING, stringX, WIDTH, RAIL_N, SPOON_BASE, spoonAngle, BC_BEND, bcAngle,
   BRIDLE_BASE, bridleAngle, strapEnds, STRAP_LEN, STRAP_Z0, turn, wipPt, KEY_RAILS } from './upright-model.js';
@@ -84,7 +85,8 @@ export function createUprightScene(canvas, overlay) {
   controls.enableDamping = true;
   controls.minDistance = 40; controls.maxDistance = 3000;
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x554433, 1.6));
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x554433, 1.6);
+  scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffffff, 1.6);
   sun.position.set(200, 500, 600);
   scene.add(sun);
@@ -541,9 +543,17 @@ export function createUprightScene(canvas, overlay) {
   }
   setView('action', true);
 
+  // ---------- tool bag: one tool on the bench at a time, in place of the action (tools/stage.js, as the grand's) ----------
+  let savedClip = null;
+  const tools = createToolStage({ scene, renderer, camera, controls, lights: { hemi, sun, fill },
+    anim: { get: () => viewAnim, set: v => { viewAnim = v; } },
+    hooks: { save: () => { savedClip = clipNow; setClip(null); }, restore: () => setClip(savedClip),
+      hide: () => { act.visible = false; }, show: () => { act.visible = true; } } });
+
   // ---------- moving the view with the app's buttons (the grand's scene.js idiom) ----------
   function settle() {   // pressed during a change of view: finish the change, then move from there
     if (viewAnim) { controls.target.copy(viewAnim.toT); camera.position.copy(viewAnim.toP); camera.lookAt(controls.target); viewAnim = null; }
+    tools.stop();   // a tool on the bench stops turning, as it does when dragged
   }
   function zoomBy(f) {   // f < 1 steps in
     settle();
@@ -558,7 +568,7 @@ export function createUprightScene(canvas, overlay) {
     upV.set(0, dy * h, 0).applyQuaternion(camera.quaternion);
     sideV.add(upV); camera.position.add(sideV); controls.target.add(sideV);
   }
-  const resetView = () => setView(home);
+  const resetView = () => (tools.visible ? tools.goHome() : setView(home));
   // the parts a step or a card works on glow (the middle note's only)
   let highlighted = [];
   function highlight(parts) {
@@ -598,6 +608,7 @@ export function createUprightScene(canvas, overlay) {
     if (canvas.width !== Math.floor(w * renderer.getPixelRatio()) || canvas.height !== Math.floor(h * renderer.getPixelRatio())) {
       renderer.setSize(w, h, false);
       camera.aspect = w / h; camera.updateProjectionMatrix();
+      tools.refit();
     }
   }
   // ---------- key-front inset (the grand's scene.js idiom): the key's travel beside whatever part the view is on ----------
@@ -624,7 +635,7 @@ export function createUprightScene(canvas, overlay) {
   }
   if (window.ResizeObserver) { const ro = new ResizeObserver(() => { insetAt = null; }); for (const id of ['views', 'navpad']) { const e = document.getElementById(id); if (e) ro.observe(e); } }
   function renderInset() {
-    const show = insetOn && viewName !== 'keyfront' && !clipNow;   // not in the clipped views (their planes would need swapping out)
+    const show = insetOn && !tools.visible && viewName !== 'keyfront' && !clipNow;   // not in the clipped views (their planes would need swapping out)
     if (insetBox.hidden === show) insetBox.hidden = !show;
     if (!show) return;
     const r = insetRect(), y = r.sh - r.top - r.h;   // the renderer counts from the bottom
@@ -697,6 +708,7 @@ export function createUprightScene(canvas, overlay) {
       camera.position.lerpVectors(viewAnim.fromP, viewAnim.toP, e);
       if (t >= 1) viewAnim = null;
     }
+    tools.turn();
     controls.update();
     updateLabels();
     renderer.render(scene, camera);
@@ -712,6 +724,7 @@ export function createUprightScene(canvas, overlay) {
     renderer.dispose();
   }
   return { render, update, setView, setNeighbors, setLabels, setBackground, pick, screenOf, setCallout, clearCallouts, zoomBy, slideBy, resetView, highlight,
+    showTool: tools.show, hideTool: tools.hide,
     setInset, setInsetText, insetEl: insetBox, setPresent,
     dispose, controls, camera, scene, notes, VIEWS, PART_NAMES, partMeshes };
 }

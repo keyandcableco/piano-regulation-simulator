@@ -5,7 +5,7 @@ import { createScene, NOTE_Z, BASS } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
 import { examMark, PASS, OP_NEEDS } from './examscore.js';
-import { TOOLBAG } from './toolbag.js';
+import { TOOLBAG, renderToolBag } from './toolbag.js';
 import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F, REPEAT_SOUNDS, touch, dipAt, repeatRun, pedalFor } from './model.js';
 import { initControls, markView, closeMenu, compact, onCompact, panelTo } from './controls.js';
 import { SPEC_SETS, specSet, setSpecSet, specSource } from './model.js';
@@ -1174,6 +1174,7 @@ function redraw() {
   testLog.check();   // a finished test's log closes once the regulation it read has changed
   if (action === 'upright') {
     for (const b of document.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.mode === U.mode);
+    $('#views').style.display = $('#keydock').style.display = U.mode === 'tools' ? 'none' : '';
     const p = $('#mode');
     p.replaceChildren(); $('#actionbar').replaceChildren();
     if (showLimits) renderLimits(p);
@@ -1331,7 +1332,6 @@ const LIMITS = {
     ['No feel.', 'The key and its punchings are rigid, and the key moves at a set speed, not under a finger\'s weight. There is no touchweight, no let-off bump, no punching that squashes under pressure: dip and aftertouch read the same however the key is pressed.'],
     ['Built on a filmed one-note action model.', 'Its parts and motion come from Renner\'s catalog, Steinway\'s vertical guide, Bill Spurlock\'s writing and Jim Ellis\'s high-speed clips. The key and rail dimensions are stand-ins until a real one is measured.'],
     ['No pedal linkage.', 'The pedals move the dampers and the hammer rail by themselves: no lift rod, trap levers or lost motion in them to regulate.'],
-    ['No tool models for the upright yet.', 'The tool bag shows the grand\'s tools.'],
   ],
 };
 let showLimits = false;
@@ -1635,19 +1635,7 @@ function wearControl() {
 let toolSel = null;
 const stepTitle = id => STEPS.find(s => s.spec === id || s.id === id)?.title;
 function renderTools(p) {
-  const t = TOOLBAG.find(x => x.id === toolSel);
-  put(p, el('h2', {}, 'Tool bag'),
-    el('p', { class: 'muted' }, 'Regulating tools and what they do. Pick one to see it on the bench; drag to turn it. Grid squares are 10 mm.'),
-    el('div', { class: 'toolgrid' }, TOOLBAG.map(x => el('button', { class: 'toolbtn' + (x.id === toolSel ? ' on' : ''), onclick: () => pickTool(x.id) }, x.name))),
-    t ? el('div', { class: 'toolcard' },
-      el('h3', {}, t.name),
-      el('p', {}, t.what),
-      t.how?.length ? el('ol', {}, t.how.map(h => el('li', {}, h))) : null,
-      t.dims ? el('p', { class: 'muted small' }, el('b', {}, 'Dimensions: '), t.dims) : null,
-      t.steps?.filter(stepTitle).length ? el('p', { class: 'small' }, 'Used in: ', t.steps.filter(stepTitle).flatMap((id, i) => [i ? ', ' : '',
-        el('button', { class: 'linkish', onclick: () => { goLearn(id); } }, stepTitle(id))])) : null,
-      t.credit ? el('p', { class: 'credit' }, t.credit) : null) : null,
-    el('p', { class: 'muted small' }, 'Models of real regulation tools, added a few at a time.'));
+  renderToolBag(p, { el, put, tools: TOOLBAG, sel: toolSel, pick: pickTool, stepTitle, goLearn });
 }
 async function pickTool(id) {
   const t = TOOLBAG.find(x => x.id === id);
