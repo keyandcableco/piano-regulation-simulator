@@ -77,14 +77,18 @@ if (!out) { console.error('usage: node tests/upright-tools-check.cjs <out_dir> [
   const back = await page.evaluate(() => document.getElementById('cu').scene.scene.children.find(o => o.isGroup && o.children.some(c => c.type === 'GridHelper'))?.visible);
   check(back === false, 'the tool bench is put away');
   await shot('upright-learn-from-tool');
-  // Tools again, then the switch: the grand comes back as it was, and the upright reopens on its Sandbox
-  await page.click('.tab[data-mode="tools"]'); await page.waitForTimeout(800);
+  // Tools again, another tool, then the switch: the grand comes back as it was; the upright comes back on Tools with the
+  // same tool out (its key and regulation left as they were)
+  await page.click('.tab[data-mode="tools"]'); await page.waitForTimeout(1200);
+  await page.evaluate(() => document.querySelectorAll('#mode .toolbtn')[1].click()); await page.waitForTimeout(1200);
   await page.click('#action-switch [data-action="grand"]'); await page.waitForTimeout(1200);
   check(await page.$eval('#c', e => getComputedStyle(e).display !== 'none'), 'back to the grand picture');
   await page.click('#action-switch [data-action="upright"]'); await page.waitForTimeout(1500);
-  check(await page.$eval('.tab[data-mode="sandbox"]', b => b.classList.contains('on')) && (await text('#mode')).includes('Factory regulation'), 'the upright reopens on its Sandbox');
-  check(await page.$eval('#views', e => e.style.display !== 'none') && await page.$eval('#keydock', e => e.style.display !== 'none'), 'its view and key bars are shown');
-  await shot('upright-sandbox-after');
+  check(await page.$eval('.tab[data-mode="tools"]', b => b.classList.contains('on')) && (await text('#mode .toolbtn.on')) === 'Damper wire regulator', 'the upright comes back on Tools, the same tool out');
+  check(await page.$eval('#views', e => e.style.display === 'none'), 'its view bar still hidden');
+  await shot('upright-tools-after-switch');
+  await page.click('.tab[data-mode="sandbox"]'); await page.waitForTimeout(1200);
+  check(await page.$eval('#views', e => e.style.display !== 'none') && await page.$eval('#keydock', e => e.style.display !== 'none'), 'back in the Sandbox: its view and key bars are shown');
   check(errors.length === 0, `no page errors${errors.length ? ': ' + errors.join(' | ') : ''}`);
   await browser.close();
   process.exit(failed ? 1 : 0);

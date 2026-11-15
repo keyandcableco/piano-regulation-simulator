@@ -611,7 +611,7 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
   async function pickTool(id) {
     const t = UPRIGHT_TOOLBAG.find(x => x.id === id);
     try { await S.showTool(t.build(), { upAxis: t.upAxis, lengthAxis: t.lengthAxis }); toolSel = id; }
-    catch (err) { console.error(err); toast('Could not load that model.', 'warn'); }
+    catch (err) { console.error(err); toast('Could not load that model.', 'warn'); if (!toolSel && mode === 'tools') setMode('sandbox'); }
     refresh();
   }
 
@@ -734,11 +734,11 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
   // ---------- shown and hidden by the app's switch ----------
   let insetSet = false;
   function show() {
-    active = true; view(viewNow);
+    active = true; if (mode !== 'tools') view(viewNow);   // (a tool left on the bench is still there)
     if (!insetSet) { insetSet = true; setInset(document.getElementById('stage').clientWidth >= 700); }
   }
-  // (a tool on the bench is put away: the next visit opens on the Sandbox, as the grand's switch does)
-  function hide() { if (mode === 'tools') setMode('sandbox'); dropHand(); active = false; closeCard(); tip.hidden = true; plan = null; letUp(); }
+  // (a tool on the bench stays out: switching back finds the Tools tab as it was, the regulation untouched)
+  function hide() { dropHand(); active = false; closeCard(); tip.hidden = true; plan = null; letUp(); }
   function setMode(next) {
     if (busy || next === mode) return;
     if (exam.started && !exam.done && !confirm('Leave the exam? Your progress will be lost.')) return;
