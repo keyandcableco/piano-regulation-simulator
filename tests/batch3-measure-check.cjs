@@ -97,23 +97,24 @@ const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if
     const same = (a, b) => Object.keys(b).every(k => a[k] === b[k]);
     await page.selectOption('#level', 'apprentice'); await page.waitForTimeout(300);   // the panel lists the adjustments
     await tap('.tab[data-mode="diagnose"]');
-    check(/between two regulated neighbors/.test(await text('#mode')) && (await bench()).notes === 1, 'Find the fault opens on one key and says the customer\'s key will stand between neighbors');
+    check(/middle of five/.test(await text('#mode')) && (await bench()).notes === 1, 'Find the fault opens on one key and says the customer\'s key will stand in the middle of five');
     await btn('^Next customer$'); await page.waitForTimeout(900);
     let b = await bench();
-    check(b.notes === 3 && b.cur === 0, 'a customer\'s key comes with two neighbors: three notes on the bench, the customer\'s in the middle');
-    // (the rest rail, damper stop rail and pedal are one for all three, and the three are as worn as each other)
+    check(b.notes === 5 && b.cur === 0, 'a customer\'s key comes with four neighbors: five notes on the bench, the customer\'s in the middle');
+    // (the rest rail, damper stop rail and pedal are one for all five, and the five are as worn as each other; slots 1 and 2
+    // are the sharps either side, 3 and 4 the naturals past them)
     const reg = { ...b.factory, wear: b.adj[0].wear || 0, restRail: b.adj[0].restRail, damperStop: b.adj[0].damperStop, pedalLift: b.adj[0].pedalLift };
-    check(JSON.stringify(b.adj[0]) !== JSON.stringify(b.factory) && same(b.adj[1], reg) && same(b.adj[2], reg), 'the customer\'s key has the fault; both neighbors are regulated, on the same rails and as worn');
-    check((await page.evaluate(() => [...document.querySelectorAll('#neighbors [data-note]')].map(x => x.textContent).join('|'))) === 'Bass side|Customer\'s key|Treble side', 'the three are named, bass to treble');
+    check(JSON.stringify(b.adj[0]) !== JSON.stringify(b.factory) && b.adj[1].sharp && b.adj[2].sharp && same(b.adj[3], reg) && same(b.adj[4], reg), 'the customer\'s key has the fault; both neighbors are regulated, on the same rails and as worn');
+    check((await page.evaluate(() => [...document.querySelectorAll('#neighbors [data-note]')].map(x => x.textContent).join('|'))) === 'Natural|Sharp|Customer\'s key|Sharp|Natural', 'the three are named, bass to treble');
     await page.waitForTimeout(1200);
     await page.locator('#stage canvas#c').screenshot({ path: `${out}/neighbours-angle.png` });
     await btn('^Sight across the hammers$'); await page.waitForTimeout(1500);
     await page.locator('#stage canvas#c').screenshot({ path: `${out}/neighbours-hammerline.png` });
-    await btn('^Play all three$'); await atRest();
+    await btn('^Play all five$'); await atRest();
     // a neighbor: its tests read a regulated action, and it can't be adjusted
     await tap('#neighbors [data-note="1"]'); await page.waitForTimeout(600);
     b = await bench();
-    check(b.cur === 1 && /bass neighbor, which is regulated/.test(await text('#on-neighbor')), 'picking the bass neighbor says it is regulated, a reference');
+    check(b.cur === 1 && /sharp on the bass side, which is regulated/.test(await text('#on-neighbor')), 'picking the sharp on the bass side says it is regulated, a reference');
     await openFold('^Hammer, blow'); await openFold('^Jack and rep');
     const blow = await row('Blow distance'), lo = await row('Let-off from string');
     check(blow?.cls === 'ok' && lo?.cls === 'ok', `the neighbor reads in spec (blow ${blow?.now}, let-off ${lo?.now})`);
@@ -130,12 +131,12 @@ const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if
     check((await bench()).notes === 1, 'the Sandbox is back to one key');
     await tap('.tab[data-mode="diagnose"]'); await page.waitForTimeout(800);
     const back = await bench();
-    check(back.notes === 3 && same(back.adj[0], b.adj[0]) && same(back.adj[1], b.adj[1]), 'back on Find the fault: the same customer\'s key, between its neighbors again');
+    check(back.notes === 5 && same(back.adj[0], b.adj[0]) && same(back.adj[1], b.adj[1]), 'back on Find the fault: the same customer\'s key, between its neighbors again');
     // one key alone, as before
     await btn('^One key$'); await page.waitForTimeout(600);
     check((await bench()).notes === 1 && !(await page.$('#neighbors [data-note]')), 'One key: the customer\'s key alone, as it was before');
     await btn('^With its neighbors$'); await page.waitForTimeout(600);
-    check((await bench()).notes === 3, 'With its neighbors: three again');
+    check((await bench()).notes === 5, 'With its neighbors: five again');
     await page.context().close();
   }
 

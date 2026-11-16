@@ -5,11 +5,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { G, FACTORY, Sim, BLOWS, CENTERS, CENTER_FAULTS, crownY, measure, measureCenters, touch, dipAt, dipOf, keyReturn, repeatCeiling } from '../model.js';
+import { G, FACTORY, Sim, BLOWS, CENTERS, CENTER_FAULTS, crownY, measure, measureCenters, touch, dipAt, dipOf, keyReturn, repeatCeiling, sharpFactory } from '../model.js';
+// Find the fault deals each customer on the rails of the five keys round it, set on their sharps (app.js railsOf,
+// newScenario): the answers are checked on them
+const SF = sharpFactory(), BASE = { ...FACTORY, restRail: SF.restRail, damperStop: SF.damperStop, pedalLift: SF.pedalLift };
 
 const app = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8'), page = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const says = (words, src = app) => assert.ok(src.includes(words), `the text no longer says "${words}": update this check with it`);
-const at = (f = {}) => { const a = { ...FACTORY }; for (const [k, v] of Object.entries(f)) a[k] = typeof v === 'string' ? v : (a[k] || 0) + v; return a; };
+const at = (f = {}) => { const a = { ...BASE }; for (const [k, v] of Object.entries(f)) a[k] = typeof v === 'string' ? v : (a[k] || 0) + v; return a; };
 const within = (v, lo, hi, what) => assert.ok(v >= lo && v <= hi, `${what}: ${typeof v === 'number' ? v.toFixed(2) : v}, expected ${lo} to ${hi}`);
 // the first strike of a blow (m/s; 0: none), and everything that happened
 function blow(adj, b, T = 0.9) {
@@ -18,7 +21,7 @@ function blow(adj, b, T = 0.9) {
   for (let i = 0; i < Math.round(T / 0.01); i++) { if (i === 50) s.release(); s.events.length = 0; s.step(0.01); ev.push(...s.events); }
   return { v: ev.find(e => e.type === 'strike')?.v ?? 0, strikes: ev.filter(e => e.type === 'strike').length, types: ev.map(e => e.type) };
 }
-const T0 = touch(FACTORY), K0 = keyReturn(FACTORY), pp0 = blow(FACTORY, 'pp').v;
+const T0 = touch(BASE), K0 = keyReturn(BASE), pp0 = blow(BASE, 'pp').v;
 
 test('the Touch menu names the fingers the model plays with', () => {
   says(`a ${BLOWS.pp.F} g finger`, page); says(`a ${BLOWS.mf.F} g finger`, page); says(`a ${BLOWS.ff.F / 1000} kg finger`, page);
@@ -27,8 +30,8 @@ test('the Touch menu names the fingers the model plays with', () => {
 
 test('dip step: 250 g adds about 0.1 mm and a kilogram 0.5', () => {
   says('250 g of pressure adds about 0.1 mm and a kilogram 0.5');
-  within(dipAt(FACTORY, 250, T0) - dipOf(FACTORY), 0.08, 0.17, '250 g');
-  within(dipAt(FACTORY, 1000, T0) - dipOf(FACTORY), 0.42, 0.58, '1 kg');
+  within(dipAt(BASE, 250, T0) - dipOf(BASE), 0.08, 0.17, '250 g');
+  within(dipAt(BASE, 1000, T0) - dipOf(BASE), 0.42, 0.58, '1 kg');
 });
 
 test('let-off too close: barely half a millimetre from the string', () => {
@@ -42,7 +45,7 @@ test('let-off too far: 7 mm out, pp about a fifth slower, the softest touch sile
   within(measure(a).letoff, 6.5, 7.5, 'let-off');
   within(1 - blow(a, 'pp').v / pp0, 0.14, 0.27, 'pp slower by');
   // the softest finger that sounds on the regulated key (found 2 g at a time) doesn't sound here
-  let soft = 46; while (!blow(FACTORY, soft, 1.5).strikes) soft += 2;
+  let soft = 46; while (!blow(BASE, soft, 1.5).strikes) soft += 2;
   assert.equal(blow(a, soft, 1.5).strikes, 0, `a ${soft} g finger sounds at factory and not here`);
   const s = new Sim(a); s.blow('mf'); s.step(0.4);
   assert.ok(s.jammed && s.d < s.dip, 'the key stops on the jammed jack short of the punching');
@@ -51,7 +54,7 @@ test('let-off too far: 7 mm out, pp about a fifth slower, the softest touch sile
 test('deep dip: a soft blow touches the string a second time', () => {
   says('comes back off the lever and touches the string a second time');
   assert.ok(blow(at({ frontPunch: -0.8 }), 'pp').strikes >= 2);
-  assert.equal(blow(FACTORY, 'pp').strikes, 1);
+  assert.equal(blow(BASE, 'pp').strikes, 1);
 });
 
 test('shallow dip (+1.9): soft and normal blows strike twice, a hard one once; no let-off on a slow press', () => {
@@ -125,7 +128,7 @@ test('tight lever center: 10 g at the drop screw; the hammer rises from check sl
   within(CENTER_FAULTS.repTight.T / CENTERS.rep.at, 9.5, 10.5, 'gauge');
   // the spring test's rise: strike, hold, ease the key up 1.2 mm, and time the hammer from check to within 3 mm of the string
   const rise = adj => { const s = new Sim(adj); s.blow('mf'); s.step(0.4); s.press(s.dip - 1.2, 10); let t = 0; while (G.stringY - crownY(s.g) > 3.5 && t < 2) { s.step(0.001); t += 0.001; } return t; };
-  within(rise(at({ center: 'repTight' })) / rise(FACTORY), 1.1, 1.4, 'time to rise from check against a free lever');
+  within(rise(at({ center: 'repTight' })) / rise(BASE), 1.1, 1.4, 'time to rise from check against a free lever');
 });
 
 test('tight balance bushing: about twice as long to come back up; about 12 g more down and 12 g less up', () => {

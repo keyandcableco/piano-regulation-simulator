@@ -8,18 +8,20 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createToolStage } from './tools/stage.js';
+import { keyRows, naturalFit } from './keyrow.js';
 import { H, KEY, CENTER, TRACE, SHANK, shankAt, CATCHER_SHANK, BUTT_LEATHER_T, CAPSTAN, EYE, STRAP_T, BUTT_FORK, WIPPEN_FORK, DAMPER_FORK, SCREWS,
   BRIDLE_Z, MAIN_RAIL, HAMMER_RAIL, LETOFF_RAIL, STRING, stringX, WIDTH, RAIL_N, SPOON_BASE, spoonAngle, BC_BEND, bcAngle,
   BRIDLE_BASE, bridleAngle, strapEnds, STRAP_LEN, STRAP_Z0, turn, wipPt, KEY_RAILS, SHARP, SHARP_KEY, leverOf } from './upright-model.js';
 
 // the bass side is -z (on the player's left, as seen from the keys)
 export const BASS = -1;
-// note slots: 0 is the middle (the one drawn solid), 1 toward the bass, 2 toward the treble (see-through neighbors)
+// note slots: 0 is the middle (the one drawn solid), 1 toward the bass, 2 toward the treble, 3 and 4 beyond them
+// (see-through neighbors)
 export const NOTE_Z = [0, WIDTH.pitch * BASS, -WIDTH.pitch * BASS];
-// In the exam, whose middle note is a sharp (upright-model.js SHARP), the three are neighbors a semitone apart, as on a
-// piano: seven 23.5 mm naturals to the octave's twelve notes
-export const SEMITONE = WIDTH.pitch * 7 / 12;
-const NOTE_Z_SHARP = [0, SEMITONE * BASS, -SEMITONE * BASS];
+// With a sharp among them (keyrow.js: the exam's three, whose note 2 is a sharp, upright-model.js SHARP; Find the
+// fault's five round the customer's key) the keys are neighbors a semitone apart, as on a piano: seven 23.5 mm naturals
+// to the octave's twelve notes
+const ROWS = keyRows(WIDTH.pitch, BASS);
 
 const COLORS = {
   keybed: 0x6e4c2e, rail: 0xa47a4c, wood: 0xd7b98c, keywood: 0xe6d3ad, keytop: 0xf6f3ea,
@@ -258,14 +260,14 @@ export function createUprightScene(canvas, overlay) {
   // ---------- one note ----------
   function makeNote(slot) {
     building = slot; ghost = slot === 0 ? 1 : 0.18;
-    const root = new THREE.Group(); root.position.z = NOTE_Z[slot]; act.add(root);
+    const root = new THREE.Group(); root.position.z = NOTE_Z[slot] ?? 0; root.visible = slot < 3; act.add(root);
     const n = { root };
 
     // key (stand-in), its group on the balance pin (where it rocks), with the capstan screwed into it; punchings and pins
     const kp = A(KEY.balX, KEY.bottomY), K = ([x, y]) => [x - kp[0], y - kp[1]];   // action frame -> the key's frame
     // n.key turns on the key's own balance pin; keyIn holds its parts in the natural's key frame, shifted back with a
     // sharp's pin (SHARP.balBack). Its body: a natural, the sharp, or a natural cut round a sharp on its bass or
-    // treble side (the exam's three: setKeys)
+    // treble side (the exam's three) or round the sharps either side (Find the fault's five: setKeys)
     const key = n.key = new THREE.Group(); key.position.set(...kp, 0); root.add(key);
     const keyIn = n.keyIn = new THREE.Group(); key.add(keyIn);
     const [kx0, ky0] = K(A(0, KEY.bottomY)), kx1 = K(A(KEY.backX, 0))[0];
@@ -281,17 +283,20 @@ export function createUprightScene(canvas, overlay) {
       const w = SHARP.w / 2, wt = SHARP.wTop / 2, y0 = ky0 + KEY.thick, y1 = ky0 + SHARP_KEY.top + 2.5;
       ext(rect(x0, ky0, kx1, ky0 + KEY.thick), 11, 0, COLORS.keywood, 'key', g, KS);
       block([[x0, y0, -w], [x1, y0, -w], [x1, y0, w], [x0, y0, w], [t0, y1, -wt], [t1, y1, -wt], [t1, y1, wt], [t0, y1, wt]], COLORS.sharp, 'key', g, KS);
-      // a natural beside the sharp (dir: +1 the sharp on its +z side): its head full width in front of the sharp, its
-      // tail cut back 1 mm clear of it, the stick behind them a semitone wide on its own action
-      const cut = dir => {
-        const c = new THREE.Group(), span = (u0, u1) => { const a = dir * (SEMITONE - u0), b = dir * (SEMITONE - u1); return [Math.min(a, b), Math.max(a, b)]; };
+      // a natural beside a sharp (keyrow.js naturalFit, its spans of z in the key's own frame): its head full width in
+      // front of the sharp, its tail cut back 1 mm clear of it, the stick behind them a semitone wide on its own action
+      const cut = (rowName, sl) => {
+        const c = new THREE.Group(), { head, tail } = naturalFit(ROWS[rowName], sl, WIDTH.pitch, SHARP.w);
         const piece = (xa, xb, ya, yb, [za, zb], color) => ext(rect(xa, ya, xb, yb), zb - za, (za + zb) / 2, color, 'key', c, KS);
-        const head = span(0.75, 22.75), tail = span(SHARP.w / 2 + 1, 22.75), back = [-6.6, 6.6], hx = kx0 + SHARP.base - 1, top = ky0 + KEY.thick;
+        const back = [-6.6, 6.6], hx = kx0 + SHARP.base - 1, top = ky0 + KEY.thick;
         piece(kx0, hx, ky0, top, head, COLORS.keywood); piece(hx, kx0 + 150, ky0, top, tail, COLORS.keywood); piece(kx0 + 150, kx1, ky0, top, back, COLORS.keywood);
         piece(kx0, hx, top, top + 2.5, [head[0] - 0.2, head[1] + 0.2], COLORS.keytop); piece(hx, kx0 + 150, top, top + 2.5, [tail[0] - 0.2, tail[1] + 0.2], COLORS.keytop);
         return c;
       };
-      body.cutTreble = cut(-BASS); body.cutBass = cut(BASS);
+      // the exam's bass and treble notes (the sharp on their treble and bass sides); Find the fault's five: the customer's
+      // key between two sharps, and the naturals past them
+      body.cutTreble = cut('three', 1); body.cutBass = cut('three', 2);
+      body.cutBoth = cut('five', 0); body.fiveBass = cut('five', 3); body.fiveTreble = cut('five', 4);
     }
     for (const [kind, g] of Object.entries(body)) { g.visible = kind === 'natural'; keyIn.add(g); }
     // the punchings: 1 mm discs stacked to the knob's thickness on their rails (update() sets the stacks)
@@ -456,7 +461,7 @@ export function createUprightScene(canvas, overlay) {
     building = -1; ghost = 1;
     return n;
   }
-  const notes = [0, 1, 2].map(makeNote);
+  const notes = [0, 1, 2, 3, 4].map(makeNote);
   const N0 = notes[0];
 
   // ---------- pose: turn the parts to a pose of the model (upright-model.js pose()), with the knobs a ----------
@@ -567,15 +572,20 @@ export function createUprightScene(canvas, overlay) {
   // the neighbor slots show in the views across the keyboard; present: which of them there are (the exam's end notes
   // have one neighbor, not two)
   let present = [true, true], nbOn = false;
-  // each slot's kind of key ('natural', 'sharp', 'cutBass', 'cutTreble': a natural with the sharp on that side), and the
-  // three a semitone apart once there is a sharp among them (the exam)
+  // each slot's kind of key ('natural', 'sharp', 'cutBass', 'cutTreble': a natural with the sharp on that side; for the
+  // five, 'cutBoth', 'fiveBass', 'fiveTreble'), and the keys a semitone apart once there is a sharp among them (ROWS);
+  // three kinds or five
+  let count = 3;
   function setKeys(kinds = ['natural', 'natural', 'natural']) {
-    const semi = kinds.includes('sharp');
-    notes.forEach((n, i) => { n.root.position.z = (semi ? NOTE_Z_SHARP : NOTE_Z)[i]; for (const [k, g] of Object.entries(n.body)) g.visible = k === kinds[i]; });
+    const semi = kinds.includes('sharp'), z = kinds.length === 5 ? ROWS.five.z : semi ? ROWS.three.z : NOTE_Z;
+    count = kinds.length;
+    notes.forEach((n, i) => { n.root.position.z = z[i] ?? 0; for (const [k, g] of Object.entries(n.body)) g.visible = k === kinds[i]; });
     sharpRails.visible = semi;
+    setNeighbors(nbOn);
   }
   const noteZ = i => notes[i].root.position.z;
-  function setNeighbors(on) { nbOn = on; notes.slice(1).forEach((n, i) => { n.root.visible = on && present[i]; }); }
+  // (present: the exam's end notes have one neighbor, not two)
+  function setNeighbors(on) { nbOn = on; notes.slice(1).forEach((n, j) => { n.root.visible = on && j + 1 < count && (j > 1 || present[j]); }); }
   function setPresent(p) { present = p; setNeighbors(nbOn); }
   // a clipped view keeps only the slice of the action between two x (action frame); cut parts show their insides
   let clipNow = null;

@@ -1934,12 +1934,14 @@ export function setSpecSet(id) {
 export const FACTORY_SHARP = {"balPunch":1.503,"jackScrew":-0.5704,"repStop":-0.4583,"capstan":13.3963,"restRail":104.5261,"frontPunch":1.1823,"letoff":95.6034,"drop":140.1823,"repSpring":1.3641,"backcheck":0.1629,"damperGap":4.0208,"damperStop":5.3111,"pedalLift":3.28,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0,"wippenSpace":0,"wippenTravel":0,"backcheckSpace":0,"backcheckSquare":0,"damperCenter":0,"damperLevel":0};
 export const sharpFactory = () => ({ ...Object.fromEntries(Object.entries(FACTORY).map(([k, v]) => [k, typeof v === 'number' && k in FACTORY_SHARP ? v + FACTORY_SHARP[k] - GENERIC_FACTORY[k] : v])), sharp: true });
 // a key's knobs moved onto the other kind of key (natural to sharp or back), keeping how far each is off its factory
-export function asKey(a, sharp) {
-  const from = a.sharp ? sharpFactory() : FACTORY, to = sharp ? sharpFactory() : FACTORY;
-  const out = { ...a, sharp };
-  for (const k of Object.keys(FACTORY)) if (typeof a[k] === 'number' && typeof to[k] === 'number') out[k] = a[k] + to[k] - from[k];
-  for (const d of ADJ) if (typeof out[d.id] === 'number') out[d.id] = Math.max(d.min, Math.min(d.max, out[d.id]));   // (as far as a knob goes)
-  if (!sharp) delete out.sharp;
+export function asKey(a, sharp) { return rebase(a, a.sharp ? sharpFactory() : FACTORY, sharp ? sharpFactory() : FACTORY); }
+// a regulation moved from one regulated key to another (a natural to a sharp, or onto the rails a row of keys shares):
+// each knob as far off the new one as it was off the old (as far as a knob goes), and of the new one's kind
+export function rebase(a, from, to) {
+  const out = { ...a };
+  for (const k of Object.keys(FACTORY)) if (typeof a[k] === 'number' && typeof to[k] === 'number' && typeof from[k] === 'number') out[k] = a[k] + to[k] - from[k];
+  for (const d of ADJ) if (typeof out[d.id] === 'number') out[d.id] = Math.max(d.min, Math.min(d.max, out[d.id]));
+  if (to.sharp) out.sharp = true; else delete out.sharp;
   return out;
 }
 // Whose figure a reading is graded against under the chosen set: { text, fallback } (fallback: the maker prints none,

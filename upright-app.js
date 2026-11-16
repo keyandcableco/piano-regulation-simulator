@@ -205,17 +205,20 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
         if (idle) lagging = false;
       }
       const p = sim.pose(), railShim = sim.railShim();
-      // the neighbors: the exam's other notes as they are now, else the factory key on the same rail (the straightedge's)
+      // the neighbors: the exam's other notes as they are now, else the factory key on the same rail (the straightedge's);
+      // Find the fault's sharps either side of the customer's key a factory sharp (FIVE_KEYS)
       const nbr = slot => {
-        const i = exam.started ? exam.cur + (slot === 1 ? -1 : 1) : null;
-        const an = i === null ? { ...a, railShim, balPunch: FACTORY.balPunch, frontPunch: FACTORY.frontPunch, capstan: FACTORY.capstan, damage: null }
+        const i = exam.started ? exam.cur + (slot === 1 ? -1 : 1) : null, sh = FIVE_KEYS[slot] === 'sharp' && mode === 'diagnose';
+        const an = i === null ? sh ? { ...a, ...sharpFactory(), railShim, softFelt: a.softFelt, damage: null }
+          : { ...a, railShim, balPunch: FACTORY.balPunch, frontPunch: FACTORY.frontPunch, capstan: FACTORY.capstan, damage: null }
           : exam.notes[i] ? { ...exam.notes[i].a, railShim } : null;
         if (!an) return;
         const rest = pose(an, 0);
         rest.dl = Math.max(rest.dl, sim.pedal * DAMPER_PEDAL_LIFT);   // their dampers on the sustain pedal's rod
         S.update(an, rest, slot);
       };
-      nbr(1); nbr(2); S.update(a, p, 0);
+      nbr(1); nbr(2); if (mode === 'diagnose') { nbr(3); nbr(4); }
+      S.update(a, p, 0);
     }
     lastEvent.textContent = log.join(' · ');
     const d = override ? override.p.d : sim.d;
@@ -450,6 +453,9 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
   // the keys drawn with note i in the middle: its own, and its neighbors (a natural is cut round the sharp beside it)
   const keysFor = i => i === SHARP_NOTE ? ['sharp', 'cutTreble', 'cutBass'] : i < SHARP_NOTE ? ['cutTreble', 'natural', 'sharp'] : ['cutBass', 'sharp', 'natural'];
   const noteLabel = i => `Note ${i + 1}${i === SHARP_NOTE ? ' (sharp)' : i === 0 ? ' (bass)' : ' (treble)'}`;
+  // Find the fault's customer's key stands in the middle of five, as on a piano (keyrow.js ROWS.five, Greg 2026-11-16):
+  // a sharp on each side of it and a natural past each, drawn at rest; the cases are written for a natural
+  const FIVE_KEYS = ['cutBoth', 'sharp', 'sharp', 'fiveBass', 'fiveTreble'];
   function startExam() {
     const lv = level(), shared = deregulated();
     const dealt = n => { for (let i = 0; i < 50; i++) { const b = { ...deregulated(Math.random, factoryOf(n)), railShim: shared.railShim, softFelt: shared.softFelt, damage: null }; if (fairStart(b)) return b; } return { ...factoryOf(n), damage: null }; };
@@ -757,6 +763,7 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
     if (exam.started) leaveExam();
     if (mode === 'tools') { S.hideTool(); toolSel = null; S.setLabels(labelsOn); }
     mode = ['learn', 'diagnose', 'exam', 'drills', 'tools'].includes(next) ? next : 'sandbox';
+    S.setKeys(mode === 'diagnose' ? FIVE_KEYS : undefined);
     closeCard(); S.highlight([]);
     if (mode === 'tools') { dropHand(); plan = null; S.setLabels(false); S.clearCallouts(); pickTool(UPRIGHT_TOOLBAG[0].id); return; }
     if (mode === 'exam') { exam = { started: false }; setRegulation({ ...FACTORY, damage: null }, { keepTested: false, replace: true }); return; }

@@ -1,7 +1,7 @@
 import { G, IN, ADJ, SPEC, DAMPER_SPECS, DAMAGE, FACTORY, NEIGHBOR_H, Sim, measure, grade, hamPt, crownY, crownTop, keyAngle, keyPt,
          jackGeom, knuckleBottom, coreBack, eff, repSupportZ, sideZ, jackSide, linkage, gRail, gString as gStringNow } from './model.js';
 import { hand, GRAND_HOLD, HOLD_NAMES, dragTo } from './hand.js';
-import { createScene, NOTE_Z, BASS } from './scene.js';
+import { createScene, ROWS, BASS } from './scene.js';
 import { TIPS, TOOLS, NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 import { mountSwingDrill } from './drills.js';
 import { examMark, PASS, OP_NEEDS } from './examscore.js';
@@ -9,7 +9,7 @@ import { TOOLBAG, renderToolBag } from './toolbag.js';
 import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F, REPEAT_SOUNDS, touch, dipAt, repeatRun, pedalFor } from './model.js';
 import { initControls, markView, closeMenu, compact, onCompact, panelTo } from './controls.js';
 import { SPEC_SETS, specSet, setSpecSet, specSource } from './model.js';
-import { SHARP, NAT_TOP_AT_SHARP, sharpFactory, asKey, sharpDipBand } from './model.js';
+import { SHARP, NAT_TOP_AT_SHARP, sharpFactory, rebase, sharpDipBand } from './model.js';
 import { GAUGES, graduation, parseReading, judgeReading } from './gauge.js';
 import { holdKey } from './keyfader.js';
 import { mountBench } from './bench-ui.js';
@@ -74,9 +74,10 @@ const level = () => (mode === 'exam' && exam.started ? exam.level : LEVEL);
 const gradeL = (id, mm) => grade(id, mm, level().tolK);
 
 // ---------- state ----------
-// Three note slots (0 = middle, 1 = toward the bass, 2 = toward the treble). The one-note modes
-// use slot 0; exam mode and the Sandbox's three keys use all three. adj, sim, m and tested always point at the current slot.
-const NOTES = [0, 1, 2].map(() => { const a = { ...FACTORY }; return { adj: a, sim: new Sim(a), m: measure(a), tested: new Set() }; });
+// Five note slots (0 = middle, 1 and 2 a semitone toward the bass and the treble, 3 and 4 beyond them: scene.js ROWS).
+// The one-note modes use slot 0; the exam and the Sandbox's three keys use 0 to 2, the Sandbox's five keys and Find the
+// fault's neighbors all five (rowName). adj, sim, m and tested always point at the current slot.
+const NOTES = [0, 1, 2, 3, 4].map(() => { const a = { ...FACTORY }; return { adj: a, sim: new Sim(a), m: measure(a), tested: new Set() }; });
 let cur = 0;
 // Grand or upright (C6): the upright's own module (upright-app.js, loaded the first time it is picked) takes the picture,
 // the panel, the loop and the move buttons; everything else in this file is the grand's, and waits while it does
@@ -129,19 +130,19 @@ catch (err) {
 const testLog = createTestLog(el, $('#stage'), $('#toasts'));
 
 // side views follow the current note and fade the other two; sighting the hammer line shows all three at full strength,
-// and so do the Sandbox's views where the three stand side by side
+// and so do the Sandbox's views where the keys stand side by side
 let viewNow = 'action';
 let travelRestG = null;   // the hammer's rest angle in the traveling view, held while a test lifts it
 let winkRestG = null;     // and in the wink test's view, held while the jack is tripped
 const TOGETHER = new Set(['angle', 'damperline', 'damperrow']);
-// (with the sharp in, the key views show all three keys: the sharp is read against the naturals beside it)
+// (with a sharp in, the key views show all the keys: a sharp is read against the naturals beside it)
 const KEY_VIEWS = new Set(['keyfront', 'keytop']);
-const focusFor = name => !multi() || name === 'hammerline' || (sharpModel() && KEY_VIEWS.has(name)) || (examActive() ? exam.done : TOGETHER.has(name)) ? null : cur;
+const focusFor = name => !multi() || name === 'hammerline' || (row().hasSharp && KEY_VIEWS.has(name)) || (examActive() ? exam.done : TOGETHER.has(name)) ? null : cur;
 const view = name => { viewNow = name; travelRestG = null; S.setFocus(focusFor(name)); S.setView(name, S.noteZ(cur)); showView(); };
 // the View button names the view, and its menu marks it; the views only tests use are named here
 // (short enough to fit the button: tests/controls-check.cjs lists them too)
 const TEST_VIEWS = { travel: 'Traveling', jackfront: 'Jack from the keys', checkfront: 'Backcheck, end on', checktop: 'Backcheck, above',
-  damperline: 'Damper heads', damperrow: 'Three dampers', keytop: 'Key tops', wink: 'Jack and hammer', wippen: 'Wippen', gauge: 'Reading the rule' };
+  damperline: 'Damper heads', damperrow: 'Damper row', keytop: 'Key tops', wink: 'Jack and hammer', wippen: 'Wippen', gauge: 'Reading the rule' };
 function showView() {
   for (const b of document.querySelectorAll('[data-view]')) b.classList.toggle('on', b.dataset.view === viewNow);
   markView(document.querySelector(`[data-view="${viewNow}"] b`)?.textContent ?? TEST_VIEWS[viewNow] ?? viewNow);
@@ -302,7 +303,7 @@ const TESTS = {
       landed = new Map();
       setPedal(false); await waitSim(0.25); await waitReal(0.6);
       // report landing times for the notes that are in play
-      const slots = multi() ? EXAM_ORDER : [cur];
+      const slots = multi() ? row().order : [cur];
       const ms = slots.map((slot, i) => landed.has(slot) ? Math.round(1000 * (landed.get(slot) - t0[slot])) : null);
       toast(slots.length > 1 ? `Dampers landed after ${ms.map((v, i) => `note ${i + 1}: ${v ?? '—'} ms`).join(', ')}` : `Damper landed after ${ms[0] ?? '—'} ms`);
       landed = null;
@@ -313,7 +314,7 @@ const TESTS = {
     run: async () => {
       await releaseKey(); setPedal(false); await waitSim(0.1);
       if (multi()) view('damperrow');
-      const slots = multi() ? EXAM_ORDER : [cur];
+      const slots = multi() ? row().order : [cur];
       NOTES.forEach(n => n.sim.setPedal(true, { to: pedalFor(n.sim.a, 0.5), over: 0.6 }));
       pedalDown = true; $('#k-pedal').classList.add('on');
       await waitSim(0.6); await waitReal(1.2);
@@ -876,7 +877,7 @@ function knobValue(id) {
     : d.dirs ? (Math.abs(net) < 0.005 ? 'at factory' : `${Math.abs(net).toFixed(2)} mm toward the ${net > 0 ? 'bass' : 'treble'} from factory`)
     : d.unit === 'mm' || d.unit === '°' ? `${net >= 0 ? '+' : ''}${net.toFixed(2)}${d.unit === '°' ? '°' : ' mm'} from factory`
     : id === 'damperDrag' ? `drag ${adj[id].toFixed(2)}` : `${adj[id].toFixed(2)} × hammer weight`;
-  return multi() && SHARED.has(id) ? [valTxt, 'shared by all three notes'].filter(Boolean).join(' · ') : valTxt;
+  return multi() && SHARED.has(id) ? [valTxt, `shared by all ${row().z.length} notes`].filter(Boolean).join(' · ') : valTxt;
 }
 function knobRow(id, { readings = false } = {}) {
   const d = ADJ.find(x => x.id === id);
@@ -1081,7 +1082,7 @@ function newScenario() {
   const pool = [...SCENARIOS].sort(() => Math.random() - 0.5);
   const s = pool[0];
   scenario = { ...s, faults: { ...s.faults } };
-  adj = { ...FACTORY };
+  adj = rowFactory(0, 'five');   // on the rails of the five keys round it, shown or not (railsOf)
   for (const [k, v] of Object.entries(scenario.faults)) adj[k] = typeof v === 'string' ? v : (adj[k] || 0) + v;
   // a second, quieter problem half the time: never one that puts back in spec something the first put out (a high key
   // gives a shallow dip its depth back, and the customer's "feels shallow" would no longer be true of the key)
@@ -1098,16 +1099,16 @@ function newScenario() {
   $('aside').scrollTop = 0;
 }
 // ---------- Find the fault beside its neighbors (GT-24) ----------
-// On the bench a faulty note is judged against the notes either side of it. The customer's key is the middle note of
-// three; its neighbors (toward the bass and the treble) are regulated, on the same rails and pedal and as worn as it
-// is. They can be played, sighted across and tested, to see what right looks like; only the customer's key is adjusted
-// and checked. (The three-note model is the exam's: NOTES, multi().)
+// On the bench a faulty note is judged against the notes either side of it. The customer's key is the natural in the
+// middle of five (ROWS.five, Greg 2026-11-16): a sharp on each side of it and a natural past each, all regulated, on
+// the same rails and pedal and as worn as it is. They can be played, sighted across and tested, to see what right looks
+// like; only the customer's key is adjusted and checked.
 let faultNeighbors = true;
 function neighborsOn() { return mode === 'diagnose' && faultNeighbors && !!scenario; }
 function seatNeighbors() {
   const on = neighborsOn(), a0 = NOTES[0].adj;
-  if (on) for (const i of [1, 2]) putNote(NOTES[i], { ...FACTORY, wear: a0.wear || 0, ...sharedOf(a0) });
-  S.setNoteCount(on ? 3 : 1); S.setFocus(focusFor(viewNow)); S.clearCallouts();
+  if (on) for (const i of row().order) if (i !== 0) putNote(NOTES[i], { ...rowFactory(i), wear: a0.wear || 0, ...sharedOf(a0) });
+  S.setRow(rowName()); S.setFocus(focusFor(viewNow)); S.clearCallouts();
 }
 function setFaultNeighbors(on) {
   if (on === faultNeighbors || busy) return;
@@ -1116,18 +1117,19 @@ function setFaultNeighbors(on) {
   store(); cur = 0; ({ adj, sim, m, tested } = NOTES[0]);
   faultNeighbors = on; seatNeighbors(); view(viewNow); refresh();
 }
-const NEIGHBOR_NAMES = { 0: 'The customer\'s key', 1: 'Bass neighbor', 2: 'Treble neighbor' }, NEIGHBOR_SHORT = { 0: 'Customer\'s key', 1: 'Bass side', 2: 'Treble side' };
+const NEIGHBOR_NAMES = { 0: 'The customer\'s key', 1: 'Sharp on the bass side', 2: 'Sharp on the treble side', 3: 'Natural on the bass side', 4: 'Natural on the treble side' },
+  NEIGHBOR_SHORT = { 0: 'Customer\'s key', 1: 'Sharp', 2: 'Sharp', 3: 'Natural', 4: 'Natural' };
 function neighborBar() {
   const dis = busy ? '' : false;
   return el('div', { id: 'neighbors' },
     el('div', { class: 'row notes' }, el('button', { class: faultNeighbors ? 'on' : '', disabled: dis, onclick: () => setFaultNeighbors(true) }, 'With its neighbors'),
       el('button', { class: faultNeighbors ? '' : 'on', disabled: dis, onclick: () => setFaultNeighbors(false) }, 'One key')),
     !faultNeighbors ? null : [
-      el('p', { class: 'muted small' }, 'The customer\'s key stands between two regulated neighbors, as on the bench. Play them, sight across the three, or pick a neighbor and run a test on it to see what right looks like. Only the customer\'s key can be adjusted.'),
-      el('div', { class: 'row notes' }, EXAM_ORDER.map(slot =>
+      el('p', { class: 'muted small' }, 'The customer\'s key stands in the middle of five, as on a piano: a regulated sharp on each side of it and a regulated natural past each. Play them, sight across them, or pick a neighbor and run a test on it to see what right looks like. Only the customer\'s key can be adjusted.'),
+      el('div', { class: 'row notes' }, row().order.map(slot =>
         el('button', { class: slot === cur ? 'on' : '', disabled: dis, 'data-note': slot, title: NEIGHBOR_NAMES[slot], onclick: () => { selectNote(slot); view(viewNow); } }, NEIGHBOR_SHORT[slot]))),
-      el('div', { class: 'row' }, el('button', { disabled: dis, onclick: () => chord(false) }, 'Play all three'),
-        el('button', { disabled: dis, onclick: () => chord(true) }, 'Press all three slowly'),
+      el('div', { class: 'row' }, el('button', { disabled: dis, onclick: () => chord(false) }, 'Play all five'),
+        el('button', { disabled: dis, onclick: () => chord(true) }, 'Press all five slowly'),
         el('button', { disabled: dis, onclick: () => view('hammerline') }, 'Sight across the hammers'),
         el('button', { disabled: dis, onclick: () => view('keytop') }, 'Look down on the keys')),
       cur === 0 ? null : el('p', { class: 'note', id: 'on-neighbor' }, `You are on the ${NEIGHBOR_NAMES[cur].toLowerCase()}, which is regulated: its tests and readings are your reference. `,
@@ -1324,7 +1326,7 @@ let showCredits = false;
 const LIMITS = {
   both: [
     ['No sound.', 'Blocking, buzzing, bobbling and ringing strings are told in words, not heard. Nothing here trains the ear, and voicing and hammer-to-string mating are not modelled.'],
-    ['A stand-in sharp.', 'The three-key model (the grand\'s Sandbox three keys and both exams) has a sharp in the middle, a semitone from the natural either side, as real 3-key models do. Its height and its dip (matched to the naturals\' aftertouch on the grand, their checking on the upright, without burying) are graded as the makers give them, but its lever is the sim\'s own until a real key is measured: where its balance pin and front pin sit, and its size. Learn and Find the fault work on one natural.'],
+    ['A stand-in sharp.', 'The three-key model (the grand\'s Sandbox three keys and both exams) has a sharp in the middle, a semitone from the natural either side, as real 3-key models do; the grand\'s five keys (its Sandbox, and Find the fault\'s neighbors) have two. Its height and its dip (matched to the naturals\' aftertouch on the grand, their checking on the upright, without burying) are graded as the makers give them, but its lever is the sim\'s own until a real key is measured: where its balance pin and front pin sit, and its size. Learn, and Find the fault\'s customer, work on a natural.'],
     ['One note\'s geometry.', 'One place in the scale. No taper from bass to treble (let-off, springs, damper play), no bass dampers with springs.'],
     ['Generic targets.', 'Textbook numbers, not one maker\'s specs. On a real piano the maker\'s figures govern, and Steinway\'s or Kawai\'s own regulation would fail some checks here.'],
     ['Every click is exact and instant.', 'No stripped screws, no bent wire springing back, no paper that is nearly right. The time a job takes here says nothing about the bench.'],
@@ -1529,10 +1531,10 @@ function openPop(hit) {
   S.highlight(KNOB_PART[hit.part] || hit.part, cur);
   renderPop();
 }
-// a part's name; the key is the sharp or a natural in the three-key model
+// a part's name; the key is a sharp or a natural in a row with a sharp
 function partName(part, note) {
   const slot = note >= 0 ? note : cur;
-  if (part === 'key' && sharpModel()) return NOTES[slot]?.adj.sharp ? 'Sharp (black key)' : 'Natural (white key)';
+  if (part === 'key' && row().hasSharp) return NOTES[slot]?.adj.sharp ? 'Sharp (black key)' : 'Natural (white key)';
   return S.PART_NAMES[part] || part;
 }
 function closePop() { if (!pop) return; pop = null; popEl.hidden = popDot.hidden = true; S.highlight(null); }
@@ -1604,7 +1606,7 @@ const unmeasured = (n, more) => `${n}${more ? ' more' : ''} in readings you have
 function renderDiagnose(p) {
   if (!scenario) {
     put(p, el('h2', {}, 'Find the fault'),
-      el('p', {}, 'A customer describes a problem with one key. Find what is out of regulation and put it right. The key stands between two regulated neighbors to compare it with, as on the bench.'),
+      el('p', {}, 'A customer describes a problem with one key. Find what is out of regulation and put it right. The key stands in the middle of five, as on a piano, its regulated neighbors there to compare it with.'),
       howTo(),
       el('div', { class: 'row' }, el('button', { class: 'primary', onclick: newScenario }, 'Next customer')));
     return;
@@ -1644,7 +1646,7 @@ function wearControl() {
       oninput: e => { const y = +e.target.value; e.target.closest('.wear').querySelector('.muted').textContent = y ? `about ${y} year${y > 1 ? 's' : ''} of daily playing` : 'new felt'; },
       onchange: e => {
         const w = +e.target.value / 10;
-        if (multi()) NOTES.forEach((n, i) => { if (i !== cur) putNote(n, { ...n.adj, wear: w }); });
+        if (multi()) for (const i of row().order) if (i !== cur) putNote(NOTES[i], { ...NOTES[i].adj, wear: w });
         adj.wear = w; applyAdj();
       } }),
     el('div', { class: 'muted small' }, 'Punchings, cloth, cushions, knuckles and hammer felt pack down. Watch blow, lost motion and aftertouch drift, then regulate it back.'));
@@ -1683,50 +1685,69 @@ function renderDrills(p) {
   p.append(drillsEl);
 }
 // ---------- sandbox ----------
-// One key, or three neighbors on the same rails (the exam's three notes), to see the dampers lift and land together
-let threeKeys = false;
+// One key, three neighbors (the exam's three notes: a sharp between two naturals) or five (white, black, white, black,
+// white: two sharps to level together, Greg 2026-11-16), on the same rails, to see the dampers lift and land together
+let sandboxKeys = 1;
 const sharedOf = a => Object.fromEntries([...SHARED].map(k => [k, a[k]]));
 function putNote(n, a) { n.adj = keyKind(NOTES.indexOf(n), a); n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); n.tested = new Set(); }
 // a regulation put on a slot carries the slot's kind of key (a saved code or an undo keeps the knobs, not the kind)
-function keyKind(i, a) { const sharp = i === 0 && sharpModel(); if (!!a.sharp === sharp) return a; const o = { ...a }; if (sharp) o.sharp = true; else delete o.sharp; return o; }
-function setThreeKeys(on) {
-  if (on === threeKeys || busy) return;
+function keyKind(i, a) { const sharp = !!row().sharp[i]; if (!!a.sharp === sharp) return a; const o = { ...a }; if (sharp) o.sharp = true; else delete o.sharp; return o; }
+// The rails a row of keys shares are set on a sharp where it has one, as Steinway checks the damper stop rail (model.js
+// FACTORY_SHARP; a natural passes on them too). Find the fault's customer is dealt on the five keys' rails, its neighbors
+// shown or not, so turning them on or off doesn't move its regulation.
+const railsOf = (name = rowName()) => sharedOf(ROWS[name === 'one' && mode === 'diagnose' ? 'five' : name].hasSharp ? sharpFactory() : FACTORY);
+// a slot's regulated key in a row: its own kind's factory regulation, on the row's rails
+const rowFactory = (i, name = rowName()) => ({ ...factoryOf(i, name), ...railsOf(name) });
+// a saved code says nothing of the kind of key or the row: each knob as far off the regulated key in its slot as it is
+// (bench.js reads the code against FACTORY)
+const toCode = (a, i) => rebase(a, rowFactory(i), FACTORY), fromCode = (c, i) => rebase(c, FACTORY, rowFactory(i));
+function setSandboxKeys(c) {
+  if (c === sandboxKeys || busy) return;
   setLoop(false); clearPlan(); clearFrames(); closePop();
   NOTES.forEach(n => { if (n.sim.dTarget > 0) n.sim.press(0, 60); });
   store();
-  // the middle key turns sharp (or back), as far off its factory as it was; the neighbors start regulated, on its rails
-  // and as worn as it is
-  threeKeys = on; cur = 0;
-  putNote(NOTES[0], asKey(NOTES[0].adj, on));
+  // the middle key keeps how far off its regulated key it was, turned sharp (three keys) or natural; the others start
+  // regulated, on its rails and as worn as it is
+  const before = rowFactory(0);
+  sandboxKeys = c; cur = 0;
+  putNote(NOTES[0], rebase(NOTES[0].adj, before, rowFactory(0)));
   const a0 = NOTES[0].adj;
-  for (const i of [1, 2]) putNote(NOTES[i], on ? { ...FACTORY, wear: a0.wear || 0, ...sharedOf(a0) } : { ...FACTORY });
+  for (const i of row().order) if (i !== 0) putNote(NOTES[i], { ...rowFactory(i), wear: a0.wear || 0, ...sharedOf(a0) });
   ({ adj, sim, m, tested } = NOTES[0]);
-  S.setNoteCount(on ? 3 : 1, on); S.clearCallouts();
-  view(on ? 'damperrow' : viewNow === 'damperrow' ? 'dampers' : viewNow);   // the row of three has no button of its own
+  S.setRow(rowName()); S.clearCallouts();
+  view(c > 1 ? 'damperrow' : viewNow === 'damperrow' ? 'dampers' : viewNow);   // the row has no button of its own
   refresh();
 }
-// all three keys at once: a blow comes back up as Play's does; a slow press stays down until Let key up
+// all the keys at once: a blow comes back up as Play's does; a slow press stays down until Let key up
 function chord(slow) {
   if (busy) return;
   setLoop(false); clearPlan(); cue = null;
-  NOTES.forEach(n => slow ? n.sim.press(n.sim.dip, 6) : strike(n.sim));
+  for (const i of row().order) { const s = NOTES[i].sim; if (slow) s.press(s.dip, 6); else strike(s); }
   if (!slow) { plan = 'all'; planAt = null; }
   pausedNote();
 }
-// as worn as before, like Factory regulation; with three keys each knocked out on its own, the rails they share set once
+// as worn as before, like Factory regulation; with several keys each knocked out on its own, the rails they share set once
 function messUpSandbox() {
-  const rails = sharedOf(deregulated()), w = adj.wear || 0;
+  const rails = sharedOf(deregulated(row().hasSharp ? sharpFactory() : FACTORY)), w = adj.wear || 0;
   const one = i => ({ ...deregulated(factoryOf(i)), wear: w, ...rails });
-  if (multi()) NOTES.forEach((n, i) => { if (i !== cur) putNote(n, one(i)); });
+  if (multi()) for (const i of row().order) if (i !== cur) putNote(NOTES[i], one(i));
   adj = one(cur); applyAdj();
 }
-// (the rails the three share are set on the middle key: the sharp's, with the sharp in)
 function factoryAll() {
-  const w = adj.wear || 0, rails = sharedOf(factoryOf(0));
-  if (multi()) NOTES.forEach((n, i) => { if (i !== cur) putNote(n, { ...factoryOf(i), wear: w, ...rails }); });
-  adj = { ...factoryOf(cur), wear: w, ...(multi() ? rails : {}) }; applyAdj();
+  const w = adj.wear || 0;
+  if (multi()) for (const i of row().order) if (i !== cur) putNote(NOTES[i], { ...rowFactory(i), wear: w });
+  adj = { ...rowFactory(cur), wear: w }; applyAdj();
 }
-// the three dampers side by side: when each starts to lift on its key, and how long each takes to land off the pedal
+// the keys' heights side by side: the naturals level with each other, and the sharps each 1/2 in above them, so level
+// with each other too
+function keyCompare() {
+  const cell = s => { const mm = NOTES[s].m, r = gradeL('keyHeight', mm);
+    return el('td', { class: r.ok ? 'okc' : 'badc' }, mark(r.ok), Math.abs(r.v) < 0.05 ? (mm.sharp ? 'at ½ in' : 'level') : `${fmtGraded('keyHeight', Math.abs(r.v))} ${r.v > 0 ? 'high' : 'low'}`); };
+  return el('table', { class: 'specs score' },
+    el('thead', {}, el('tr', {}, el('th', {}, 'Keys'), row().order.map((s, i) => el('th', {}, noteName(s, i))))),
+    el('tbody', {}, el('tr', {}, el('td', {}, 'Height'), row().order.map(cell))));
+}
+// the dampers side by side: when each starts to lift on its key, and how long each takes to land off the pedal
 function damperCompare() {
   const cell = (id, txt) => s => { const ok = gradeL(id, NOTES[s].m).ok; return el('td', { class: ok ? 'okc' : 'badc' }, mark(ok), txt(NOTES[s].m)); };
   const rows = [
@@ -1734,8 +1755,8 @@ function damperCompare() {
     ['Starts on the pedal', 'pedalStart', mm => Math.abs(mm.pedalStart) < 0.05 ? 'with the line' : `${fmt(Math.abs(mm.pedalStart))} ${mm.pedalStart > 0 ? 'early' : 'late'}`],
     ['Lands after the pedal', 'damperFall', mm => `${Math.round(mm.fallMs)} ms`]];
   return el('table', { class: 'specs score' },
-    el('thead', {}, el('tr', {}, el('th', {}, 'Dampers'), EXAM_ORDER.map((s, i) => el('th', {}, noteName(s, i))))),
-    el('tbody', {}, rows.map(([name, id, txt]) => el('tr', {}, el('td', {}, name), EXAM_ORDER.map(cell(id, txt))))));
+    el('thead', {}, el('tr', {}, el('th', {}, 'Dampers'), row().order.map((s, i) => el('th', {}, noteName(s, i))))),
+    el('tbody', {}, rows.map(([name, id, txt]) => el('tr', {}, el('td', {}, name), row().order.map(cell(id, txt))))));
 }
 // The action ratio, as a reading: how far the hammer rises for each mm of key, and the three levers it is made of
 // (model.js measureRatio). It is why this action gives the aftertouch it does at a given dip and blow.
@@ -1749,20 +1770,22 @@ function ratioBlock() {
       + 'The ratio falls a little through the stroke. Dip = (blow − let-off) ÷ ratio + aftertouch (Yuji Nakamura).'));
 }
 function renderSandbox(p) {
-  const three = multi(), dis = busy ? '' : false;
+  const three = multi(), dis = busy ? '' : false, all = { 3: 'three', 5: 'five' }[sandboxKeys];
   put(p, el('h2', {}, 'Sandbox'),
     el('p', { class: 'muted' }, 'Every reading is live. Open a part of the action, turn anything, and watch what else moves.'),
-    el('div', { class: 'row notes' }, el('button', { class: three ? '' : 'on', disabled: dis, onclick: () => setThreeKeys(false) }, 'One key'),
-      el('button', { class: three ? 'on' : '', disabled: dis, onclick: () => setThreeKeys(true) }, 'Three keys')),
+    el('div', { class: 'row notes' }, [[1, 'One key'], [3, 'Three keys'], [5, 'Five keys']].map(([c, name]) =>
+      el('button', { class: sandboxKeys === c ? 'on' : '', disabled: dis, onclick: () => setSandboxKeys(c) }, name))),
     three ? [
-      el('p', { class: 'muted small' }, 'Three neighbors, bass to treble, on the same rest rail, damper stop rail and pedal. The neighbors start regulated. Pick the note to work on here, or click its key.'),
-      el('div', { class: 'row notes' }, EXAM_ORDER.map((slot, i) =>
+      el('p', { class: 'muted small' }, sandboxKeys === 5
+        ? 'White, black, white, black, white, a semitone apart, on the same rest rail, damper stop rail and pedal: level the two sharps with each other as well as the naturals. The others start regulated. Pick the note to work on here, or click its key.'
+        : 'A sharp between two naturals, a semitone apart, on the same rest rail, damper stop rail and pedal: the exam\'s three notes. The neighbors start regulated. Pick the note to work on here, or click its key.'),
+      el('div', { class: 'row notes' }, row().order.map((slot, i) =>
         el('button', { class: slot === cur ? 'on' : '', disabled: dis, onclick: () => { selectNote(slot); view(viewNow); } }, `Note ${i + 1}`))),
-      el('div', { class: 'row' }, el('button', { disabled: dis, onclick: () => chord(false) }, 'Play all three'),
-        el('button', { disabled: dis, onclick: () => chord(true) }, 'Press all three slowly'),
+      el('div', { class: 'row' }, el('button', { disabled: dis, onclick: () => chord(false) }, `Play all ${all}`),
+        el('button', { disabled: dis, onclick: () => chord(true) }, `Press all ${all} slowly`),
         el('button', { onclick: () => view('damperrow') }, 'Watch the dampers')),
-      damperCompare(),
-      el('h3', {}, `Note ${EXAM_ORDER.indexOf(cur) + 1}`)] : null,
+      keyCompare(), damperCompare(),
+      el('h3', {}, noteName(cur, row().order.indexOf(cur)))] : null,
     el('div', { class: 'row' }, el('button', { onclick: factoryAll }, 'Factory regulation'),
       el('button', { onclick: messUpSandbox }, 'Mess it all up')),
     wearControl(),
@@ -1796,22 +1819,24 @@ const DAMPER_KNOBS = ['damperGap', 'damperStop', 'pedalLift', 'damperDrag', 'dam
 const examSpecs = () => Object.keys(SPEC).filter(id => (exam.dampers || !SPEC[id].damper) && !SPEC[id].noExam);
 let exam = { started: false, done: false };
 const examActive = () => mode === 'exam' && exam.started;
-// three notes in play: the exam model, or the Sandbox's three keys
-const multi = () => examActive() || (mode === 'sandbox' && threeKeys) || neighborsOn();
-// The three-key model has a sharp in the middle, a natural either side, as the 3-key action models on the bench do
-// (Greg, 2026-11-16; model.js SHARP): the Sandbox's three keys and the exam. Find the fault's customer's key stays a
-// natural, its cases being written for one.
-const sharpModel = () => examActive() || (mode === 'sandbox' && threeKeys);
-const factoryOf = i => (i === 0 && sharpModel() ? sharpFactory() : { ...FACTORY });
+// The row of keys on the bench (scene.js ROWS, Greg 2026-11-16): three, a sharp in the middle and a natural either side,
+// as on the 3-key action models on Greg's bench (the exam, the Sandbox's Three keys); five, white black white black
+// white (the Sandbox's Five keys, and Find the fault's neighbors round the customer's key, a natural, its cases being
+// written for one); else one key
+const rowName = () => (examActive() ? 'three' : mode === 'sandbox' ? ({ 3: 'three', 5: 'five' })[sandboxKeys] || 'one' : neighborsOn() ? 'five' : 'one');
+const row = () => ROWS[rowName()];
+// more than one note in play
+const multi = () => rowName() !== 'one';
+const factoryOf = (i, name = rowName()) => (ROWS[name].sharp[i] ? sharpFactory() : { ...FACTORY });
 const noteName = (slot, i) => `Note ${i + 1}${NOTES[slot].adj.sharp ? ' (sharp)' : ''}`;
 function startExam() {
   setPaused(false); $('#framepad').hidden = true; clearFrames(); closePop();
   const restRail = deregulated().restRail;
   const shared = deregulated();
-  // the middle note is the sharp (sharpModel): it is dealt off its own factory, and with the dampers left out they
+  // the middle note is the sharp (ROWS.three): it is dealt off its own factory, and with the dampers left out they
   // stand at its regulation, the rails they share set on it
   const base = i => (i === 0 ? sharpFactory() : { ...FACTORY }), railsAt = base(0);
-  NOTES.forEach((n, i) => {
+  NOTES.slice(0, 3).forEach((n, i) => {
     const a = { ...deregulated(base(i)), restRail, damperStop: shared.damperStop, pedalLift: shared.pedalLift };
     if (!examDampers) for (const k of DAMPER_KNOBS) a[k] = (SHARED.has(k) ? railsAt : base(i))[k];
     n.adj = a; n.sim.setAdj(a); n.sim.reset(); n.m = measure(a); n.tested = new Set();
@@ -1823,26 +1848,26 @@ function startExam() {
     if (CENTER_FAULTS[k]) n.adj.center = k; else n.adj.damage = k;
     n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj);
   }
-  exam = { started: true, done: false, dampers: examDampers, level: LEVEL, damaged: NOTES.map(n => n.adj.damage || n.adj.center || null),
+  exam = { started: true, done: false, dampers: examDampers, level: LEVEL, damaged: NOTES.slice(0, 3).map(n => n.adj.damage || n.adj.center || null),
     minutes: examMinutes, endAt: Date.now() + examMinutes * 60000, t0: Date.now() };
   $('#level').disabled = true;
   testsUsed = 0; generation++;
   cur = EXAM_ORDER[0]; ({ adj, sim, m, tested } = NOTES[cur]); lastClock = '';
-  S.setNoteCount(3, true); S.setFocus(cur); S.clearCallouts();
+  S.setRow('three'); S.setFocus(cur); S.clearCallouts();
   refresh();
   view('angle');
 }
-// back to one note, from the exam or the Sandbox's three keys
+// back to one note, from the exam, the Sandbox's three or five keys or Find the fault's neighbors
 function toOneNote() {
   clearFrames(); closePop();
-  const wasThree = exam.started || threeKeys || neighborsOn();
-  exam = { started: false, done: false }; threeKeys = false;
+  const wasThree = multi();
+  exam = { started: false, done: false }; sandboxKeys = 1;
   $('#level').disabled = false;
   NOTES.forEach(n => { if (n.sim.dTarget > 0) n.sim.press(0, 60); });
   store(); cur = 0;
   if (wasThree) NOTES.forEach(n => putNote(n, { ...FACTORY }));
   ({ adj, sim, m, tested } = NOTES[0]);
-  S.setNoteCount(1); S.setFocus(null);
+  S.setRow('one'); S.setFocus(null);
 }
 function handIn() {
   if (exam.done) return;
@@ -2204,7 +2229,7 @@ const snapSim = s => Object.fromEntries(Object.entries(s).filter(([k]) => !SNAP_
 const idleNow = () => NOTES.every(({ sim: s }) => s.d === 0 && s.dTarget === 0 && Math.abs(s.w) < 1e-9 && Math.abs(s.vd) < 1e-9 && s.pedal === s.pedalTarget);
 let lastIdle = false;
 canvas.idle = () => idleNow();   // for the headless checks: the key up and the hammer home and still
-canvas.bench = () => ({ notes: multi() ? 3 : 1, cur, adj: NOTES.map(n => ({ ...n.adj })), factory: { ...FACTORY }, busy, view: viewNow });   // and what is on the bench
+canvas.bench = () => ({ notes: row().z.length, cur, adj: NOTES.map(n => ({ ...n.adj })), factory: { ...FACTORY }, busy, view: viewNow });   // and what is on the bench
 // each frame the action moves: every note's state, and what the panel was marking (so markers and messages step back too)
 function snapshot() {
   const idle = idleNow();
@@ -2595,7 +2620,7 @@ const grandBench = {
     const work = mode === 'learn' || mode === 'sandbox' || (mode === 'diagnose' && !!scenario) || (mode === 'exam' && exam.started && !exam.done);
     return { edit: work && !showCredits && !showLimits, print: (work || (mode === 'exam' && !!exam.done)) && !showCredits && !showLimits };
   },
-  context: () => `${mode}|${benchEpoch[mode] ?? ''}|${mode === 'exam' ? exam.t0 ?? '' : ''}|${multi()}`,
+  context: () => `${mode}|${benchEpoch[mode] ?? ''}|${mode === 'exam' ? exam.t0 ?? '' : ''}|${rowName()}`,
   snap: () => { store(); return { notes: NOTES.map(n => tidyAdj(n.adj)) }; },
   // (the readings already measured stay measured: they are read again from the action as it now stands)
   restore: st => {
@@ -2606,8 +2631,8 @@ const grandBench = {
     if (!nb || cur === 0) { adj = { ...st.notes[cur] }; unsolve(); applyAdj(); } else { unsolve(); refresh(); }
   },
   // (Find the fault's neighbors are for comparing, not part of the work: the customer's key alone is saved and printed)
-  // (a sharp travels as how far each knob is off its own factory: the code says nothing of the kind of key)
-  notes: st => (multi() && !neighborsOn() ? st.notes : [st.notes[workIx()]]).map(a => (a.sharp ? asKey(a, false) : a)),
+  // (each key travels as how far each knob is off the regulated key in its slot: toCode)
+  notes: st => (multi() && !neighborsOn() ? st.notes.slice(0, row().z.length).map(toCode) : [toCode(st.notes[workIx()], workIx())]),
   // where readings must be measured to be seen, "before" shows only what was measured before the work began
   blind: () => gaugeMode || !(mode === 'sandbox' || level().live),
   // a save is a difference from the regulated key, and that key follows the spec set: the set travels with it
@@ -2615,7 +2640,7 @@ const grandBench = {
   useSet: id => { if (specSet() !== id) pickSpecSet(id); return specSet() === id || !Object.hasOwn(SPEC_SETS, id); },
   fault: () => (mode === 'diagnose' && scenario ? { c: scenario.complaint, w: scenario.answer + (scenario.second ? ` Also: ${scenario.second.answer}` : '') } : null),
   draft: st => {
-    const w = st.notes[workIx()], parts = Object.entries(diffAdj(w.sharp ? asKey(w, false) : w, BENCH_RULES)).map(([k, v]) => {
+    const parts = Object.entries(diffAdj(toCode(st.notes[workIx()], workIx()), BENCH_RULES)).map(([k, v]) => {
       if (typeof v === 'string') return (damageLabel(v) || BUSHINGS[v]?.name || CENTER_FAULTS[v]?.name || v).toLowerCase();
       if (k === 'wear') return `felt and cloth wear, about ${Math.round(v * 10)} years of playing`;
       const d = ADJ.find(x => x.id === k);
@@ -2630,18 +2655,20 @@ const grandBench = {
     if (st.k === 'fault') {
       // through the tab's own way back to a customer kept while another tab was open
       if (mode === 'diagnose') tab('sandbox');
-      kept.diagnose = { adj: { ...st.notes[0] }, tested: new Set(), scenario: { complaint: st.c, answer: st.w || 'No note was left with it.', faults: {}, alone: true, custom: true },
+      kept.diagnose = { adj: rebase(st.notes[0], FACTORY, rowFactory(0, 'five')), tested: new Set(), scenario: { complaint: st.c, answer: st.w || 'No note was left with it.', faults: {}, alone: true, custom: true },
         testsUsed: 0, verdict: null, checks: 0, gaveUp: false, hint: false };
       benchEpoch.diagnose++;
       tab('diagnose');
     } else {
       if (mode !== 'sandbox') tab('sandbox');
-      setThreeKeys(st.notes.length === 3);
-      if (st.notes.length === 3) for (const i of [1, 2]) putNote(NOTES[i], { ...st.notes[i] });
+      setSandboxKeys([3, 5].includes(st.notes.length) ? st.notes.length : 1);
+      // (the rails are one setting: the middle key's)
+      const a0 = fromCode(st.notes[0], 0);
+      for (const i of row().order) if (i !== 0) putNote(NOTES[i], { ...fromCode(st.notes[i], i), ...sharedOf(a0) });
       benchEpoch.sandbox++;   // (counted here, so the work's "before" is the regulation loaded, whole)
-      // (already on three keys, a neighbor may be the one selected: the loaded middle key goes on the middle)
+      // (already on several keys, a neighbor may be the one selected: the loaded middle key goes on the middle)
       if (cur !== 0) { store(); cur = 0; ({ adj, sim, m, tested } = NOTES[0]); S.setFocus(focusFor(viewNow)); }
-      adj = st.notes.length === 3 ? asKey({ ...st.notes[0] }, true) : { ...st.notes[0] }; applyAdj();
+      adj = a0; applyAdj();
     }
     $('aside').scrollTop = 0;
   },
@@ -2650,7 +2677,7 @@ const grandBench = {
     store();
     const meta = [{ learn: 'Learn', diagnose: 'Find the fault', sandbox: 'Sandbox', exam: 'Exam practice' }[mode], `${level().name} level`, `graded against ${SPEC_SETS[specSet()].name}`];
     if (mode === 'exam' && exam.done) return { title: 'Grand action regulation: exam practice', meta, tables: [], copy: $('#mode') };
-    const slots = multi() && !neighborsOn() ? EXAM_ORDER : [workIx()], one = slots.length === 1;
+    const slots = multi() && !neighborsOn() ? row().order : [workIx()], one = slots.length === 1;
     const cell = (id, n) => (shownIn(id, n) ? reading(id, n.m) : { txt: 'not measured', ok: null });
     const rows = benchIds().map(id => { const cells = slots.map(sl => cell(id, NOTES[sl]));
       return [SPEC[id].name, [specTarget(id), mode === 'exam' && id === 'keyHeight' ? '' : specBand(id)].filter(Boolean).join('; passes '), ...cells,
@@ -2732,7 +2759,7 @@ function frame(now) {
   if (paused && !held) { dtSim = stepFrames ? Math.min(FRAME_S * scale, 120 * H_STEP) : 0; stepFrames = Math.max(0, stepFrames - 1); }
   if (cue?.run) runCue();
   else if (dtSim > 0) advance(dtSim);
-  NOTES.forEach((n, i) => { if (i === 0 || multi()) S.update(i, n.sim, eff(n.adj), i === cur ? hammerOverride : null, i === cur ? jackOverride : null, i === cur); });
+  NOTES.forEach((n, i) => { if (i < row().z.length) S.update(i, n.sim, eff(n.adj), i === cur ? hammerOverride : null, i === cur ? jackOverride : null, i === cur); });
   tickExam();
   if (mode !== 'tools') updateCallouts();
   placeGauge();
