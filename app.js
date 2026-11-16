@@ -1885,8 +1885,8 @@ function examScore() {
   const sh = EXAM_ORDER.filter(i => NOTES[i].m.sharp), nat = EXAM_ORDER.filter(i => !NOTES[i].m.sharp);
   if (sh.length) {
     const at = i => NOTES[i].m.aftertouch, mean = nat.reduce((t, i) => t + at(i), 0) / nat.length, [lo, hi] = band('aftertouch', 1);
-    const spread = Math.max(...sh.map(i => Math.abs(at(i) - mean)));
-    even.push({ id: 'aftertouch', name: 'Sharp\'s aftertouch matched to the naturals\'', ok: spread <= (hi - lo) / 2 * exam.level.tolK + 1e-9, spread });
+    const d = Math.max(...sh.map(i => Math.abs(at(i) - mean))), spread = Number.isFinite(d) ? d : null;
+    even.push({ id: 'aftertouch', name: 'Sharp\'s aftertouch matched to the naturals\'', ok: spread !== null && spread <= (hi - lo) / 2 * exam.level.tolK + 1e-9, spread });
   }
   if (exam.dampers) {
     const t = EXAM_ORDER.map(i => NOTES[i].m.fallMs), spread = Math.max(...t) - Math.min(...t);
@@ -2639,6 +2639,8 @@ const grandBench = {
       setThreeKeys(st.notes.length === 3);
       if (st.notes.length === 3) for (const i of [1, 2]) putNote(NOTES[i], { ...st.notes[i] });
       benchEpoch.sandbox++;   // (counted here, so the work's "before" is the regulation loaded, whole)
+      // (already on three keys, a neighbor may be the one selected: the loaded middle key goes on the middle)
+      if (cur !== 0) { store(); cur = 0; ({ adj, sim, m, tested } = NOTES[0]); S.setFocus(focusFor(viewNow)); }
       adj = st.notes.length === 3 ? asKey({ ...st.notes[0] }, true) : { ...st.notes[0] }; applyAdj();
     }
     $('aside').scrollTop = 0;

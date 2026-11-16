@@ -1938,6 +1938,7 @@ export function asKey(a, sharp) {
   const from = a.sharp ? sharpFactory() : FACTORY, to = sharp ? sharpFactory() : FACTORY;
   const out = { ...a, sharp };
   for (const k of Object.keys(FACTORY)) if (typeof a[k] === 'number' && typeof to[k] === 'number') out[k] = a[k] + to[k] - from[k];
+  for (const d of ADJ) if (typeof out[d.id] === 'number') out[d.id] = Math.max(d.min, Math.min(d.max, out[d.id]));   // (as far as a knob goes)
   if (!sharp) delete out.sharp;
   return out;
 }

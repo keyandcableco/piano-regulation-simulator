@@ -4,7 +4,7 @@
 // this module's, which sit in the same bars so the phone layouts carry over.
 // The upright's model, drawing and content are upright-model.js, scene-upright.js and content-upright.js; its tool bag
 // is toolbag.js's UPRIGHT_TOOLBAG, shown on its own picture's tool bench.
-import { FACTORY, ADJ, DAMAGE, Sim, measure, grade, pose, evenTol, DAMPER_PEDAL_LIFT, keyAngle, capstanTop, wippenOn, gRail, gString, sharpFactory } from './upright-model.js';
+import { FACTORY, ADJ, DAMAGE, Sim, measure, grade, pose, evenTol, DAMPER_PEDAL_LIFT, keyAngle, capstanTop, wippenOn, gRail, gString, sharpFactory, asKey } from './upright-model.js';
 import { hand, UPRIGHT_HOLD, HOLD_NAMES, dragTo } from './hand.js';
 import { createUprightScene } from './scene-upright.js';
 import { STEPS, TESTS, TIPS, TOOLS, SPEC_NAMES, REPAIRS, SCENARIOS, bandText, readingText, callouts, deregulated, fairStart, creditOf, advise, alsoText } from './content-upright.js';
@@ -490,7 +490,10 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
   }
   function handIn() { if (busy || !exam.started || exam.done) return; exam.result = examScore(); exam.done = true; document.getElementById('level').disabled = false; refresh(); }
   // (the key left on the bench is a natural again: the sharp is the exam's note 2 only)
-  function leaveExam() { exam = { started: false }; delete a.sharp; S.setPresent([true, true]); S.setKeys(); document.getElementById('level').disabled = false; }
+  function leaveExam() {
+    exam = { started: false }; S.setPresent([true, true]); S.setKeys(); document.getElementById('level').disabled = false;
+    if (a.sharp) setRegulation(asKey(a, false), { keepTested: false, replace: true });
+  }
   function renderExam(p) {
     if (!exam.started) {
       put(p, el('h2', {}, 'Upright exam: three notes'),
@@ -772,10 +775,10 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
     context: () => `${mode}|${dealt}`,
     snap: () => ({ notes: [tidy(a)] }),
     restore: st => { if (busy) return false; setRegulation({ damage: null, ...st.notes[0] }, { replace: true }); },
-    notes: st => st.notes,
+    notes: st => st.notes.map(b => (b.sharp ? asKey(b, false) : b)),   // (a code says nothing of the kind of key)
     fault: () => (mode === 'diagnose' && scenario ? { c: scenario.complaint, w: scenario.custom ? scenario.cause : `${scenario.cause}. ${alsoText(scenario) ? `${alsoText(scenario)}. ` : ''}The fix: ${scenario.fix}.` } : null),
     draft: st => {
-      const parts = Object.entries(diffAdj(st.notes[0], BENCH_RULES)).map(([k, v]) => typeof v === 'string' ? DAMAGE[v].name.toLowerCase()
+      const parts = Object.entries(diffAdj(st.notes[0].sharp ? asKey(st.notes[0], false) : st.notes[0], BENCH_RULES)).map(([k, v]) => typeof v === 'string' ? DAMAGE[v].name.toLowerCase()
         : `${ADJ.find(x => x.id === k).name.toLowerCase()} ${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(2)} mm from factory`);
       return parts.length ? `Set up with: ${parts.join('; ')}.` : 'Nothing is out: this action is at its factory regulation.';
     },

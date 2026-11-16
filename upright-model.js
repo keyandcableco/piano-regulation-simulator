@@ -869,6 +869,7 @@ export const sharpFactory = () => ({ ...FACTORY_SHARP, sharp: true });
 export function asKey(a, sharp) {
   const from = a.sharp ? FACTORY_SHARP : FACTORY, to = sharp ? FACTORY_SHARP : FACTORY, out = { ...a, sharp };
   for (const k of Object.keys(FACTORY)) if (typeof a[k] === 'number') out[k] = a[k] + to[k] - from[k];
+  for (const d of ADJ) if (typeof out[d.id] === 'number') out[d.id] = Math.max(d.min, Math.min(d.max, out[d.id]));   // (as far as a knob goes)
   if (!sharp) delete out.sharp;
   return out;
 }
