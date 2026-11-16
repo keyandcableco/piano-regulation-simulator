@@ -7,10 +7,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createToolStage } from './tools/stage.js';
 import { ruleTicks } from './gauge.js';
-import { G, FACTORY, NEIGHBOR_H, WEAR, TRAVEL_RISE, SIDE_K, WIPPEN_JACK_ARM, WIPPEN_PAPER, keyAngle, hamPt, repRho, knuckleBottom, linkage, dipOf, gFromTail, gOnJackAt, eff, trayLift } from './model.js';
+import { G, FACTORY, NEIGHBOR_H, WEAR, TRAVEL_RISE, SIDE_K, WIPPEN_JACK_ARM, WIPPEN_PAPER, SHARP, SHARP_KEY, NAT_TOP_AT_SHARP, keyAngle, keyPt, hamPt, repRho, knuckleBottom, linkage, dipOf, gFromTail, gOnJackAt, eff, trayLift } from './model.js';
 
 const COLORS = {
-  keybed: 0x6e4c2e, rail: 0xa47a4c, wood: 0xd7b98c, keywood: 0xe6d3ad, keytop: 0xf6f3ea,
+  keybed: 0x6e4c2e, rail: 0xa47a4c, wood: 0xd7b98c, keywood: 0xe6d3ad, keytop: 0xf6f3ea, sharp: 0x22201e,
   felt: 0x2f6e46, redfelt: 0x9b2f2f, hammerfelt: 0xeee6d2, buckskin: 0xb38b55, core: 0x8f6446, knucklefelt: 0xeeeae2,
   jack: 0xc9a06a,
   brass: 0xc9a24a, steel: 0xa9afb6, string: 0xcfd3d8, dark: 0x3a2c22, ghost: 0xf2efe7,
@@ -38,6 +38,11 @@ const PART_NAMES = {
 export const BASS = -1;
 // note slots: 0 is the middle (the one normal modes use), 1 toward the bass, 2 toward the treble
 export const NOTE_Z = [0, 23.5 * BASS, -23.5 * BASS];
+// With a sharp in the middle (the Sandbox's three keys and the exam: model.js SHARP), the three notes are neighbors a
+// semitone apart, as on a piano: an octave of seven 23.5 mm naturals holds twelve notes. The naturals' fronts stand
+// 23.5 mm apart, the sharp centered between them.
+export const SEMITONE = 23.5 * 7 / 12;
+export const NOTE_Z_SHARP = [0, SEMITONE * BASS, -SEMITONE * BASS];
 // The underlever's pin, lift felt and wire clamp are the model's (G.ulPivot, G.ulFelt, G.ulWire: the lift ratio comes
 // from them). Its own frame runs along the line from the pin to the lift felt's face; the wood lies above that line.
 const UL_PIVOT = G.ulPivot;        // underlever centre pin
@@ -264,6 +269,46 @@ export function createScene(canvas, overlay) {
     return m;
   }
 
+  // a six-sided block from its eight corners, [x, y, z]: four underneath (x0 z0, x1 z0, x1 z1, x0 z1), then the four on
+  // top in the same order
+  function block(c, color, part, parent, opts = {}) {
+    const F = [[0, 1, 2], [0, 2, 3], [4, 6, 5], [4, 7, 6], [0, 3, 7], [0, 7, 4], [1, 5, 6], [1, 6, 2], [0, 4, 5], [0, 5, 1], [3, 2, 6], [3, 6, 7]];
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(F.flat().flatMap(i => c[i]), 3));
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, mat(color, opts));
+    parent.add(m); register(m, part, opts);
+    return m;
+  }
+  // The sharp: a stick a semitone wide, and its ebony standing SHARP.height over the naturals, its faces sloping in
+  // (model.js SHARP: stand-in sizes until Greg's measured keys). Built in the natural's key-local frame.
+  const SHARP_STICK = 11;
+  function sharpBody(parent) {
+    const g = new THREE.Group(); g.visible = false; parent.add(g);
+    const x0 = G.keyFrontLocal + SHARP.base, x1 = x0 + SHARP.len, t0 = SHARP_KEY.front, t1 = t0 + SHARP.topLen;
+    const w = SHARP.w / 2, wt = SHARP.wTop / 2, y0 = G.keyThick, y1 = SHARP_KEY.top;
+    ext(rect(x0, 0, 235, G.keyThick), SHARP_STICK, 0, COLORS.keywood, 'key', g);
+    block([[x0, y0, -w], [x1, y0, -w], [x1, y0, w], [x0, y0, w], [t0, y1, -wt], [t1, y1, -wt], [t1, y1, wt], [t0, y1, wt]], COLORS.sharp, 'key', g);
+    for (const x of [-150, -130]) cyl(4.5, SHARP_STICK - 0.2, 'z', [x, 11, 0], 0x8a8f96, 'key', g, { metal: true, noPick: true });
+    return g;
+  }
+  // A natural beside the sharp: its head full width in front of the sharp, its tail cut back 1 mm clear of it, the stick
+  // behind them a semitone wide on its own action. u: distance across from the sharp's middle (world), turned into the
+  // note's own z.
+  function notchedNatural(parent, slot) {
+    const g = new THREE.Group(); g.visible = false; parent.add(g);
+    const ax = Math.abs(NOTE_Z_SHARP[slot]), toMid = -Math.sign(NOTE_Z_SHARP[slot]);
+    const span = (u0, u1) => { const a = toMid * (ax - u0), b = toMid * (ax - u1); return [Math.min(a, b), Math.max(a, b)]; };
+    const piece = (x0, x1, y0, y1, [z0, z1], color, opts) => ext(rect(x0, y0, x1, y1), z1 - z0, (z0 + z1) / 2, color, 'key', g, opts);
+    const head = span(0.75, 22.75), tail = span(SHARP.w / 2 + 1, 22.75), back = [-6.6, 6.6];
+    const hx = G.keyFrontLocal + SHARP.base - 1, top = G.keyThick + G.keyTopCap;
+    piece(-235, hx, 0, G.keyThick, head, COLORS.keywood); piece(hx, -85, 0, G.keyThick, tail, COLORS.keywood); piece(-85, 235, 0, G.keyThick, back, COLORS.keywood);
+    piece(-235, hx, G.keyThick, top, [head[0] - 0.2, head[1] + 0.2], COLORS.keytop); piece(hx, -85, G.keyThick, top, [tail[0] - 0.2, tail[1] + 0.2], COLORS.keytop);
+    piece(-236.5, -235, -2, top, [head[0] - 0.2, head[1] + 0.2], COLORS.keytop);
+    for (const x of [-170, -150]) cyl(4.5, tail[1] - tail[0] - 0.2, 'z', [x, 11, (tail[0] + tail[1]) / 2], 0x8a8f96, 'key', g, { metal: true, noPick: true });
+    return g;
+  }
+
   // ---------- shared frame: keybed and rails ----------
   const fixed = new THREE.Group();
   scene.add(fixed);
@@ -304,6 +349,18 @@ export function createScene(canvas, overlay) {
   const straightedge = new THREE.Group(); fixed.add(straightedge);
   ext(rect(-6, NEIGHBOR_H, 30, NEIGHBOR_H + 3), 90, 0, COLORS.steel, 'straightedge', straightedge, { metal: true, noPick: true });
   straightedge.visible = false;
+  // a sharp height gauge: a bridge standing on the naturals either side of the sharp, its underside SHARP.height over
+  // them, which the sharp's top should just touch (Fred Sturm's sharp height gauge, research/bench-tips.md)
+  const sharpGauge = new THREE.Group(); fixed.add(sharpGauge); sharpGauge.visible = false;
+  {
+    const x0 = G.balX + SHARP_KEY.front + 2, H = NAT_TOP_AT_SHARP + SHARP.height;
+    ext(rect(x0, H, x0 + 12, H + 3), 46, 0, COLORS.steel, 'straightedge', sharpGauge, { metal: true, noPick: true });
+    for (const z of [-15, 15]) ext(rect(x0, NAT_TOP_AT_SHARP, x0 + 6, H), 6, z, COLORS.steel, 'straightedge', sharpGauge, { metal: true, noPick: true });
+  }
+  // the sharp's own rows on the front and balance rails, behind the naturals' (model.js SHARP), drawn with the sharp
+  const sharpRails = new THREE.Group(); fixed.add(sharpRails); sharpRails.visible = false;
+  ext(rect(SHARP_KEY.frontRailX - 8, 0, SHARP_KEY.frontRailX + 8, G.frontRailY), 80, 0, COLORS.rail, 'frontrail', sharpRails);
+  ext(rect(G.balX + 12, 0, G.balX + SHARP_KEY.s + 9, G.balRailY), 80, 0, COLORS.rail, 'balrail', sharpRails);
 
   // ---------- one note: key, wippen, jack, repetition lever, hammer and its screws ----------
   function makeNote(slot) {
@@ -312,9 +369,9 @@ export function createScene(canvas, overlay) {
     const n = { root };
     // punchings, pins, let-off button, drop screw, flanges, strings
     n.frontPunch = cyl(6, 1, 'y', [G.frontRailX, 0, 0], COLORS.felt, 'frontpunch', root);
-    cyl(1.2, 22, 'y', [G.frontRailX, G.frontRailY + 11, 0], COLORS.steel, 'frontrail', root, { metal: true, noPick: true });
+    n.frontPin = cyl(1.2, 22, 'y', [G.frontRailX, G.frontRailY + 11, 0], COLORS.steel, 'frontrail', root, { metal: true, noPick: true });
     n.balPunch = cyl(6, 1, 'y', [G.balX, 0, 0], COLORS.felt, 'balance', root);
-    cyl(1.5, 30, 'y', [G.balX, G.balRailY + 15, 0], COLORS.steel, 'balrail', root, { metal: true, noPick: true });
+    n.balPin = cyl(1.5, 30, 'y', [G.balX, G.balRailY + 15, 0], COLORS.steel, 'balrail', root, { metal: true, noPick: true });
     // wippen flange: a fork hanging under the wippen's center pin, screwed to the wippen rail
     const wfl = n.wfl = new THREE.Group(); wfl.position.set(G.W[0], G.W[1], 0); root.add(wfl);
     ext(shapeFrom(W_FLANGE), 3, -4.3, COLORS.wood, 'wflange', wfl);
@@ -374,12 +431,17 @@ export function createScene(canvas, overlay) {
     ext(rect(-1.5, DROP_LEN - 0.2, 1.5, DROP_LEN + 2.4), 0.9, 0, COLORS.steel, 'drop', ds, { metal: true });
     for (const z of [-3.5, 0, 3.5]) cyl(0.55, 420, 'x', [440, G.stringY + 0.55, z], COLORS.string, 'string', root, { metal: true });
 
-    // key, with capstan and backcheck
-    const key = n.key = new THREE.Group(); root.add(key);
-    ext(rect(-235, 0, 235, G.keyThick), 21, 0, COLORS.keywood, 'key', key);
-    ext(rect(-235, G.keyThick, -85, G.keyThick + G.keyTopCap), 21.4, 0, COLORS.keytop, 'key', key);
-    ext(rect(-236.5, -2, -235, G.keyThick + G.keyTopCap), 21.4, 0, COLORS.keytop, 'key', key);
-    for (const x of [-170, -150]) cyl(4.5, 21.2, 'z', [x, 11, 0], 0x8a8f96, 'key', key, { metal: true, noPick: true });
+    // key, with capstan and backcheck. n.key turns on the key's own balance pin; keyIn holds its parts in the natural's
+    // key-local frame, shifted back with a sharp's pin (SHARP.balBack). Its body: a natural, or with the sharp in the
+    // middle, the sharp (slot 0) or a natural cut round it (slots 1 and 2).
+    const keyPivot = n.key = new THREE.Group(); root.add(keyPivot);
+    const key = n.keyIn = new THREE.Group(); keyPivot.add(key);
+    const nat = n.natBody = new THREE.Group(); key.add(nat);
+    ext(rect(-235, 0, 235, G.keyThick), 21, 0, COLORS.keywood, 'key', nat);
+    ext(rect(-235, G.keyThick, -85, G.keyThick + G.keyTopCap), 21.4, 0, COLORS.keytop, 'key', nat);
+    ext(rect(-236.5, -2, -235, G.keyThick + G.keyTopCap), 21.4, 0, COLORS.keytop, 'key', nat);
+    for (const x of [-170, -150]) cyl(4.5, 21.2, 'z', [x, 11, 0], 0x8a8f96, 'key', nat, { metal: true, noPick: true });
+    n.sharpBody = slot === 0 ? sharpBody(key) : notchedNatural(key, slot);
     // capstan: a brass screw with a shallow dome on top, which the heel cushion rolls on
     n.capstan = cyl(CAP_R, 1, 'y', [G.capstanLocal, 0, 0], COLORS.brass, 'capstan', key, { metal: true });
     n.capDome = new THREE.Mesh(new THREE.SphereGeometry(G.capDomeR, 24, 6, 0, Math.PI * 2, 0, Math.asin(CAP_R / G.capDomeR)), mat(COLORS.brass, { metal: true }));
@@ -536,13 +598,19 @@ export function createScene(canvas, overlay) {
   const N0 = notes[0];
 
   // ---------- one note or three ----------
-  let noteCount = 1, focus = null;
-  function setNoteCount(c) {
-    noteCount = c;
-    notes.forEach((n, i) => { n.root.visible = i < c; });
+  // sharp: the three-key model with the sharp in the middle, a semitone apart (NOTE_Z_SHARP)
+  let noteCount = 1, focus = null, sharpOn = false;
+  function setNoteCount(c, sharp = false) {
+    noteCount = c; sharpOn = sharp && c === 3;
+    notes.forEach((n, i) => {
+      n.root.visible = i < c; n.root.position.z = (sharpOn ? NOTE_Z_SHARP : NOTE_Z)[i];
+      n.natBody.visible = !sharpOn; n.sharpBody.visible = sharpOn;
+    });
+    sharpRails.visible = sharpOn;
     ghosts.visible = c === 1;
     applyFocus();
   }
+  const noteZ = i => notes[i].root.position.z;
   // in the three-note model, fade the notes you are not working on so the side views stay readable
   function setFocus(i) { focus = i; applyFocus(); }
   function applyFocus() {
@@ -701,7 +769,7 @@ export function createScene(canvas, overlay) {
     for (const b of BC_KNOBS) {
       const a = eff({ ...FACTORY, backcheck: b }), d = dipOf(a);
       const at = (dKey, g, t) => {
-        const k = keyAngle(a, dKey); n.key.position.set(G.balX, k.By, 0); n.key.rotation.z = k.th;
+        const k = keyAngle(a, dKey); n.key.position.set(G.balX + k.s, k.By, 0); n.key.rotation.z = k.th; n.keyIn.position.x = -k.s;
         n.hammer.rotation.z = g; n.bc.rotation.z = b / 80 + t;
         return tailHits(n, bcOutline(n));
       };
@@ -737,7 +805,7 @@ export function createScene(canvas, overlay) {
 
   // ---------- part labels (on the middle note) ----------
   const LABELS = [
-    [N0.key, [-150, 30, 0], 'Key'], [N0.capDome, [0, 4, 0], 'Capstan'], [fixed, [G.balX, 12, 41], 'Balance rail'],
+    [N0.keyIn, [-150, 30, 0], 'Key'], [N0.capDome, [0, 4, 0], 'Capstan'], [fixed, [G.balX, 12, 41], 'Balance rail'],
     [fixed, [12, 8, 41], 'Front rail'], [fixed, [456, 12, 41], 'Back rail'], [N0.wippen, [-28, 2, 7], 'Wippen'],
     [N0.jack, [8, 28, 4], 'Jack'], [N0.rep, [-12, 9, 7], 'Repetition lever'], [N0.letoffBtn, [G.letoffX, -1, 6], 'Let-off button'],
     [N0.root, [G.dropX, 146, 10], 'Drop screw'], [N0.hammer, [G.knuckleC[0], G.knuckleC[1] - 4, 5], 'Knuckle'],
@@ -898,16 +966,18 @@ export function createScene(canvas, overlay) {
   function showStack(n, on, shared) {
     for (const c of n.root.children) c.visible = on || c === n.key || KEY_PARTS.has(c.userData.part);
     // the shared rails come back with any note's stack (a test cut short by a mode change can leave another note current)
-    if (shared || on) for (const c of fixed.children) if (c !== ghosts && c !== straightedge) c.visible = on || KEY_PARTS.has(c.userData.part);
+    if (shared || on) for (const c of fixed.children) if (c !== ghosts && c !== straightedge && c !== sharpRails && c !== sharpGauge) c.visible = on || KEY_PARTS.has(c.userData.part);
   }
 
   function update(slot, sim, a, hammerOverride = null, jackOverride = null, drawShared = slot === 0) {
     if (!bcMore) fitBackcheck();   // (it poses the middle note to do it: before this frame's own pose)
     const n = notes[slot];
     const k = keyAngle(a, sim.keyShown ?? sim.d);
-    n.key.position.set(G.balX, k.By, 0); n.key.rotation.z = k.th;
+    n.key.position.set(G.balX + k.s, k.By, 0); n.key.rotation.z = k.th; n.keyIn.position.x = -k.s;
+    // its punchings and pins: a sharp's sit behind the naturals' (model.js SHARP)
+    n.frontPunch.position.x = n.frontPin.position.x = k.K.frontRailX; n.balPunch.position.x = n.balPin.position.x = G.balX + k.s;
     // key bushings: side play lets the front swing about the balance pin, and twist on it; a worn one rests off center
-    n.key.rotation.y = Math.asin(BASS * (sim.keyRock ?? a.keyLean ?? 0) / -G.keyFrontLocal);
+    n.key.rotation.y = Math.asin(BASS * (sim.keyRock ?? a.keyLean ?? 0) / k.K.arm);
     n.key.rotation.x = sim.keyTwist ?? 0;
     if (!!n.stackOff !== !!sim.stackOff) { n.stackOff = !!sim.stackOff; showStack(n, !n.stackOff, drawShared); }
     const L = sim.L;
@@ -983,7 +1053,7 @@ export function createScene(canvas, overlay) {
     n.feltG.scale.y = (G.crownC[1] + G.crownR - H_FELT_FOOT + WEAR.crown * w) / (G.crownC[1] + G.crownR - H_FELT_FOOT);
     n.heelG.scale.y = (2.1 + WEAR.capstan * w) / 2.1;
     // damper: the underlever's felt sits damperGap above the key end; the head rises with it
-    const keyTop = k.By + Math.sin(k.th0) * G.dmpContactLocal + G.keyThick * Math.cos(k.th0);
+    const keyTop = keyPt(k.By, k.th0, [G.dmpContactLocal, G.keyThick], k.s)[1];
     // (the underlever drop test lifts the underlever alone, its wire unhooked: the head stays on the strings)
     const feltY = keyTop + (a.damperGap ?? 3.5) + (sim.ulShown ?? sim.yd / G.dmpRatio);
     const th = solveUl(feltY);
@@ -1160,10 +1230,10 @@ export function createScene(canvas, overlay) {
     anim: { get: () => viewAnim, set: v => { viewAnim = v; } },
     hooks: { save: () => { savedClip = clipNow; setClip(null); }, restore: () => setClip(savedClip),
       hide: () => { fixed.visible = false; notes.forEach(n => { n.root.visible = false; }); },
-      show: () => { fixed.visible = true; setNoteCount(noteCount); } } });
+      show: () => { fixed.visible = true; setNoteCount(noteCount, sharpOn); } } });
   const showTool = tools.show, hideTool = tools.hide, spinTool = tools.turn;
 
   setNoteCount(1);
   return { render, update, setView, zoomBy, slideBy, resetView, showTool, hideTool, spinTool, highlight, pick, screenOf, setCallout, clearCallouts, setCallouts, backcheckGap, setBackground, controls, camera, setLabels,
-           setNoteCount, setFocus, setGauge, setInset, setInsetText, setInsetMode, insetEl: insetBox, straightedge, PART_NAMES, VIEWS };
+           setNoteCount, noteZ, setFocus, setGauge, setInset, setInsetText, setInsetMode, insetEl: insetBox, straightedge, sharpGauge, PART_NAMES, VIEWS };
 }

@@ -9,6 +9,7 @@ import { TOOLBAG, renderToolBag } from './toolbag.js';
 import { BUSHINGS, KEY, CENTERS, CENTER_FAULTS, band, cancelled, BLOWS, REPEAT_F, REPEAT_SOUNDS, touch, dipAt, repeatRun, pedalFor } from './model.js';
 import { initControls, markView, closeMenu, compact, onCompact, panelTo } from './controls.js';
 import { SPEC_SETS, specSet, setSpecSet, specSource } from './model.js';
+import { SHARP, NAT_TOP_AT_SHARP, sharpFactory, asKey, sharpDipBand } from './model.js';
 import { GAUGES, graduation, parseReading, judgeReading } from './gauge.js';
 import { holdKey } from './keyfader.js';
 import { mountBench } from './bench-ui.js';
@@ -133,8 +134,10 @@ let viewNow = 'action';
 let travelRestG = null;   // the hammer's rest angle in the traveling view, held while a test lifts it
 let winkRestG = null;     // and in the wink test's view, held while the jack is tripped
 const TOGETHER = new Set(['angle', 'damperline', 'damperrow']);
-const focusFor = name => !multi() || name === 'hammerline' || (examActive() ? exam.done : TOGETHER.has(name)) ? null : cur;
-const view = name => { viewNow = name; travelRestG = null; S.setFocus(focusFor(name)); S.setView(name, NOTE_Z[cur]); showView(); };
+// (with the sharp in, the key views show all three keys: the sharp is read against the naturals beside it)
+const KEY_VIEWS = new Set(['keyfront', 'keytop']);
+const focusFor = name => !multi() || name === 'hammerline' || (sharpModel() && KEY_VIEWS.has(name)) || (examActive() ? exam.done : TOGETHER.has(name)) ? null : cur;
+const view = name => { viewNow = name; travelRestG = null; S.setFocus(focusFor(name)); S.setView(name, S.noteZ(cur)); showView(); };
 // the View button names the view, and its menu marks it; the views only tests use are named here
 // (short enough to fit the button: tests/controls-check.cjs lists them too)
 const TEST_VIEWS = { travel: 'Traveling', jackfront: 'Jack from the keys', checkfront: 'Backcheck, end on', checktop: 'Backcheck, above',
@@ -225,7 +228,7 @@ const STEPS = [
   { spec: 'damperStop', title: 'Damper stop rail', knobs: ['damperStop'], test: 'damperSlow',
     what: 'With the key held firmly down, the damper head should still have a little play before the underlever reaches the stop rail: about 1/16" on this note. Steinway gives about 1/16" in the treble and 3/32" in the bass; Kawai allows 1 to 2 mm.',
     how: 'Raise or lower the rail. It keeps dampers from flying up on hard staccato and bobbling on the way down. It is not the pedal\'s stop: the pedal has its own, set lower.',
-    note: 'The makers check this holding a sharp down, since the sharps lift their dampers a little higher. The sim has no sharp, so it reads this natural. Simplified here: the damper falls by its own weight. Many bass dampers also have springs.' },
+    note: 'The makers check this holding a sharp down, since the sharps lift their dampers a little higher. This key is a natural; the Sandbox\'s three keys and the exam have a sharp in the middle to check it on. Simplified here: the damper falls by its own weight. Many bass dampers also have springs.' },
   { spec: 'pedalLift', also: ['pedalStart'], title: 'Damper pedal lift', knobs: ['pedalLift', 'damperGap'], test: 'pedalTest', tests: ['pedalTest', 'pedalWink'],
     what: 'The pedal should lift every damper as high as the keys lift them, or a hair less, and never up to the stop rail. Kawai: the same height with the pedal as with the keys. Steinway: to a point below the stop rail, slightly below where the sharp keys lift. And the dampers should all leave the strings together: barely wink the pedal and watch for one that starts before or after the rest.',
     how: 'Set the pedal\'s stop (or the rod length) so the lift tray takes the dampers to the key\'s lift or just under it. Too little and the dampers don\'t clear the strings cleanly; too much and the pedal drives the dampers into the stop rail with a thump. A damper that starts early or late on the pedal has its underlever off the line of the others: move the underlever on its wire, the same set screw that times it at the key.',
@@ -243,9 +246,11 @@ const STEPS = [
 ];
 
 // ---------- tests ----------
+const testLabel = id => (adj.sharp && TESTS[id].sharpLabel) || TESTS[id].label;
 const TESTS = {
-  straightedge: { label: 'Lay the straightedge', specs: ['keyHeight'], view: 'keyfront',
-    run: async () => { await releaseKey(); S.straightedge.visible = true; await waitReal(3); S.straightedge.visible = false; } },
+  // a sharp's height is read with a sharp height gauge standing on the naturals either side (Fred Sturm's, bench-tips)
+  straightedge: { label: 'Lay the straightedge', sharpLabel: 'Sharp height gauge on the naturals', specs: ['keyHeight'], view: 'keyfront',
+    run: async () => { await releaseKey(); const g = adj.sharp ? S.sharpGauge : S.straightedge; g.visible = true; await waitReal(3); g.visible = false; } },
   sightJack: { label: 'Sight the jack under the knuckle', specs: ['jackPos'], view: 'escapement', run: async () => { await releaseKey(); } },
   // seen where a technician looks: the jack and, in the same picture, the hammer head against a mark at its rest height
   wink: { label: 'Trip the jack (wink test)', specs: ['wink'], view: 'wink',
@@ -322,7 +327,7 @@ const TESTS = {
       await waitReal(0.8);
       setPedal(false); await waitSim(0.25);
     } },
-  dipBlock: { label: 'Dip block at the key front', specs: ['dip'], view: 'keyfront',
+  dipBlock: { label: 'Dip block at the key front', sharpLabel: 'Press the sharp down beside the naturals', specs: ['dip'], view: 'keyfront',
     run: async () => { if (gaugeMode) return gaugeDip(); await releaseKey(); sim.press(sim.dip, 12); await waitSim(1.4); await waitReal(1.2); await releaseKey(); } },
   slowPress: { label: 'Press slowly to the bottom', specs: ['letoff', 'drop', 'aftertouch'], view: 'hammer',
     run: async () => { if (gaugeMode && await gaugeSlowPress()) return; await releaseKey(); sim.press(sim.dip, 6); await waitSim(2.2); await waitReal(1.2); } },
@@ -648,7 +653,7 @@ async function runTest(id) {
   view(t.view);
   if (mode === 'diagnose' || examActive()) testsUsed++;
   forcedScale = t.scale ?? 1;
-  testLog.start(t.label, () => JSON.stringify(adj));   // what it says fills in on a card over the picture
+  testLog.start(testLabel(id), () => JSON.stringify(adj));   // what it says fills in on a card over the picture
   refresh();
   const mode0 = mode, set0 = tested;   // (a rule put away by a change of tab marks nothing measured)
   try { await t.run(); } finally { busy--; forcedScale = null; watch = null; testLog.done(); }
@@ -670,12 +675,14 @@ let gaugeNow = null;   // the reading being taken: { id, zero, x, truth, hide: r
 const gaugeEl = $('#gaugeask');
 const exact = v => units === 'in' ? `${fracIn(v)} (${mm2(v)})` : `${mm2(v)} (${fracIn(v)})`;
 const crownG = y => { let lo = -0.6, hi = 0.7; for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (crownY(mid) < y) lo = mid; else hi = mid; } return (lo + hi) / 2; };
-const keyTopFront = d => { const k = keyAngle(eff(adj), d, true); return keyPt(k.By, k.th, [G.keyFrontLocal, G.keyThick + G.keyTopCap]); };
+// the top of a key's front edge (a sharp's is its ebony's: model.js SHARP), d mm down; dx mm back along the top
+const keyTopAt = (a, d, soft = false, dx = 0) => { const k = keyAngle(a, d, soft); return keyPt(k.By, k.th, [k.K.front + dx, k.K.top], k.s); };
+const keyTopFront = d => keyTopAt(eff(adj), d, true);
 // every screen frame: the rule stays where it was laid, and its sight line follows the part being read
 function placeGauge() {
   const q = gaugeNow;
   if (!q) { S.setGauge(null); return; }
-  const nz = NOTE_Z[cur], spec = GAUGES[q.id];
+  const nz = S.noteZ(cur), spec = GAUGES[q.id];
   if (spec.at === 'hammer') S.setGauge({ units, length: spec.length, head: q.id === 'drop' ? 3 : 0, side: -1, x: q.x - 15, z: nz + 5.6, zero: q.zero,
     px: q.x + 5, py: crownTop(hammerOverride ?? sim.g)[1], mark: q.id === 'drop' });
   else S.setGauge({ units, length: spec.length, head: 3, side: -1, x: q.x - 2, z: nz + 10.6, zero: q.zero, px: q.x + 9, py: keyTopFront(sim.d)[1], mark: true, hideGhosts: true });
@@ -863,7 +870,7 @@ function paperTxt(d, net) {
 }
 // where a knob sits now: the Sandbox says, and a shared rail says it is shared
 function knobValue(id) {
-  const d = ADJ.find(x => x.id === id), net = Math.round((adj[id] - FACTORY[id]) * 100) / 100 || 0;   // as shown: no "-0.00"
+  const d = ADJ.find(x => x.id === id), net = Math.round((adj[id] - factoryOf(cur)[id]) * 100) / 100 || 0;   // as shown: no "-0.00"
   const valTxt = mode !== 'sandbox' ? ''
     : d.sides ? (Math.abs(net) < 0.005 ? 'no paper' : paperTxt(d, net))
     : d.dirs ? (Math.abs(net) < 0.005 ? 'at factory' : `${Math.abs(net).toFixed(2)} mm toward the ${net > 0 ? 'bass' : 'treble'} from factory`)
@@ -892,6 +899,7 @@ function viewFor(part) {
 // band keeps its edges, the sim's own narrows at Exam level and widens for the Apprentice)
 function specBand(id) {
   const s = SPEC[id], b = band(id, level().tolK);
+  if (id === 'dip' && adj.sharp) { const [lo, hi] = sharpDipBand(level().tolK); return `down, ${fmtEdge(lo)} to ${fmtEdge(hi)} above the naturals`; }
   if (id === 'spring') return `net lift ${s.lo} to ${s.hi} × hammer weight`;
   if (id === 'damperTiming') return `${Math.round(b[0] * 100)}% to ${Math.round(b[1] * 100)}%`;
   if (id === 'pedalLift') return `${fmtEdge(-b[0])} under to ${b[1] > 0.005 ? `${fmtEdge(b[1])} over` : 'level'}`;
@@ -907,6 +915,8 @@ function specBand(id) {
 }
 function specTarget(id) {
   const s = SPEC[id];
+  if (id === 'keyHeight' && adj.sharp) return `${fmt(SHARP.height)} above the naturals`;
+  if (id === 'dip' && adj.sharp) return 'the naturals\' aftertouch';
   if (id === 'keyHeight') return mode === 'exam' ? `given: ${fmt(NEIGHBOR_H)}` : 'level with neighbors';
   if (id === 'dip' && mode === 'exam') return `given: ${fmt(SPEC.dip.target)}`;
   if (id === 'jackPos') return 'aligned';
@@ -950,7 +960,10 @@ function reading(id, mm = m) {
   else if (SPEC[id].center) txt = `${r.v.toFixed(1)} g at ${CENTERS[SPEC[id].center].at} mm` + (id === 'hammerCenter' ? `, ${mm.swings} half-swings` : '')
     + (r.note ? ` · ${r.note}` : '');
   else if (r.v == null) txt = r.note || '—';
+  else if (id === 'keyHeight' && mm.sharp) txt = Math.abs(r.v) < 0.05 ? `${fmt(SHARP.height)} above the naturals` : `${fmtGraded(id, Math.abs(r.v))} ${r.v > 0 ? 'high' : 'low'}`;
   else if (id === 'keyHeight') txt = Math.abs(r.v) < 0.05 ? 'level' : `${fmtGraded(id, Math.abs(r.v))} ${r.v > 0 ? 'high' : 'low'}`;
+  // a sharp's dip: its travel, and where its top ends up against the naturals'
+  else if (id === 'dip' && mm.sharp) txt = `${fmt(r.v)} · down, ${r.bottom < 0 ? `${fmtGraded(id, -r.bottom)} below` : `${fmtGraded(id, r.bottom)} above`} the naturals` + (r.note ? ` · ${r.note}` : '');
   else if (id === 'jackPos') txt = Math.abs(r.v) < 0.05 ? 'aligned' : `${fmtGraded(id, Math.abs(r.v))} ${r.v > 0 ? 'too far back' : 'too far forward'}`;
   else txt = fmtGraded(id, r.v) + (r.note ? ` · ${r.note}` : '');
   if (id !== 'spring' && r.note && (id === 'keyHeight' || id === 'jackPos')) txt += ` · ${r.note}`;
@@ -1121,8 +1134,8 @@ function neighborBar() {
         el('button', { class: 'linkish', onclick: () => { selectNote(0); view(viewNow); } }, 'Back to the customer\'s key'))]);
 }
 const rnd = (lo, hi) => lo + Math.random() * (hi - lo), pm = x => rnd(-x, x);
-function deregulated() {
-  const a = { ...FACTORY };
+function deregulated(base = FACTORY) {
+  const a = { ...base };
   a.balPunch += pm(0.4); a.jackScrew += pm(1.2); a.repStop += rnd(-0.12, 0.3); a.capstan += pm(1.2);
   // (the level shank rests lower, so a low rail has less room before it is in the wippen: not below the knob's range)
   a.restRail = Math.max(ADJ.find(d => d.id === 'restRail').min, a.restRail + (Math.random() < 0.5 ? rnd(-4, -2) : rnd(0.5, 2))); a.frontPunch += pm(0.6);
@@ -1143,7 +1156,7 @@ function messUp() {
   if (mode === 'learn' && Math.random() < 1 / 4) { const k = Object.keys(CENTER_FAULTS); adj.center = k[Math.floor(Math.random() * k.length)]; }
   applyAdj();
 }
-function applyAdj() { generation++; clearFrames(); sim.setAdj(adj); sim.reset(); m = measure(adj); store(); S.clearCallouts(); refresh(); }
+function applyAdj() { generation++; clearFrames(); adj = keyKind(cur, adj); sim.setAdj(adj); sim.reset(); m = measure(adj); store(); S.clearCallouts(); refresh(); }
 
 // ---------- panel ----------
 // append children, skipping the nulls left by conditionals
@@ -1201,7 +1214,7 @@ function redraw() {
   $('#units').textContent = units === 'in' ? 'inches' : 'mm';
 }
 function testButton(id) {
-  return el('button', { class: 'test', disabled: busy ? '' : false, 'data-anchor': `test:${id}`, onclick: () => runTest(id) }, '▶ ', TESTS[id].label);
+  return el('button', { class: 'test', disabled: busy ? '' : false, 'data-anchor': `test:${id}`, onclick: () => runTest(id) }, '▶ ', testLabel(id));
 }
 const GRADED = STEPS.filter(s => !s.info);
 // a step checks its own spec and any that go with it (the jack centered side to side with its position, say)
@@ -1311,7 +1324,7 @@ let showCredits = false;
 const LIMITS = {
   both: [
     ['No sound.', 'Blocking, buzzing, bobbling and ringing strings are told in words, not heard. Nothing here trains the ear, and voicing and hammer-to-string mating are not modelled.'],
-    ['One natural key.', 'No sharp: nothing on sharp height, sharp dip, or the damper and pedal settings the makers check on a sharp. The three-note model is three naturals.'],
+    ['A stand-in sharp.', 'The three-key model has a sharp in the middle, a semitone from the natural either side, as real 3-key models do. Its height and its dip (matched to the naturals\' aftertouch, without burying) are graded as the makers give them, but its lever is the sim\'s own until a real key is measured: where its balance pin and front pin sit, and its size. Learn and Find the fault work on one natural.'],
     ['One note\'s geometry.', 'One place in the scale. No taper from bass to treble (let-off, springs, damper play), no bass dampers with springs.'],
     ['Generic targets.', 'Textbook numbers, not one maker\'s specs. On a real piano the maker\'s figures govern, and Steinway\'s or Kawai\'s own regulation would fail some checks here.'],
     ['Every click is exact and instant.', 'No stripped screws, no bent wire springing back, no paper that is nearly right. The time a job takes here says nothing about the bench.'],
@@ -1512,16 +1525,22 @@ let pop = null;   // the open card: { part, obj, local } (the spot clicked, pinn
 const popEl = $('#partpop'), popDot = $('#popdot');
 const popKnobs = part => ADJ.filter(d => d.part === (KNOB_PART[part] || part) && !(examActive() && !exam.dampers && DAMPER_KNOBS.includes(d.id))).map(d => d.id);
 function openPop(hit) {
-  pop = { part: hit.part, obj: hit.obj, local: hit.local, h0: null, shift: 0 };
+  pop = { part: hit.part, note: hit.note, obj: hit.obj, local: hit.local, h0: null, shift: 0 };
   S.highlight(KNOB_PART[hit.part] || hit.part, cur);
   renderPop();
+}
+// a part's name; the key is the sharp or a natural in the three-key model
+function partName(part, note) {
+  const slot = note >= 0 ? note : cur;
+  if (part === 'key' && sharpModel()) return NOTES[slot]?.adj.sharp ? 'Sharp (black key)' : 'Natural (white key)';
+  return S.PART_NAMES[part] || part;
 }
 function closePop() { if (!pop) return; pop = null; popEl.hidden = popDot.hidden = true; S.highlight(null); }
 function renderPop() {
   if (!pop) return;
   if (mode === 'tools' || mode === 'drills' || exam.done) { closePop(); return; }
   const tests = (PART_TESTS[pop.part] || []).filter(testOk), knobs = popKnobs(pop.part);
-  const full = S.PART_NAMES[pop.part] || pop.part, colon = full.indexOf(':');
+  const full = partName(pop.part, pop.note), colon = full.indexOf(':');
   const name = colon < 0 ? full : full.slice(0, colon), about = colon < 0 ? '' : full.slice(colon + 1).trim();
   // the readings its tests take, and (where the panel lists what sets what) the ones its adjustments set, once measured
   const specs = [...new Set([...tests.flatMap(t => TESTS[t].specs), ...(panelKnobs() ? knobs.flatMap(k => KNOB_FOR[k] || []).filter(revealed) : [])])];
@@ -1667,18 +1686,22 @@ function renderDrills(p) {
 // One key, or three neighbors on the same rails (the exam's three notes), to see the dampers lift and land together
 let threeKeys = false;
 const sharedOf = a => Object.fromEntries([...SHARED].map(k => [k, a[k]]));
-function putNote(n, a) { n.adj = a; n.sim.setAdj(a); n.sim.reset(); n.m = measure(a); n.tested = new Set(); }
+function putNote(n, a) { n.adj = keyKind(NOTES.indexOf(n), a); n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); n.tested = new Set(); }
+// a regulation put on a slot carries the slot's kind of key (a saved code or an undo keeps the knobs, not the kind)
+function keyKind(i, a) { const sharp = i === 0 && sharpModel(); if (!!a.sharp === sharp) return a; const o = { ...a }; if (sharp) o.sharp = true; else delete o.sharp; return o; }
 function setThreeKeys(on) {
   if (on === threeKeys || busy) return;
   setLoop(false); clearPlan(); clearFrames(); closePop();
   NOTES.forEach(n => { if (n.sim.dTarget > 0) n.sim.press(0, 60); });
   store();
-  // the neighbors start regulated, on the middle note's rails and as worn as it is
+  // the middle key turns sharp (or back), as far off its factory as it was; the neighbors start regulated, on its rails
+  // and as worn as it is
+  threeKeys = on; cur = 0;
+  putNote(NOTES[0], asKey(NOTES[0].adj, on));
   const a0 = NOTES[0].adj;
   for (const i of [1, 2]) putNote(NOTES[i], on ? { ...FACTORY, wear: a0.wear || 0, ...sharedOf(a0) } : { ...FACTORY });
-  threeKeys = on; cur = 0;
   ({ adj, sim, m, tested } = NOTES[0]);
-  S.setNoteCount(on ? 3 : 1); S.clearCallouts();
+  S.setNoteCount(on ? 3 : 1, on); S.clearCallouts();
   view(on ? 'damperrow' : viewNow === 'damperrow' ? 'dampers' : viewNow);   // the row of three has no button of its own
   refresh();
 }
@@ -1693,14 +1716,15 @@ function chord(slow) {
 // as worn as before, like Factory regulation; with three keys each knocked out on its own, the rails they share set once
 function messUpSandbox() {
   const rails = sharedOf(deregulated()), w = adj.wear || 0;
-  const one = () => ({ ...deregulated(), wear: w, ...rails });
-  if (multi()) NOTES.forEach((n, i) => { if (i !== cur) putNote(n, one()); });
-  adj = one(); applyAdj();
+  const one = i => ({ ...deregulated(factoryOf(i)), wear: w, ...rails });
+  if (multi()) NOTES.forEach((n, i) => { if (i !== cur) putNote(n, one(i)); });
+  adj = one(cur); applyAdj();
 }
+// (the rails the three share are set on the middle key: the sharp's, with the sharp in)
 function factoryAll() {
-  const w = adj.wear || 0;
-  if (multi()) NOTES.forEach((n, i) => { if (i !== cur) putNote(n, { ...FACTORY, wear: w }); });
-  adj = { ...FACTORY, wear: w }; applyAdj();
+  const w = adj.wear || 0, rails = sharedOf(factoryOf(0));
+  if (multi()) NOTES.forEach((n, i) => { if (i !== cur) putNote(n, { ...factoryOf(i), wear: w, ...rails }); });
+  adj = { ...factoryOf(cur), wear: w, ...(multi() ? rails : {}) }; applyAdj();
 }
 // the three dampers side by side: when each starts to lift on its key, and how long each takes to land off the pedal
 function damperCompare() {
@@ -1710,7 +1734,7 @@ function damperCompare() {
     ['Starts on the pedal', 'pedalStart', mm => Math.abs(mm.pedalStart) < 0.05 ? 'with the line' : `${fmt(Math.abs(mm.pedalStart))} ${mm.pedalStart > 0 ? 'early' : 'late'}`],
     ['Lands after the pedal', 'damperFall', mm => `${Math.round(mm.fallMs)} ms`]];
   return el('table', { class: 'specs score' },
-    el('thead', {}, el('tr', {}, el('th', {}, 'Dampers'), EXAM_ORDER.map((s, i) => el('th', {}, `Note ${i + 1}`)))),
+    el('thead', {}, el('tr', {}, el('th', {}, 'Dampers'), EXAM_ORDER.map((s, i) => el('th', {}, noteName(s, i))))),
     el('tbody', {}, rows.map(([name, id, txt]) => el('tr', {}, el('td', {}, name), EXAM_ORDER.map(cell(id, txt))))));
 }
 // The action ratio, as a reading: how far the hammer rises for each mm of key, and the three levers it is made of
@@ -1774,13 +1798,22 @@ let exam = { started: false, done: false };
 const examActive = () => mode === 'exam' && exam.started;
 // three notes in play: the exam model, or the Sandbox's three keys
 const multi = () => examActive() || (mode === 'sandbox' && threeKeys) || neighborsOn();
+// The three-key model has a sharp in the middle, a natural either side, as the 3-key action models on the bench do
+// (Greg, 2026-11-16; model.js SHARP): the Sandbox's three keys and the exam. Find the fault's customer's key stays a
+// natural, its cases being written for one.
+const sharpModel = () => examActive() || (mode === 'sandbox' && threeKeys);
+const factoryOf = i => (i === 0 && sharpModel() ? sharpFactory() : { ...FACTORY });
+const noteName = (slot, i) => `Note ${i + 1}${NOTES[slot].adj.sharp ? ' (sharp)' : ''}`;
 function startExam() {
   setPaused(false); $('#framepad').hidden = true; clearFrames(); closePop();
   const restRail = deregulated().restRail;
   const shared = deregulated();
-  NOTES.forEach(n => {
-    const a = { ...deregulated(), restRail, damperStop: shared.damperStop, pedalLift: shared.pedalLift };
-    if (!examDampers) for (const k of DAMPER_KNOBS) a[k] = FACTORY[k];
+  // the middle note is the sharp (sharpModel): it is dealt off its own factory, and with the dampers left out they
+  // stand at its regulation, the rails they share set on it
+  const base = i => (i === 0 ? sharpFactory() : { ...FACTORY }), railsAt = base(0);
+  NOTES.forEach((n, i) => {
+    const a = { ...deregulated(base(i)), restRail, damperStop: shared.damperStop, pedalLift: shared.pedalLift };
+    if (!examDampers) for (const k of DAMPER_KNOBS) a[k] = (SHARED.has(k) ? railsAt : base(i))[k];
     n.adj = a; n.sim.setAdj(a); n.sim.reset(); n.m = measure(a); n.tested = new Set();
   });
   if (LEVEL.damage) {
@@ -1795,7 +1828,7 @@ function startExam() {
   $('#level').disabled = true;
   testsUsed = 0; generation++;
   cur = EXAM_ORDER[0]; ({ adj, sim, m, tested } = NOTES[cur]); lastClock = '';
-  S.setNoteCount(3); S.setFocus(cur); S.clearCallouts();
+  S.setNoteCount(3, true); S.setFocus(cur); S.clearCallouts();
   refresh();
   view('angle');
 }
@@ -1839,13 +1872,22 @@ function examScore() {
   const rows = ids.filter(id => id !== 'hammerSound' || anyDamage).map(id => ({ id, cells: EXAM_ORDER.map(i =>
     notScored(id, i) ? { txt: '—', ok: true, skip: true } : { ...reading(id, NOTES[i].m), ok: gradeL(id, NOTES[i].m).ok }) }));
   const even = EVEN.concat(exam.dampers ? ['damperTiming'] : []).map(id => {
-    const vals = EXAM_ORDER.map(i => gradeL(id, NOTES[i].m).v);
+    // (a sharp's dip is its own: it is matched to the naturals by its aftertouch, below, so dip is even across the naturals)
+    const vals = EXAM_ORDER.filter(i => id !== 'dip' || !NOTES[i].m.sharp).map(i => gradeL(id, NOTES[i].m).v);
     // even: within the spec's tolerance of each other (half its band). The level scales this for every spec, a maker's
     // printed band too: the band's edges don't move at Exam level, but how alike three notes must be does.
     const [lo, hi] = band(id, 1);
     const ok = vals.every(v => v != null) && Math.max(...vals) - Math.min(...vals) <= (hi - lo) / 2 * exam.level.tolK + 1e-9;
     return { id, ok, spread: vals.every(v => v != null) ? Math.max(...vals) - Math.min(...vals) : null };
   });
+  // the sharp's aftertouch matched to the naturals' (Steinway: "duplicate the amount of aftertouch from the naturals"),
+  // within the aftertouch spec's tolerance of their mean, as the evenness lines are
+  const sh = EXAM_ORDER.filter(i => NOTES[i].m.sharp), nat = EXAM_ORDER.filter(i => !NOTES[i].m.sharp);
+  if (sh.length) {
+    const at = i => NOTES[i].m.aftertouch, mean = nat.reduce((t, i) => t + at(i), 0) / nat.length, [lo, hi] = band('aftertouch', 1);
+    const spread = Math.max(...sh.map(i => Math.abs(at(i) - mean)));
+    even.push({ id: 'aftertouch', name: 'Sharp\'s aftertouch matched to the naturals\'', ok: spread <= (hi - lo) / 2 * exam.level.tolK + 1e-9, spread });
+  }
   if (exam.dampers) {
     const t = EXAM_ORDER.map(i => NOTES[i].m.fallMs), spread = Math.max(...t) - Math.min(...t);
     even.push({ id: 'damperFall', ok: spread <= 5, spread, ms: true });
@@ -1879,10 +1921,11 @@ function renderExam(p) {
   if (exam.done) return renderExamResult(p);
   const n = EXAM_ORDER.indexOf(cur) + 1;
   put(p, el('div', { class: 'sheet' }, el('div', { class: 'muted small' }, 'Examiner\'s sheet'),
-      el('div', {}, `Key height: ${fmt(NEIGHBOR_H)} (straightedge set to it)`), el('div', {}, `Dip: ${fmt(SPEC.dip.target)}`)),
+      el('div', {}, `Key height: ${fmt(NEIGHBOR_H)} (straightedge set to it)`), el('div', {}, `Dip: ${fmt(SPEC.dip.target)}`),
+      el('div', {}, `Note 2, the sharp: ${fmt(SHARP.height)} above the naturals; dip to the naturals' aftertouch, its top still above theirs when down`)),
     el('div', { class: 'row notes' }, EXAM_ORDER.map((slot, i) =>
-      el('button', { class: slot === cur ? 'on' : '', disabled: busy ? '' : false, onclick: () => { selectNote(slot); view('angle'); } }, `Note ${i + 1}`))),
-    el('h3', {}, `Note ${n}`),
+      el('button', { class: slot === cur ? 'on' : '', disabled: busy ? '' : false, onclick: () => { selectNote(slot); view('angle'); } }, noteName(slot, i)))),
+    el('h3', {}, noteName(cur, n - 1)),
     AREAS.filter(a => exam.dampers || a.id !== 'dampers').map(areaPanel),
     repairs(), centerRepairs(Object.keys(CENTERS), { fold: true }));
   put($('#actionbar'), el('span', { class: 'muted small grow' }, `Note ${n} · tests run: ${testsUsed}`),
@@ -1899,12 +1942,12 @@ function renderExamResult(p) {
         + `Each of these is out of tolerance on more than one note, so the operation counts as not done and this practice caps the score below a pass${sc.raw > sc.pct ? ` (the items alone come to ${sc.raw}%)` : ''}. `
         + `Every check has to be in on at least ${OP_NEEDS} of the three notes.`) : null),
     el('table', { class: 'specs score' },
-      el('thead', {}, el('tr', {}, el('th', {}, 'Check'), el('th', {}, 'Note 1'), el('th', {}, 'Note 2'), el('th', {}, 'Note 3'))),
+      el('thead', {}, el('tr', {}, el('th', {}, 'Check'), EXAM_ORDER.map((slot, i) => el('th', {}, noteName(slot, i))))),
       el('tbody', {}, sc.rows.map(r => el('tr', {}, el('td', {}, SPEC[r.id].name), r.cells.map(cell))))),
     el('h3', {}, 'Evenness across the three notes'),
     el('table', { class: 'specs score' }, el('tbody', {}, sc.even.map(e =>
-      el('tr', {}, el('td', {}, e.ms ? 'Dampers land together' : SPEC[e.id].name), el('td', { class: e.ok ? 'okc' : 'badc' }, mark(e.ok),
-        e.spread == null ? 'not all working' : e.ms ? `${Math.round(e.spread)} ms apart` : e.id === 'damperTiming' ? `spread ${Math.round(e.spread * 100)}%` : `spread ${fmt(e.spread)}`))))),
+      el('tr', {}, el('td', {}, e.ms ? 'Dampers land together' : e.name ?? SPEC[e.id].name), el('td', { class: e.ok ? 'okc' : 'badc' }, mark(e.ok),
+        e.spread == null ? 'not all working' : e.ms ? `${Math.round(e.spread)} ms apart` : e.name ? `${fmt(e.spread)} off theirs` : e.id === 'damperTiming' ? `spread ${Math.round(e.spread * 100)}%` : `spread ${fmt(e.spread)}`))))),
     el('p', { class: 'muted small' }, `Evenness passes when the three notes are within each spec's tolerance of each other. Practice scoring, not PTG's.`),
     el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { toOneNote(); refresh(); } }, 'New exam')));
 }
@@ -1995,7 +2038,7 @@ function handleEvents() {
 const FRONT_VIEWS = new Set(['jackfront', 'checkfront', 'checktop', 'hammerline', 'damperline']);
 function updateCallouts() {
   if (sim.stackOff || sim.keyShown != null) { S.clearCallouts(); return; }   // the key and stack apart (key drop, wippen tilt): nothing to measure
-  const nz = NOTE_Z[cur], z = 9 + nz, L = sim.L, g = hammerOverride ?? sim.g;
+  const nz = S.noteZ(cur), z = 9 + nz, L = sim.L, g = hammerOverride ?? sim.g;
   // up and still: a key let go comes back with a bounce, down into the back rail cloth and up off it with the hammer
   // riding along, and passes through rest at every bounce. Read off the key's place alone, the lines measured at rest
   // blinked on and off with each one; the key is still only once the bounce has died out (or it never moved).
@@ -2039,13 +2082,12 @@ function updateCallouts() {
     S.setCallout('bcgap', [...b.tail, 8 + nz], [...b.bc, 8 + nz], `backcheck gap ${fmt(b.gap)}`); keep.push('bcgap');
   }
   if (show('keyHeight') && atRest) {
-    const k = keyAngle(eff(adj), 0), f = keyPt(k.By, k.th, [G.keyFrontLocal + 8, G.keyThick + G.keyTopCap]);
-    S.setCallout('kh', [f[0], f[1], 12 + nz], [f[0], NEIGHBOR_H, 12 + nz], reading('keyHeight').txt); keep.push('kh');
+    const f = keyTopAt(eff(adj), 0, false, 8), zc = adj.sharp ? SHARP.wTop / 2 + nz : 12 + nz;
+    S.setCallout('kh', [f[0], f[1], zc], [f[0], adj.sharp ? NAT_TOP_AT_SHARP : NEIGHBOR_H, zc], reading('keyHeight').txt); keep.push('kh');
   }
   if (show('dip')) {
-    const k = keyAngle(eff(adj), 0), f0 = keyPt(k.By, k.th0, [G.keyFrontLocal, G.keyThick + G.keyTopCap]);
-    const kk = keyAngle(eff(adj), sim.d), f1 = keyPt(kk.By, kk.th, [G.keyFrontLocal, G.keyThick + G.keyTopCap]);
-    if (sim.d > 0.05) { S.setCallout('dip', [f0[0] - 3, f0[1], 12 + nz], [f0[0] - 3, f1[1], 12 + nz], `${fmt(sim.d)}${sim.d >= sim.dip - 0.01 ? ' (dip)' : ''}`); keep.push('dip'); }
+    const f0 = keyTopAt(eff(adj), 0), f1 = keyTopAt(eff(adj), sim.d), zc = adj.sharp ? SHARP.wTop / 2 + nz : 12 + nz;
+    if (sim.d > 0.05) { S.setCallout('dip', [f0[0] - 3, f0[1], zc], [f0[0] - 3, f1[1], zc], `${fmt(sim.d)}${sim.d >= sim.dip - 0.01 ? ' (dip)' : ''}`); keep.push('dip'); }
   }
   // the jack's front-to-back line from the side; seen from the front, how far it sits off the knuckle's center
   if (show('jackPos') && atRest && viewNow !== 'jackfront') {
@@ -2068,9 +2110,8 @@ function updateCallouts() {
     S.setCallout('drop', [c0[0] + 8, c0[1], z], [c0[0] + 8, c0[1] - m.drop, z], `drop ${fmt(m.drop)}`, { end: true, dy: 18 }); keep.push('drop');
   }
   if (letoffD !== null && sim.d > letoffD + 0.02 && show('aftertouch')) {
-    const E = eff(adj), ka = keyAngle(E, letoffD), kb = keyAngle(E, sim.d);
-    const pa = keyPt(ka.By, ka.th, [G.keyFrontLocal + 20, G.keyThick + G.keyTopCap]), pb = keyPt(kb.By, kb.th, [G.keyFrontLocal + 20, G.keyThick + G.keyTopCap]);
-    S.setCallout('after', [pa[0], pa[1], 12 + nz], [pb[0], pb[1], 12 + nz], `aftertouch ${fmt(sim.d - letoffD)}`); keep.push('after');
+    const E = eff(adj), pa = keyTopAt(E, letoffD, false, 20), pb = keyTopAt(E, sim.d, false, 20), zc = adj.sharp ? SHARP.wTop / 2 + nz : 12 + nz;
+    S.setCallout('after', [pa[0], pa[1], zc], [pb[0], pb[1], zc], `aftertouch ${fmt(sim.d - letoffD)}`); keep.push('after');
   }
   if (checkMark !== null && sim.st.checked && show('check')) {
     const c = crownTop(checkMark); S.setCallout('check', [c[0] - 8, c[1], z], [c[0] - 8, G.stringY, z], `check ${fmt(G.stringY - c[1])}`); keep.push('check');
@@ -2343,7 +2384,7 @@ canvas.addEventListener('pointermove', e => {
   // with Move parts on, a part that moves; else the key, which plays; anywhere else drags the view
   canvas.style.cursor = hold ? 'move' : part === 'key' ? 'pointer' : '';
   if (part) {
-    tip.textContent = (S.PART_NAMES[part] || part) + (hold ? ` · drag to move ${HOLD_NAMES[hold]}` : '');
+    tip.textContent = partName(part, hit.note) + (hold ? ` · drag to move ${HOLD_NAMES[hold]}` : '');
     tip.style.transform = `translate(${e.offsetX + 14}px, ${e.offsetY + 10}px)`; tip.hidden = false;
   }
   else tip.hidden = true;
@@ -2565,7 +2606,8 @@ const grandBench = {
     if (!nb || cur === 0) { adj = { ...st.notes[cur] }; unsolve(); applyAdj(); } else { unsolve(); refresh(); }
   },
   // (Find the fault's neighbors are for comparing, not part of the work: the customer's key alone is saved and printed)
-  notes: st => (multi() && !neighborsOn() ? st.notes : [st.notes[workIx()]]),
+  // (a sharp travels as how far each knob is off its own factory: the code says nothing of the kind of key)
+  notes: st => (multi() && !neighborsOn() ? st.notes : [st.notes[workIx()]]).map(a => (a.sharp ? asKey(a, false) : a)),
   // where readings must be measured to be seen, "before" shows only what was measured before the work began
   blind: () => gaugeMode || !(mode === 'sandbox' || level().live),
   // a save is a difference from the regulated key, and that key follows the spec set: the set travels with it
@@ -2573,7 +2615,7 @@ const grandBench = {
   useSet: id => { if (specSet() !== id) pickSpecSet(id); return specSet() === id || !Object.hasOwn(SPEC_SETS, id); },
   fault: () => (mode === 'diagnose' && scenario ? { c: scenario.complaint, w: scenario.answer + (scenario.second ? ` Also: ${scenario.second.answer}` : '') } : null),
   draft: st => {
-    const parts = Object.entries(diffAdj(st.notes[workIx()], BENCH_RULES)).map(([k, v]) => {
+    const w = st.notes[workIx()], parts = Object.entries(diffAdj(w.sharp ? asKey(w, false) : w, BENCH_RULES)).map(([k, v]) => {
       if (typeof v === 'string') return (damageLabel(v) || BUSHINGS[v]?.name || CENTER_FAULTS[v]?.name || v).toLowerCase();
       if (k === 'wear') return `felt and cloth wear, about ${Math.round(v * 10)} years of playing`;
       const d = ADJ.find(x => x.id === k);
@@ -2597,7 +2639,7 @@ const grandBench = {
       setThreeKeys(st.notes.length === 3);
       if (st.notes.length === 3) for (const i of [1, 2]) putNote(NOTES[i], { ...st.notes[i] });
       benchEpoch.sandbox++;   // (counted here, so the work's "before" is the regulation loaded, whole)
-      adj = { ...st.notes[0] }; applyAdj();
+      adj = st.notes.length === 3 ? asKey({ ...st.notes[0] }, true) : { ...st.notes[0] }; applyAdj();
     }
     $('aside').scrollTop = 0;
   },
@@ -2614,7 +2656,7 @@ const grandBench = {
     const cells = rows.flatMap(r => r.slice(2, 2 + slots.length)), seen = cells.filter(c => c.ok !== null);
     meta.push(`${seen.filter(c => c.ok).length} of ${seen.length} measured readings in spec${seen.length < cells.length ? `, ${cells.length - seen.length} not measured` : ''}`);
     if (mode === 'diagnose' && scenario) meta.push(`the customer said: “${scenario.complaint}”`);
-    return { title: 'Grand action regulation record', meta, tables: [{ head: ['Check', 'Target; passes', ...(one ? ['Reading', 'In spec'] : slots.map((sl, i) => `Note ${i + 1}`))], rows }] };
+    return { title: 'Grand action regulation record', meta, tables: [{ head: ['Check', 'Target; passes', ...(one ? ['Reading', 'In spec'] : slots.map((sl, i) => noteName(sl, i)))], rows }] };
   },
 };
 bench = mountBench({ el, toast, refresh, adapter: () => (action === 'upright' ? U?.bench : mode === 'drills' || mode === 'tools' ? null : grandBench) });

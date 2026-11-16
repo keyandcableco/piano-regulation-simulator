@@ -223,6 +223,12 @@ export const SPEC = {
   underCenter:  { name: 'Damper underlever center: falls freely', center: 'under', unit: 'g', noExam: true, damper: true },
 };
 export const DAMPER_SPECS = Object.keys(SPEC).filter(k => SPEC[k].damper);
+// A sharp's key height and dip, read in place of a natural's (measure(): keyHeight, sharpBottom; grade()): its top 1/2 in
+// above the naturals' (graded with keyHeight's band), and held down, its top above theirs: Steinway's vertical guide's
+// 1/32 in to the sim's own 3 mm (Kawai: about 2 mm; West, on the PTG list: a nickel's thickness, 0.075 in)
+export const SHARP_DIP = { name: 'Sharp dip: matched to the naturals\' aftertouch, its top above theirs when down', target: 2, lo: IN / 32, hi: 3, unit: 'mm',
+  src: 'Steinway: duplicate the naturals\' aftertouch, the sharps must not bury; down, about 1/32 in above (vertical guide); Kawai: about 2 mm' };
+export function sharpDipBand(k = 1) { const c = (SHARP_DIP.lo + SHARP_DIP.hi) / 2, h = (SHARP_DIP.hi - SHARP_DIP.lo) / 2 * Math.max(1, k); return [c - h, c + h]; }
 // A spec's pass band [lo, hi] at skill factor k (1.5 Apprentice, 1 Journeyman, 0.75 Exam). A source's band keeps its
 // printed edges at k <= 1 and widens about its middle for the Apprentice; the sim's own tolerance scales with k.
 export function band(id, k = 1) {
@@ -440,38 +446,75 @@ export function measureCenters(a) {
   return out;
 }
 
+// ---------- the sharp (black key) ----------
+// The three-key views (the Sandbox's three keys and the exam) have a sharp in the middle with a natural either side, as
+// the 3-key action models on Greg's bench do (Greg, 2026-11-16). Its regulation is sourced: its top 1/2 in above the
+// naturals (Steinway's technical reference guide, key level: "set 1/2 in above the naturals"), and its dip not measured
+// but matched: the naturals' aftertouch, without the sharp burying in them (Steinway, grand regulation; Kawai's manual
+// 15.2: about 2 mm above the whites when down; Steinway's vertical guide: about 1/32 in, a penny). Its lever is not:
+// Hirschkorn measured one natural (note 52). Stand-ins [T] until Greg's measured keys:
+//   front: its front edge behind the naturals' front (the natural's head is about 2 in on most grands)
+//   balBack: how far behind the naturals' balance pins its own row sits. Solved (tests/sharp-lever.mjs) so a factory
+//     sharp, its aftertouch the naturals', bottoms SHARP.bottom above them, with its capstan, backcheck and the
+//     underlever's lift felt in the naturals' lines across the keyboard
+//   frontPin: its front rail pin behind the naturals' (it can't go under the naturals' heads)
+// Its stick, leads and ebony are taken as weighed off to the naturals' touch: the same front weight and inertia at its
+// own front (KEY_FW, M_KEY).
+export const SHARP = {
+  height: IN / 2, bottom: 2, front: 55, balBack: 26.7, frontPin: 52,
+  base: 51, len: 95, topLen: 85, w: 11, wTop: 9,   // the ebony [T]: its base's front edge behind the naturals', its length at the base and the top, its width at the base and the top
+};
+// A key's lever, in the natural's key-local frame (x from the naturals' balance pin, + toward the strings): s, its own
+// balance pin; front, the front edge of its top; top, that top's height over the key's underside; frontRailX, its
+// front rail pin (world x); arm, front edge to balance pin.
+const lever = (s, front, top, frontRailX) => ({ s, front, top, frontRailX, arm: s - front });
+export const NATURAL = lever(0, G.keyFrontLocal, G.keyThick + G.keyTopCap, G.frontRailX);
+// the sharp's top over its stick: 1/2 in over the naturals' at its front edge with the naturals' balance punching (the
+// two keys rest at slightly different slopes, their balance pins being apart)
+const SHARP_TILT = (() => {
+  const By = G.balRailY + 1.5, backY = G.backRailY, x = G.keyFrontLocal + SHARP.front;
+  const tN = Math.asin((backY - By) / (G.backRailX - G.balX)), tS = Math.asin((backY - By) / (G.backRailX - G.balX - SHARP.balBack));
+  return By + rot([x - SHARP.balBack, G.keyThick], tS)[1] - (By + rot([x, G.keyThick], tN)[1]);
+})();
+export const SHARP_KEY = lever(SHARP.balBack, G.keyFrontLocal + SHARP.front, G.keyThick + G.keyTopCap + SHARP.height - SHARP_TILT, G.frontRailX + SHARP.frontPin);
+export const leverOf = a => (a.sharp ? SHARP_KEY : NATURAL);
+
 // ---------- key ----------
 export function keyRest(a) {
+  const K = leverOf(a), px = G.balX + K.s;
   const By = G.balRailY + a.balPunch;
   const backY = G.backRailY + WEAR.backRail * (a.wear || 0);
-  const th0 = Math.asin((backY - By) / (G.backRailX - G.balX));
+  const th0 = Math.asin((backY - By) / (G.backRailX - px));
   const fr = G.frontRailY + a.frontPunch;
-  const thMax = Math.asin((By - fr) / (G.balX - G.frontRailX));
-  return { By, th0, thMax };
+  const thMax = Math.asin((By - fr) / (px - K.frontRailX));
+  return { By, th0, thMax, s: K.s, K };
 }
-const keyFrontTop = (By, th) => By + rot([G.keyFrontLocal, G.keyThick + G.keyTopCap], th)[1];
-export const keyPt = (By, th, p) => add([G.balX, By], rot(p, th));
+const keyFrontTop = (By, th, K = NATURAL) => By + rot([K.front - K.s, K.top], th)[1];
+// a point on the key, given in the natural's key-local frame; s: the key's own balance pin in that frame (0, or the sharp's)
+export const keyPt = (By, th, p, s = 0) => add([G.balX + s, By], rot([p[0] - s, p[1]], th));
 // soft: the front punching gives under a finger (Sim), so the key can go past the dip the regulation readings use
 export function keyAngle(a, d, soft = false) {
-  const { By, th0, thMax } = keyRest(a);
-  const y0 = keyFrontTop(By, th0);
-  let th = solve(t => keyFrontTop(By, t), y0 - d, th0 - 0.05, th0 + 0.2);
-  return { By, th: soft ? th : Math.min(th, thMax), th0, thMax };
+  const { By, th0, thMax, s, K } = keyRest(a);
+  const y0 = keyFrontTop(By, th0, K);
+  let th = solve(t => keyFrontTop(By, t, K), y0 - d, th0 - 0.05, th0 + 0.2);
+  return { By, th: soft ? th : Math.min(th, thMax), th0, thMax, s, K };
 }
 export function dipOf(a) {
-  const { By, th0, thMax } = keyRest(a);
-  return keyFrontTop(By, th0) - keyFrontTop(By, thMax);
+  const { By, th0, thMax, K } = keyRest(a);
+  return keyFrontTop(By, th0, K) - keyFrontTop(By, thMax, K);
 }
-export const keyHeightOf = a => { const { By, th0 } = keyRest(a); return keyFrontTop(By, th0); };
+export const keyHeightOf = a => { const { By, th0, K } = keyRest(a); return keyFrontTop(By, th0, K); };
+// the top of the key's front edge, world [x, y], d mm down (soft as keyAngle)
+export const keyFrontAt = (a, d = 0, soft = false) => { const k = keyAngle(a, d, soft); return keyPt(k.By, k.th, [k.K.front, k.K.top], k.s); };
 
 // ---------- full pose for a key position and state ----------
 // st: { escaped, checked } carried between calls; g: hammer angle (rad)
 export function linkage(a, d, soft = false) {
   wearNow = a.wear || 0;
   const k = keyAngle(a, d, soft);
-  const cap = keyPt(k.By, k.th, [G.capstanLocal, G.keyThick + a.capstan]);
+  const cap = keyPt(k.By, k.th, [G.capstanLocal, G.keyThick + a.capstan], k.s);
   // wippen angle: the heel's arc rests on the capstan's dome (their centres a fixed distance apart)
-  const dome = keyPt(k.By, k.th, [G.capstanLocal, G.keyThick + a.capstan - G.capDomeR]);
+  const dome = keyPt(k.By, k.th, [G.capstanLocal, G.keyThick + a.capstan - G.capDomeR], k.s);
   const phi = solve(f => { const c = add(G.W, rot(G.heelC, f)); return Math.hypot(c[0] - dome[0], c[1] - dome[1]); },
     G.heelR + G.capDomeR, 0.4, -0.6);
   const wp = p => add(G.W, rot(p, phi));
@@ -492,9 +535,9 @@ export function linkage(a, d, soft = false) {
   const hornFree = repPt(rhoStop, G.horn)[1];
   const hornTop = repPt(Math.min(rhoStop, rhoDrop), G.horn)[1];
   // backcheck: catch height rises with the key; bending toward the hammer catches higher
-  const bcHead = keyPt(k.By, k.th, G.bcHead);
+  const bcHead = keyPt(k.By, k.th, G.bcHead, k.s);
   const depth = d / Math.max(0.1, dipOf(a));
-  const keyEndRise = keyPt(k.By, k.th, [G.dmpContactLocal, G.keyThick])[1] - keyPt(k.By, k.th0, [G.dmpContactLocal, G.keyThick])[1];
+  const keyEndRise = keyPt(k.By, k.th, [G.dmpContactLocal, G.keyThick], k.s)[1] - keyPt(k.By, k.th0, [G.dmpContactLocal, G.keyThick], k.s)[1];
   return { keyEndRise, k, cap, phi, J, R, psiRest, psiBtn, jackPt, repPt, rhoStop, rhoDrop, hornFree, hornTop,
            bcCatchY: bcHead[1] + 3 * a.backcheck, bcHead, depth };
 }
@@ -639,6 +682,9 @@ export function staticHammer(a, L, st, gPrev) {
 // ---------- measurements ----------
 export function factoryNeighborHeight() { return keyHeightOf({ balPunch: 1.5, frontPunch: 0 }); }
 export const NEIGHBOR_H = factoryNeighborHeight();
+// the naturals' tops at rest, at the sharp's front edge: what the sharp's height and its depth are read against (a sharp
+// height gauge stands on the naturals beside it)
+export const NAT_TOP_AT_SHARP = (() => { const k = keyRest({ balPunch: 1.5, frontPunch: 0 }); return keyPt(k.By, k.th0, [SHARP_KEY.front, G.keyThick + G.keyTopCap])[1]; })();
 
 // start a rest search with the knuckle sitting on the jack, where a regulated hammer rests
 const gOnJack = L => gOnJackAt(L, L.psiRest);
@@ -733,7 +779,9 @@ export function measure(a) {
   // (0.02 mm of key: the two contacts are found on the slow press's 0.01 mm steps)
   const screwLate = sp.dEsc === null || sp.blockedAt !== null ? null : sp.dScrew === null ? Infinity : sp.dScrew > sp.dEsc + 0.02 ? sp.dScrew - sp.dEsc : null;
   return {
-    keyHeight: keyHeightOf(a) - NEIGHBOR_H,
+    // a sharp: how far its top is off 1/2 in above the naturals'
+    keyHeight: a.sharp ? keyHeightOf(a) - NAT_TOP_AT_SHARP - SHARP.height : keyHeightOf(a) - NEIGHBOR_H,
+    sharp: !!a.sharp,
     jackPos: jg.backX - coreBack(g, jg.backY),
     jackUnder: jg.backX >= slipBack(L, L.psiRest, gJ) + RESET_CLEAR,   // the sim's own test for a jack back under the knuckle
     jackSlips: sp.slipped,
@@ -748,6 +796,8 @@ export function measure(a) {
     restGap: hamPt(g, G.shankRest)[1] - a.restRail,
     onRail, lostMotion: play,
     dip: sp.dip,
+    // a sharp held down: its top above the naturals' tops (below 0, it has buried in them)
+    sharpBottom: a.sharp ? keyHeightOf(a) - sp.dip - NAT_TOP_AT_SHARP : null,
     letoff: sp.letoff,
     blocked: sp.blockedAt !== null,
     drop: sp.letoff === null ? null : sp.dropLow - sp.letoff,
@@ -850,6 +900,13 @@ export function grade(id, m, k = 1) {
   if (id === 'letoff' && m.blocked) return { ok: false, v: null, note: 'blocks: jack never lets off' };
   if (id === 'damperTiming' && v == null) return { ok: false, v: null, note: 'the key never lifts the damper' };
   if (v === null || v === undefined) return { ok: false, v: null, note: 'no let-off' };
+  // a sharp's dip is matched, not measured: the naturals' aftertouch (graded as aftertouch), and held down, its top still
+  // above the naturals' (SHARP_DIP)
+  if (id === 'dip' && m.sharp) {
+    const bb = sharpDipBand(k), w = m.sharpBottom;
+    return { ok: inBand(w, bb), v, bottom: w, note: q2(w) < q2(bb[0]) ? (w < 0 ? 'buried: down, its top is below the naturals\'' : 'buries: down, its top is nearly down to the naturals\'')
+      : q2(w) > q2(bb[1]) ? 'shallow: down, it still stands well above the naturals' : '' };
+  }
   if (id === 'jackPos' && !m.jackUnder) return { ok: false, v, note: 'jack is not under the knuckle' };
   if (id === 'jackPos' && m.jackSlips) return { ok: false, v, note: 'too far forward: the knuckle slips off it before let-off' };
   // a hammer that sits on the rest rail, or comes down on it when the jack is tripped, says nothing about the lever
@@ -908,8 +965,10 @@ export function cancelled(first, both, ks = [1]) {
 
 // ---------- factory regulation (solve every knob to its spec) ----------
 const bis = (a, id, f, target, lo, hi) => { a[id] = solve(x => { a[id] = x; return f(); }, target, lo, hi, 30); };
-export function factory() {
-  const a = { balPunch: 1.5, jackScrew: 0, repStop: 0, capstan: 13.5, restRail: 101, frontPunch: 2.5,
+// sharp: the sharp's own (SHARP): its balance punching for 1/2 in above the naturals, its front punching for the
+// naturals' factory aftertouch (atMatch: measure(FACTORY).aftertouch), the rest to the same specs
+export function factory(sharp = false, atMatch = null) {
+  const a = { sharp, balPunch: 1.5, jackScrew: 0, repStop: 0, capstan: 13.5, restRail: 101, frontPunch: 2.5,
               letoff: 94, drop: 140, repSpring: 0.8, backcheck: 0, damperGap: 4, damperStop: 8, pedalLift: 8, damperDrag: 0.05,
               hammerTravel: 0, hammerSpace: 0, hammerSquare: 0, wippenSpace: 0, wippenTravel: 0, backcheckSpace: 0, backcheckSquare: 0, damperCenter: 0, damperLevel: 0 };
   for (let pass = 0; pass < 5; pass++) {
@@ -917,7 +976,10 @@ export function factory() {
     bis(a, 'repStop', () => measure(a).wink, SPEC.wink.target, -2, 2);
     bis(a, 'capstan', () => measure(a).blow, SPEC.blow.target, 6, 20);
     a.restRail = hamPt(rest(a).g, G.shankRest)[1] - SPEC.restGap.target;
-    bis(a, 'frontPunch', () => dipOf(a), SPEC.dip.target, 0, 8);
+    if (sharp) {
+      bis(a, 'balPunch', () => keyHeightOf(a) - NAT_TOP_AT_SHARP - SHARP.height, 0, 0, 2.5);
+      bis(a, 'frontPunch', () => measure(a).aftertouch, atMatch, 0, 8);
+    } else bis(a, 'frontPunch', () => dipOf(a), SPEC.dip.target, 0, 8);
     bis(a, 'letoff', () => measure(a).letoff ?? 0, SPEC.letoff.target, 84, 102);
     bis(a, 'drop', () => measure(a).drop ?? 0, SPEC.drop.target, 128, 152);
     bis(a, 'backcheck', () => measure(a).check, SPEC.check.target, -4, 4);
@@ -931,6 +993,7 @@ export function factory() {
     a.damperStop = kl + SPEC.damperStop.target;
     a.pedalLift = kl + SPEC.pedalLift.target;
   }
+  if (!sharp) delete a.sharp;
   return a;
 }
 
@@ -965,6 +1028,10 @@ const I_WIP = aboutPin(A1.wippen) + A1.jack.Icm + A1.jack.m * (G.jackPivotW[0] *
 // share of the key front's arm (the sim's own rails: front pin 223 mm, back rail 220 mm from the balance pin).
 const FELT_FRONT = { a: 4.41e10, b: -1.02e7, c: 15700, D: 1.219, r: (G.balX - G.frontRailX) / KEY_ARM };
 const FELT_BACK = { a: 2.42e10, b: -1.11e7, c: 6540, D: 2.502, r: (G.backRailX - G.balX) / KEY_ARM };
+// the same felts as a key's own lever meets them: a sharp's front pin and balance pin sit elsewhere (SHARP)
+const feltsOf = K => { const px = G.balX + K.s; return { front: { ...FELT_FRONT, r: (px - K.frontRailX) / K.arm }, back: { ...FELT_BACK, r: (G.backRailX - px) / K.arm } }; };
+const FELTS = new Map([NATURAL, SHARP_KEY].map(K => [K, feltsOf(K)]));
+const feltsFor = a => FELTS.get(leverOf(a));
 const N2G = 1e6 / GRAV;   // newtons to grams of force
 const feltG = (f, xmm) => { const x = xmm / 1000; return x <= 0 ? 0 : (f.a * x * x * x + f.b * x * x + f.c * x) * N2G; };
 const feltSquash = (f, grams) => grams <= 0 ? 0 : solve(x => feltG(f, x), grams, 0, 3);   // mm
@@ -1090,7 +1157,7 @@ const HAND_W = 35;
 
 export class Sim {
   constructor(a) { this.h = SUB; this.setAdj(a); this.reset(); }   // h: the time step (a test halves it to show the answer doesn't hang on it)
-  setAdj(a) { this.a = eff(a); this.dip = dipOf(this.a); this.gR = gRail(this.a); this.camT = null; }
+  setAdj(a) { this.a = eff(a); this.felts = feltsFor(this.a); this.dip = dipOf(this.a); this.gR = gRail(this.a); this.camT = null; }
   // The hammer angle the jack top holds the knuckle at, against key travel, while the button alone has the jack: the
   // parts' own path, with its corners eased over CAM_EASE mm of key travel either way. The rigid profiles meet at
   // corners (the knuckle passing from the jack top's rounded corner to its face, the tender meeting the button) where
@@ -1148,7 +1215,8 @@ export class Sim {
     this.t = 0; this.pedal = this.pedal ?? 0; this.pedalTarget = this.pedalTarget ?? 0;
     this.yd = Math.min(pedalHeadLift(this.a, this.pedal), this.a.damperStop); this.vd = 0;
     this.up = this.yd > 0.05; this.hitStop = false; this.liftedAt = this.up ? 0 : null;
-    this.x0 = feltSquash(FELT_BACK, Math.max(0, -(this.keyLoads().F - (this.onJack ? HAMMER_WT * this.gam : 0))) / FELT_BACK.r);
+    const FB = this.felts.back;
+    this.x0 = feltSquash(FB, Math.max(0, -(this.keyLoads().F - (this.onJack ? HAMMER_WT * this.gam : 0))) / FB.r);
   }
   // how fast the jack lifts the hammer here, rad per mm of key travel (found by moving the key a hundredth of a mm on)
   jackRate(L, psi, jackG) {
@@ -1220,10 +1288,10 @@ export class Sim {
     // own stand-in, flagged for a bench check).
     if (!this.force && !this.onJack && !held && this.g <= this.gR + 1e-9) F = Math.min(F, -(fr + KEY_HOME));
     if (this.d > this.dip) {
-      const r = FELT_FRONT.r; F -= feltG(FELT_FRONT, (this.d - this.dip) * r) * Math.max(0, 1 + FELT_FRONT.D * this.v * r / 1000) * r;
+      const FF = this.felts.front, r = FF.r; F -= feltG(FF, (this.d - this.dip) * r) * Math.max(0, 1 + FF.D * this.v * r / 1000) * r;
     }
-    const xb = this.x0 - this.d * FELT_BACK.r;
-    if (xb > 0) F += feltG(FELT_BACK, xb) * Math.max(0, 1 - FELT_BACK.D * this.v * FELT_BACK.r / 1000) * FELT_BACK.r;
+    const FB = this.felts.back, xb = this.x0 - this.d * FB.r;
+    if (xb > 0) F += feltG(FB, xb) * Math.max(0, 1 - FB.D * this.v * FB.r / 1000) * FB.r;
     return { F, fr, m };
   }
   // the pedal all the way down, or (to, over) part of the way and slowly: a wink of the pedal, to see which dampers start first
@@ -1709,7 +1777,8 @@ export function touch(a, { step = 0.02 } = {}) {
 // Key dip under a finger's weight: the front punching squashes (FELT_FRONT) under what the finger presses with beyond
 // what the action pushes back with at the bottom. dipOf() is the dip with the key just touching the punching.
 export function dipAt(a, grams, t = touch(a)) {
-  return dipOf(eff(a)) + feltSquash(FELT_FRONT, Math.max(0, grams - (t.bottomDown ?? 0)) / FELT_FRONT.r) / FELT_FRONT.r;
+  const FF = feltsFor(a).front;
+  return dipOf(eff(a)) + feltSquash(FF, Math.max(0, grams - (t.bottomDown ?? 0)) / FF.r) / FF.r;
 }
 
 // ---------- playing it: key return, repetition ----------
@@ -1855,6 +1924,22 @@ export function setSpecSet(id) {
   }
   Object.assign(FACTORY, GENERIC_FACTORY, SPEC_SETS[id].reg || {});
   return id;
+}
+// The sharp at factory regulation (SHARP): solved offline on the generic set (node tests/sharp-lever.mjs), its balance
+// punching for 1/2 in above the naturals and its front punching for the naturals' aftertouch, the rest to the same
+// specs. The rails all three notes share are set on it: the stop rail 1/16 in over its damper's lift with the sharp held
+// down (Steinway checks it holding a sharp; the naturals then have 1.97 mm, inside Kawai's 1 to 2), and the pedal lift a
+// hair under the naturals' and further under the sharp's, which this stand-in lever lifts 0.68 mm higher (Steinway: set
+// slightly below where the sharps lift). Under a maker's set its knobs keep the same differences from FACTORY's.
+export const FACTORY_SHARP = {"balPunch":1.503,"jackScrew":-0.5704,"repStop":-0.4583,"capstan":13.3963,"restRail":104.5261,"frontPunch":1.1823,"letoff":95.6034,"drop":140.1823,"repSpring":1.3641,"backcheck":0.1629,"damperGap":4.0208,"damperStop":5.3111,"pedalLift":3.28,"damperDrag":0.05,"hammerTravel":0,"hammerSpace":0,"hammerSquare":0,"wippenSpace":0,"wippenTravel":0,"backcheckSpace":0,"backcheckSquare":0,"damperCenter":0,"damperLevel":0};
+export const sharpFactory = () => ({ ...Object.fromEntries(Object.entries(FACTORY).map(([k, v]) => [k, typeof v === 'number' && k in FACTORY_SHARP ? v + FACTORY_SHARP[k] - GENERIC_FACTORY[k] : v])), sharp: true });
+// a key's knobs moved onto the other kind of key (natural to sharp or back), keeping how far each is off its factory
+export function asKey(a, sharp) {
+  const from = a.sharp ? sharpFactory() : FACTORY, to = sharp ? sharpFactory() : FACTORY;
+  const out = { ...a, sharp };
+  for (const k of Object.keys(FACTORY)) if (typeof a[k] === 'number' && typeof to[k] === 'number') out[k] = a[k] + to[k] - from[k];
+  if (!sharp) delete out.sharp;
+  return out;
 }
 // Whose figure a reading is graded against under the chosen set: { text, fallback } (fallback: the maker prints none,
 // so the generic band stands). Under the generic set, only the bands a source prints have one.
