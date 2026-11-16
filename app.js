@@ -1865,7 +1865,8 @@ function toOneNote() {
   $('#level').disabled = false;
   NOTES.forEach(n => { if (n.sim.dTarget > 0) n.sim.press(0, 60); });
   store(); cur = 0;
-  if (wasThree) NOTES.forEach(n => putNote(n, { ...FACTORY }));
+  // (each a plain natural: putNote would give it the kind of key of the row being left)
+  if (wasThree) NOTES.forEach(n => { n.adj = { ...FACTORY }; n.sim.setAdj(n.adj); n.sim.reset(); n.m = measure(n.adj); n.tested = new Set(); });
   ({ adj, sim, m, tested } = NOTES[0]);
   S.setRow('one'); S.setFocus(null);
 }
@@ -1918,7 +1919,7 @@ function examScore() {
     even.push({ id: 'damperFall', ok: spread <= 5, spread, ms: true });
   }
   // a damaged part left in the action fails the exam, and so does an operation left out (examscore.js)
-  const missed = NOTES.some(n => n.adj.damage || n.adj.center);
+  const missed = NOTES.slice(0, 3).some(n => n.adj.damage || n.adj.center);
   return { rows, even, missed, ...examMark(rows, even, { missed }) };
 }
 function renderExam(p) {

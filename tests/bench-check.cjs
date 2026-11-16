@@ -139,7 +139,9 @@ const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if
   page = await open(url);
   await byText(page, /^Three keys$/, '#mode');
   await openFold(page, /^Dampers/);
-  for (let i = 0; i < 3; i++) await tapIn(page, '[data-anchor="damperGap−−"]');
+  // (the middle key is the sharp, whose factory underlever sits 0.3 mm late of the pedal line, in spec: four moves take
+  // it out early, where three did a natural)
+  for (let i = 0; i < 4; i++) await tapIn(page, '[data-anchor="damperGap−−"]');
   await page.evaluate(() => { document.querySelector('#c').said = []; });
   await tapIn(page, '[data-anchor="test:pedalWink"]');
   await page.waitForTimeout(1500);
