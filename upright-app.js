@@ -4,7 +4,7 @@
 // this module's, which sit in the same bars so the phone layouts carry over.
 // The upright's model, drawing and content are upright-model.js, scene-upright.js and content-upright.js; its tool bag
 // is toolbag.js's UPRIGHT_TOOLBAG, shown on its own picture's tool bench.
-import { FACTORY, ADJ, DAMAGE, Sim, measure, grade, pose, evenTol, DAMPER_PEDAL_LIFT, keyAngle, capstanTop, wippenOn, gRail, gString } from './upright-model.js';
+import { FACTORY, ADJ, DAMAGE, Sim, measure, grade, pose, evenTol, DAMPER_PEDAL_LIFT, keyAngle, capstanTop, wippenOn, gRail, gString, sharpFactory } from './upright-model.js';
 import { hand, UPRIGHT_HOLD, HOLD_NAMES, dragTo } from './hand.js';
 import { createUprightScene } from './scene-upright.js';
 import { STEPS, TESTS, TIPS, TOOLS, SPEC_NAMES, REPAIRS, SCENARIOS, bandText, readingText, callouts, deregulated, fairStart, creditOf, advise, alsoText } from './content-upright.js';
@@ -254,7 +254,7 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
     busy = true; plan = null; testScale = t.scale ?? 1; closeCard();
     softOn = sustainOn = false; softBtn.classList.remove('on'); susBtn.classList.remove('on');
     sim = new Sim(a); testEvents = []; log.length = 0;
-    testLog.start(t.label, () => JSON.stringify(a));   // what it says fills in on a card over the picture
+    testLog.start((a.sharp && t.sharpLabel) || t.label, () => JSON.stringify(a));   // what it says fills in on a card over the picture
     refresh(); view(t.view);
     try { await t.run(ctx); } catch (err) { console.error(err); }
     override = null; testRun = null; busy = false; idle = false; testLog.done();
@@ -270,7 +270,7 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
         const show = revealed(id), r = gradeL(id);
         return el('tr', { class: show ? (r.ok ? 'ok' : 'bad') : '' },
           el('td', {}, el('span', { class: 'dot' }), SPEC_NAMES[id]),
-          el('td', { class: 'muted' }, bandText(id)),
+          el('td', { class: 'muted' }, bandText(id, m)),
           el('td', {}, show ? `${readingText(id, m)}${r.note ? ` · ${r.note}` : ''}` : el('span', { class: 'muted' }, 'not measured')));
       })));
   }
@@ -290,7 +290,7 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
           show ? readingText(id, m) : el('span', { class: 'muted' }, 'not measured'));
       })) : null);
   }
-  const testButton = id => el('button', { class: 'test', disabled: busy ? '' : false, 'data-anchor': `u-test:${id}`, onclick: () => runTest(id) }, '▶ ', TESTS[id].label);
+  const testButton = id => el('button', { class: 'test', disabled: busy ? '' : false, 'data-anchor': `u-test:${id}`, onclick: () => runTest(id) }, '▶ ', (a.sharp && TESTS[id].sharpLabel) || TESTS[id].label);
   function benchTips(key, open = true) {
     const tips = TIPS[key];
     if (!tips?.length) return null;
@@ -443,10 +443,17 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
   const CONDITION = new Set(['buttLeather', 'catcherLeather', 'jackSpring', 'damperSpring', 'buttSpring', 'buttCenter', 'strap']);
   let exam = { started: false }, examMinutes = 65;
   const clockText = () => { const s = Math.max(0, Math.round((exam.endAt - Date.now()) / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} left`; };
+  // The middle note is a sharp, a natural either side, as on the 3-key models on Greg's bench (Greg, 2026-11-16): it is
+  // dealt off its own factory regulation (upright-model.js SHARP), and the three stand a semitone apart
+  const SHARP_NOTE = 1;
+  const factoryOf = i => (i === SHARP_NOTE ? sharpFactory() : { ...FACTORY });
+  // the keys drawn with note i in the middle: its own, and its neighbors (a natural is cut round the sharp beside it)
+  const keysFor = i => i === SHARP_NOTE ? ['sharp', 'cutTreble', 'cutBass'] : i < SHARP_NOTE ? ['cutTreble', 'natural', 'sharp'] : ['cutBass', 'sharp', 'natural'];
+  const noteLabel = i => `Note ${i + 1}${i === SHARP_NOTE ? ' (sharp)' : i === 0 ? ' (bass)' : ' (treble)'}`;
   function startExam() {
     const lv = level(), shared = deregulated();
-    const dealt = () => { for (let i = 0; i < 50; i++) { const b = { ...deregulated(), railShim: shared.railShim, softFelt: shared.softFelt, damage: null }; if (fairStart(b)) return b; } return { ...FACTORY, damage: null }; };
-    const notes = [0, 1, 2].map(() => ({ a: dealt(), tested: new Set() }));
+    const dealt = n => { for (let i = 0; i < 50; i++) { const b = { ...deregulated(Math.random, factoryOf(n)), railShim: shared.railShim, softFelt: shared.softFelt, damage: null }; if (fairStart(b)) return b; } return { ...factoryOf(n), damage: null }; };
+    const notes = [0, 1, 2].map(n => ({ a: dealt(n), tested: new Set() }));
     // at the top level one note may hold a worn or broken part: leaving it caps the score below a pass (the sim's own;
     // in PTG's exam, repairs are a separate section)
     if (lv.tolK < 1) { const keys = Object.keys(DAMAGE); notes[Math.floor(Math.random() * 3)].a.damage = keys[Math.floor(Math.random() * keys.length)]; }
@@ -460,7 +467,7 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
     if (busy) return;
     if (!first) { exam.notes[exam.cur] = { a: { ...a }, tested }; }
     exam.cur = i;
-    S.setPresent([i > 0, i < 2]);
+    S.setPresent([i > 0, i < 2]); S.setKeys(keysFor(i));
     setRegulation({ ...exam.notes[i].a }, { replace: true });
     tested = exam.notes[i].tested;
     refresh();
@@ -471,8 +478,9 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
     // a part's condition is scored only on the note that had something wrong with it
     const rows = SCORED.filter(id => !CONDITION.has(id) || exam.damaged.some(d => DAMAGE[d]?.spec === id)).map(id => ({ id, cells: ms.map((m2, i) =>
       CONDITION.has(id) && DAMAGE[exam.damaged[i]]?.spec !== id ? { skip: true } : { ok: g(id, i).ok, txt: readingText(id, m2) }) }));
+    // (the sharp's dip is its own, matched to the naturals by its checking: dip is even across the naturals)
     const even = EVEN.map(id => {
-      const v = ms.map((m2, i) => g(id, i).v);
+      const v = ms.map((m2, i) => g(id, i).v).filter((x, i) => id !== 'dip' || !ms[i].sharp);
       const spread = v.every(x => x != null) ? Math.max(...v) - Math.min(...v) : null;
       return { id, spread, ok: spread !== null && spread <= evenTol(id, exam.level.tolK) + 1e-9 };
     });
@@ -481,7 +489,8 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
     return { rows, even, missed, ...examMark(rows, even, { missed }) };
   }
   function handIn() { if (busy || !exam.started || exam.done) return; exam.result = examScore(); exam.done = true; document.getElementById('level').disabled = false; refresh(); }
-  function leaveExam() { exam = { started: false }; S.setPresent([true, true]); document.getElementById('level').disabled = false; }
+  // (the key left on the bench is a natural again: the sharp is the exam's note 2 only)
+  function leaveExam() { exam = { started: false }; delete a.sharp; S.setPresent([true, true]); S.setKeys(); document.getElementById('level').disabled = false; }
   function renderExam(p) {
     if (!exam.started) {
       put(p, el('h2', {}, 'Upright exam: three notes'),
@@ -493,7 +502,7 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
       return;
     }
     if (exam.done) {
-      const r = exam.result, note = ['Note 1', 'Note 2', 'Note 3'];
+      const r = exam.result, note = [0, 1, 2].map(noteLabel);
       put(p, el('h2', {}, `Score: ${r.pct}%${r.pass ? ', a pass' : ''}`),
         r.missed ? el('p', { class: 'verdict bad' }, 'A worn or broken part was left in the action, so the score is capped below a pass.') : null,
         r.skipped.length ? el('p', { class: 'verdict bad', id: 'exam-skipped' }, `Left out: ${r.skipped.map(id => SPEC_NAMES[id]).join('; ')}. Each is out of tolerance on more than one note, so the operation counts as not done and the score is capped below a pass${r.raw > r.pct ? ` (the items alone come to ${r.raw}%)` : ''}. Every check has to be in on at least ${OP_NEEDS} of the three notes.`) : null,
@@ -503,11 +512,11 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
         el('h3', {}, 'Evenness across the three'),
         el('table', { class: 'specs score' }, el('tbody', {}, r.even.map(e => el('tr', {}, el('td', {}, SPEC_NAMES[e.id]),
           el('td', { class: e.ok ? 'okc' : 'badc' }, `${e.ok ? '✓' : '✗'} spread ${e.spread == null ? '—' : e.id === 'damperTiming' ? `${Math.round(100 * e.spread)}%` : `${e.spread.toFixed(2)} mm`}`))))),
-        el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { exam = { started: false }; S.setPresent([true, true]); refresh(); } }, 'Start a new exam')));
+        el('div', { class: 'row' }, el('button', { class: 'primary', onclick: () => { leaveExam(); setRegulation({ ...FACTORY, damage: null }, { keepTested: false, replace: true }); } }, 'Start a new exam')));
       return;
     }
     put(p, el('div', { class: 'row notes' }, [0, 1, 2].map(i => el('button', { class: i === exam.cur ? 'on' : '', disabled: busy ? '' : false, onclick: () => goNote(i) },
-      `Note ${i + 1}${i === 0 ? ' (bass)' : i === 2 ? ' (treble)' : ''}`))),
+      noteLabel(i)))),
       el('p', { class: 'muted small' }, `${clockText()}. Run the tests, adjust and repair; the hammer rail\'s rest felts and the soft pedal are shared by all three notes. ${level().live ? '' : 'Click a part on the action to adjust it.'}`),
       AREAS.map(ar => el('details', { class: 'fold', open: '' }, el('summary', {}, ar.name),
         el('div', { class: 'row' }, ar.tests.map(testButton)), readingsTable(ar.specs),
@@ -626,7 +635,7 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
   function closeCard() { if (cardPart) S.highlight(stepParts()); cardPart = null; card.hidden = true; }
   function renderCard() {
     if (!cardPart) return;
-    card.replaceChildren(el('div', { class: 'pop-head' }, el('b', { style: 'flex:1' }, S.PART_NAMES[cardPart] || cardPart), el('button', { class: 'pop-x', title: 'Close', onclick: closeCard }, '×')),
+    card.replaceChildren(el('div', { class: 'pop-head' }, el('b', { style: 'flex:1' }, cardPart === 'key' && a.sharp ? 'Sharp (black key: a stand-in until measured)' : S.PART_NAMES[cardPart] || cardPart), el('button', { class: 'pop-x', title: 'Close', onclick: closeCard }, '×')),
       ...PART_KNOBS[cardPart].map(k => el('div', { class: 'pop-knob' }, knobRow(k, { sets: true }))));
     card.hidden = false;
   }
@@ -755,7 +764,7 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
   // ---------- the bench bar (bench-ui.js): this action's undo and redo, before and after, save and load, print ----------
   // One note's regulation. Not in the exam, whose three notes share a rail: there it only prints.
   const BENCH_RULES = { factory: FACTORY, limits: Object.fromEntries(ADJ.map(d => [d.id, [d.min, d.max]])), enums: { damage: Object.keys(DAMAGE) } };
-  const tidy = b => Object.fromEntries(Object.entries(b).filter(([k, v]) => v != null && (k in BENCH_RULES.limits || k === 'damage')).sort(([x], [y]) => (x < y ? -1 : 1)));
+  const tidy = b => Object.fromEntries(Object.entries(b).filter(([k, v]) => v != null && (k in BENCH_RULES.limits || k === 'damage' || k === 'sharp')).sort(([x], [y]) => (x < y ? -1 : 1)));
   const benchRows = mm => ALL_SPECS.map(id => { const r = grade(id, mm, level().tolK); return { id, name: SPEC_NAMES[id], txt: `${readingText(id, mm)}${r.note ? ` · ${r.note}` : ''}`, ok: r.ok, shown: revealed(id) }; });
   const bench = {
     name: 'upright', rules: BENCH_RULES,
@@ -788,7 +797,7 @@ export function createUprightApp({ el, put, toast, testLog, level, refresh }) {
       meta.push(`${seen.filter(r => r.ok).length} of ${seen.length} measured readings in spec${seen.length < rows.length ? `, ${rows.length - seen.length} not measured` : ''}`);
       if (mode === 'diagnose' && scenario) meta.push(`the customer said: “${scenario.complaint}”`);
       return { title: 'Upright action regulation record', meta, tables: [{ head: ['Check', 'Target', 'Reading', 'In spec'],
-        rows: rows.map(r => [r.name, bandText(r.id), r.shown ? { txt: r.txt, ok: r.ok } : { txt: 'not measured', ok: null }, !r.shown ? '' : r.ok ? 'pass' : 'OUT']) }] };
+        rows: rows.map(r => [r.name, bandText(r.id, m), r.shown ? { txt: r.txt, ok: r.ok } : { txt: 'not measured', ok: null }, !r.shown ? '' : r.ok ? 'pass' : 'OUT']) }] };
     },
   };
   return { S, bench, show, hide, frame, setMode, renderPanel, renderCredits, dropHand, get mode() { return mode; }, get busy() { return busy; },

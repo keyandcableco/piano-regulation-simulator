@@ -21,7 +21,7 @@ const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if
   await page.waitForSelector('#mode table', { state: 'attached', timeout: 60000 });
   await page.waitForTimeout(1500);
   const pick = async (cat, sel) => { if (await page.$(`#${cat}`)) await page.click(`#${cat} .cat-btn`); await page.click(sel); };
-  const shot = async name => { await page.waitForTimeout(1200); await page.locator('#c').screenshot({ path: path.join(out, `${name}.png`) }); };
+  const shot = async name => { await page.waitForTimeout(1200); await page.locator('#stage').screenshot({ path: path.join(out, `${name}.png`) }); };
   const viewTo = async v => { await pick('cat-view', `#views [data-view="${v}"]`); await page.waitForTimeout(900); };
   const text = () => page.locator('#mode').innerText();
 
@@ -51,6 +51,30 @@ const check = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`); if
   check(/Note 2, the sharp/.test(t), 'exam: the examiner\'s sheet gives the sharp\'s figures');
   await viewTo('keyfront'); await shot('exam-keyfront');
   await viewTo('angle'); await shot('exam-angle');
+
+  // the upright's exam: note 2 is the sharp, drawn between its naturals; each note in turn in the middle of the picture
+  page.on('dialog', d => d.accept());
+  await page.goto(`${base}/index.html?t=${Date.now()}`);
+  await page.waitForSelector('#mode table', { state: 'attached', timeout: 60000 }); await page.waitForTimeout(1000);
+  await page.click('#action-switch [data-action="upright"]'); await page.waitForTimeout(2500);
+  const uview = async v => {
+    const item = page.locator(`#views [data-uview="${v}"]`).first();
+    if (!(await item.isVisible())) await page.click('#cat-view .cat-btn');
+    await item.click(); await page.waitForTimeout(1200);
+  };
+  await page.click('.tab[data-mode=exam]'); await page.waitForTimeout(800);
+  await page.click('#mode button:has-text("Start the exam")'); await page.waitForTimeout(1500);
+  t = await page.locator('#mode').innerText();
+  check(/Note 2 \(sharp\)/.test(t), 'upright exam: note 2 is named the sharp');
+  check(/above the naturals/.test(t), 'upright exam: note 2 reads against the naturals');
+  for (const v of ['keyfront', 'front', 'angle']) { await uview(v); await shot(`upright-exam-n2-${v}`); }
+  await page.click('#mode button:has-text("Note 1")'); await page.waitForTimeout(1200);
+  await uview('keyfront'); await shot('upright-exam-n1-keyfront');
+  await uview('front'); await shot('upright-exam-n1-front');
+  await page.click('.tab[data-mode=sandbox]'); await page.waitForTimeout(1500);
+  t = await page.locator('#mode').innerText();
+  check(!/above the naturals/.test(t), 'upright: leaving the exam leaves a natural');
+  await uview('keyfront'); await shot('upright-sandbox-keyfront');
 
   check(!errors.length, `no page errors${errors.length ? ': ' + errors.join(' | ') : ''}`);
   await browser.close();

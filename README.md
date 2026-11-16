@@ -33,7 +33,7 @@ The page also has an **upright** action (Learn, Find the fault, Sandbox, Exam an
 The page says this too ("What this model doesn't do", at the foot of the panel). A picture on a screen can teach what each adjustment does, what it moves and the order of the work. It can't teach hands or ears, and it leaves these out:
 
 - **No sound.** Blocking, buzzing, bobbling and ringing strings are told in words. No voicing, no hammer-to-string mating.
-- **One natural key.** No sharp, so nothing on sharp height or dip, nor the damper and pedal settings the makers check on a sharp. The three-note model is three naturals.
+- **A stand-in sharp.** The three-key model (the grand's Sandbox three keys and both exams) has a sharp in the middle, a semitone from the natural either side, as real 3-key models do. Its height and its dip (matched to the naturals' aftertouch on the grand, their checking on the upright, without burying) are graded as the makers give them, but its lever is the sim's own until a real key is measured: where its balance pin and front pin sit, and its size. Learn and Find the fault work on one natural.
 - **One note's geometry.** No taper from bass to treble (let-off, springs, damper play), no bass dampers with springs.
 - **Generic targets, or a maker's figures on a Boston.** On a real piano the maker's figures govern. A maker's set here is its printed figures laid on one measured Boston action: it shows the trade-offs, not that maker's piano.
 - **Every click is exact and instant.** The time a job takes here says nothing about the bench.

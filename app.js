@@ -1324,7 +1324,7 @@ let showCredits = false;
 const LIMITS = {
   both: [
     ['No sound.', 'Blocking, buzzing, bobbling and ringing strings are told in words, not heard. Nothing here trains the ear, and voicing and hammer-to-string mating are not modelled.'],
-    ['A stand-in sharp.', 'The three-key model has a sharp in the middle, a semitone from the natural either side, as real 3-key models do. Its height and its dip (matched to the naturals\' aftertouch, without burying) are graded as the makers give them, but its lever is the sim\'s own until a real key is measured: where its balance pin and front pin sit, and its size. Learn and Find the fault work on one natural.'],
+    ['A stand-in sharp.', 'The three-key model (the grand\'s Sandbox three keys and both exams) has a sharp in the middle, a semitone from the natural either side, as real 3-key models do. Its height and its dip (matched to the naturals\' aftertouch on the grand, their checking on the upright, without burying) are graded as the makers give them, but its lever is the sim\'s own until a real key is measured: where its balance pin and front pin sit, and its size. Learn and Find the fault work on one natural.'],
     ['One note\'s geometry.', 'One place in the scale. No taper from bass to treble (let-off, springs, damper play), no bass dampers with springs.'],
     ['Generic targets.', 'Textbook numbers, not one maker\'s specs. On a real piano the maker\'s figures govern, and Steinway\'s or Kawai\'s own regulation would fail some checks here.'],
     ['Every click is exact and instant.', 'No stripped screws, no bent wire springing back, no paper that is nearly right. The time a job takes here says nothing about the bench.'],

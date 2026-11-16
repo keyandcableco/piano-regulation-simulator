@@ -1,7 +1,7 @@
 // The link-preview card (card.png, 1200 x 630: og:image and twitter:image in index.html), rendered from the app as it
 // is, so it can be made again whenever the model changes: the Sandbox's three keys at factory, in the 3/4 view, with
 // the title over the empty sky. Bump the ?v= on both image tags in index.html after a new card (v=2 on 2026-11-08),
-// or sites that already fetched the old one keep showing it.
+// or sites that already fetched the old one keep showing it (v=3 on 2026-11-16: the sharp in the middle).
 // node tests/make-card.cjs [base_url] [out_png]; needs a server on the checkout and Chrome (playwright-core from
 // minichord-lab's node_modules, SwiftShader WebGL), like the other harnesses here, and Noto Sans installed (the title's
 // width is laid out for it). Look at the card after a model change: nothing checks that the model stays clear of the title.
@@ -35,8 +35,7 @@ const W = 1200, H = 630;
   // the move pad's steps, as a keyboard press on its buttons would take them
   const move = (sel, n) => page.evaluate(([s, k]) => { for (let i = 0; i < k; i++) document.querySelector(s).dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 })); }, [sel, n]);
   await move('[data-zoom="-1"]', 2);
-  await move('[data-slide="-1,0"]', 2);
-  await move('[data-slide="0,1"]', 1);
+  await move('[data-slide="-1,0"]', 2);   // (no slide up since v=3: the sharp in the middle stays in the picture)
   await page.waitForTimeout(1500);
   const shot = await page.locator('#c').screenshot();
   if (errors.length) { console.error('page errors:', errors.join(' | ')); await browser.close(); process.exit(1); }

@@ -6,6 +6,7 @@
 // Where the sim doesn't model something a step talks about, the step says so.
 import {
   FACTORY, ADJ, SPEC, DAMAGE, measure, grade, band, capstanFor, pose, gRail, gOnJack, gString, stringGap, crownAt, keyFrontTop, NEIGHBOR_H, TRACE, CENTER, toSim, turn, jackPt, CORNER,
+  SHARP, SHARP_DIP, natTopAtSharp,
 } from './upright-model.js';
 import { NAME_FORUM_POSTERS, NAMED_OK } from './tips.js';
 
@@ -148,9 +149,9 @@ export const TESTS = {
       ctx.say(back ? 'The jack got back under the butt' : 'The jack hangs on the butt leather: it can\'t get back under. The note won\'t repeat', !back);
       sim.setPedal(false); await ctx.run(0.1);
     } },
-  straightedge: { label: 'Lay the straightedge across the neighbors', specs: ['keyHeight'], view: 'whole',
+  straightedge: { label: 'Lay the straightedge across the neighbors', sharpLabel: 'Sharp height gauge on the naturals', specs: ['keyHeight'], view: 'whole',
     run: async ctx => { await ctx.release(); await ctx.pause(1.5); } },
-  dipBlock: { label: 'Dip block at the key front', specs: ['dip'], view: 'whole', scale: 0.25,
+  dipBlock: { label: 'Dip block at the key front', sharpLabel: 'Press the sharp down beside the naturals', specs: ['dip'], view: 'whole', scale: 0.25,
     run: async ctx => { await ctx.release(); ctx.sim.press(ctx.sim.dip, 12); await ctx.run(ctx.sim.dip / 12 + 0.1); await ctx.pause(1.2); await ctx.release(); } },
   slowPress: { label: 'Press slowly to the bottom', specs: ['letoff', 'aftertouch'], view: 'action', scale: 1,
     run: async ctx => { await ctx.release(); ctx.sim.press(ctx.sim.dip, 6); await ctx.run(ctx.sim.dip / 6 + 0.2); await ctx.pause(1.2); } },
@@ -273,9 +274,11 @@ export const SPEC_NAMES = {
 };
 const CONDITION = { buttLeather: 'firm, not grooved', catcherLeather: 'not worn smooth', jackSpring: 'springs the jack back', damperSpring: 'snaps the damper back',
   buttSpring: 'brings the hammer back briskly', buttCenter: 'free, not wobbly', strap: 'whole and hooked' };
-// a spec's band as the step shows it
-export function bandText(id) {
+// a spec's band as the step shows it; m: the key's readings, when it is the exam's sharp (upright-model.js SHARP)
+export function bandText(id, m = null) {
   const s = SPEC[id];
+  if (id === 'keyHeight' && m?.sharp) return '1/2" above the naturals';
+  if (id === 'dip' && m?.sharp) return `checks with the naturals; down, ${dec(SHARP_DIP.lo)}-${dec(SHARP_DIP.hi)} mm above them`;
   if (id === 'keyHeight') return 'level with the neighbors';
   if (CONDITION[id]) return CONDITION[id];
   if (id === 'bridle') return 'soft pedal down: the wippen stays put';
@@ -296,7 +299,10 @@ function frac(mm, round) {
 export function readingText(id, m) {
   const v = m[id];
   if (CONDITION[id]) { const d = DAMAGE[m.damage]; return d?.spec === id ? d.name.toLowerCase() : 'sound'; }
+  if (id === 'keyHeight' && m.sharp) return Math.abs(v) < 0.05 ? '1/2" above the naturals' : `${fmt(Math.abs(v))} ${v > 0 ? 'high' : 'low'}`;
   if (id === 'keyHeight') return Math.abs(v) < 0.05 ? 'level' : `${fmt(Math.abs(v))} ${v > 0 ? 'high' : 'low'}`;
+  // a sharp's dip: its travel, and where its top ends up against the naturals'
+  if (id === 'dip' && m.sharp) return `${fmt(v)} · down, ${fmt(Math.abs(m.sharpBottom))} ${m.sharpBottom < 0 ? 'below' : 'above'} the naturals`;
   if (id === 'damperTiming' || id === 'softPedal') return v == null ? '—' : `${Math.round(100 * v)}%`;
   if (id === 'bridle') return fmt(m.strapSlack);
   return fmt(v);
@@ -323,7 +329,7 @@ export function callouts({ a, m, p, events = [], shown }) {
     line('escape', c, near, `jack clear ${fmt(m.escapement)}`);
   }
   // the key's front (sim frame): its top against the neighbors' (the straightedge), and how far it has gone down
-  if (shown('keyHeight') && atRest) { const f = keyFrontTop(a, 0); lineSim('keyHeight', f, [f[0], NEIGHBOR_H], readingText('keyHeight', m)); }
+  if (shown('keyHeight') && atRest) { const f = keyFrontTop(a, 0); lineSim('keyHeight', f, [f[0], a.sharp ? natTopAtSharp() : NEIGHBOR_H], readingText('keyHeight', m)); }
   if (shown('dip') && p.d > 0.05) {
     const f0 = keyFrontTop(a, 0), f1 = keyFrontTop(a, p.d);
     lineSim('dip', [f0[0] - 4, f0[1]], [f0[0] - 4, f1[1]], `${fmt(p.d)}${p.d >= m.dip - 0.01 ? ' (dip)' : ''}`);
@@ -463,16 +469,17 @@ export function advise(m, k = 1) {
 // rng: () => [0, 1). Off by up to: key height 0.45 mm, dip 0.6, blow 2.2, lost motion 0.15, let-off 2, checking about
 // 8 mm, the damper's start 15% of the blow, the soft pedal 15%.
 const SPREAD = { balPunch: 0.2, frontPunch: 0.3, railShim: 1, capstan: 0.12, letoff: 0.3, backcheck: 0.4, spoon: 0.5, bridle: 3, softFelt: 3 };
-export function deregulated(rng = Math.random) {
+// base: the key's own factory regulation (the exam's sharp has its own: upright-model.js sharpFactory)
+export function deregulated(rng = Math.random, base = FACTORY) {
   for (let tries = 0; tries < 200; tries++) {
-    const a = { ...FACTORY };
+    const a = { ...base };
     for (const [k, s] of Object.entries(SPREAD)) {
-      const d = ADJ.find(x => x.id === k), v = FACTORY[k] + (2 * rng() - 1) * s;
+      const d = ADJ.find(x => x.id === k), v = base[k] + (2 * rng() - 1) * s;
       a[k] = Math.max(d.min, Math.min(d.max, Math.round(v / d.step) * d.step));
     }
     if (fairStart(a)) return a;
   }
-  return { ...FACTORY };
+  return { ...base };
 }
 // a start short of blocking, missing, scraping, jamming or a taut strap at rest
 export function fairStart(a) {

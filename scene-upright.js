@@ -10,17 +10,21 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createToolStage } from './tools/stage.js';
 import { H, KEY, CENTER, TRACE, SHANK, shankAt, CATCHER_SHANK, BUTT_LEATHER_T, CAPSTAN, EYE, STRAP_T, BUTT_FORK, WIPPEN_FORK, DAMPER_FORK, SCREWS,
   BRIDLE_Z, MAIN_RAIL, HAMMER_RAIL, LETOFF_RAIL, STRING, stringX, WIDTH, RAIL_N, SPOON_BASE, spoonAngle, BC_BEND, bcAngle,
-  BRIDLE_BASE, bridleAngle, strapEnds, STRAP_LEN, STRAP_Z0, turn, wipPt, KEY_RAILS } from './upright-model.js';
+  BRIDLE_BASE, bridleAngle, strapEnds, STRAP_LEN, STRAP_Z0, turn, wipPt, KEY_RAILS, SHARP, SHARP_KEY, leverOf } from './upright-model.js';
 
 // the bass side is -z (on the player's left, as seen from the keys)
 export const BASS = -1;
 // note slots: 0 is the middle (the one drawn solid), 1 toward the bass, 2 toward the treble (see-through neighbors)
 export const NOTE_Z = [0, WIDTH.pitch * BASS, -WIDTH.pitch * BASS];
+// In the exam, whose middle note is a sharp (upright-model.js SHARP), the three are neighbors a semitone apart, as on a
+// piano: seven 23.5 mm naturals to the octave's twelve notes
+export const SEMITONE = WIDTH.pitch * 7 / 12;
+const NOTE_Z_SHARP = [0, SEMITONE * BASS, -SEMITONE * BASS];
 
 const COLORS = {
   keybed: 0x6e4c2e, rail: 0xa47a4c, wood: 0xd7b98c, keywood: 0xe6d3ad, keytop: 0xf6f3ea,
   felt: 0x2f6e46, redfelt: 0x9b2f2f, hammerfelt: 0xeee6d2, buckskin: 0xb38b55, tape: 0xf1ede4,
-  brass: 0xc9a24a, steel: 0xa9afb6, string: 0xcfd3d8, dark: 0x3a2c22, ghost: 0xf2efe7,
+  brass: 0xc9a24a, steel: 0xa9afb6, string: 0xcfd3d8, dark: 0x3a2c22, ghost: 0xf2efe7, sharp: 0x22201e,
 };
 
 // a side-view path moved d to its right, square to each segment and mitred at the joints: the inner face of a strip
@@ -115,6 +119,17 @@ export function createUprightScene(canvas, overlay) {
     return m;
   }
   const extPts = (pts, depth, z0, color, part, parent, opts) => ext(shapeFrom(pts), depth, z0, color, part, parent, opts);
+  // a six-sided block from its eight corners, [x, y, z]: four underneath (x0 z0, x1 z0, x1 z1, x0 z1), then the four on
+  // top in the same order (the grand's scene.js has the same)
+  function block(c, color, part, parent, opts = {}) {
+    const F = [[0, 1, 2], [0, 2, 3], [4, 6, 5], [4, 7, 6], [0, 3, 7], [0, 7, 4], [1, 5, 6], [1, 6, 2], [0, 4, 5], [0, 5, 1], [3, 2, 6], [3, 6, 7]];
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(F.flat().flatMap(i => c[i]), 3));
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, mat(color, opts));
+    parent.add(m); register(m, part, opts);
+    return m;
+  }
   function cyl(r, len, axis, pos, color, part, parent, opts = {}) {
     const geo = new THREE.CylinderGeometry(r, r, len, 20);
     if (axis === 'x') geo.rotateZ(Math.PI / 2);
@@ -224,6 +239,10 @@ export function createUprightScene(canvas, overlay) {
   const [, railTop] = A(0, KEY.bottomY), FX = KEY_RAILS.pinX;
   ext(rect(...A(FX - 8, 0), A(FX + 8, 0)[0], A(0, KEY_RAILS.frontTop)[1]), 80, 0, COLORS.rail, 'frontrail', fixed, SI);
   ext(rect(...A(KEY.balX - 12, 0), A(KEY.balX + 12, 0)[0], A(0, KEY_RAILS.balTop)[1]), 80, 0, COLORS.rail, 'balrail', fixed, SI);
+  // the sharp's rows on the front and balance rails, behind the naturals' (upright-model.js SHARP), with the sharp in
+  const sharpRails = new THREE.Group(); fixed.add(sharpRails); sharpRails.visible = false;
+  ext(rect(...A(SHARP_KEY.pinX - 8, 0), A(SHARP_KEY.pinX + 8, 0)[0], A(0, KEY_RAILS.frontTop)[1]), 80, 0, COLORS.rail, 'frontrail', sharpRails, SI);
+  ext(rect(...A(KEY.balX + 12, 0), A(KEY.balX + SHARP_KEY.s + 9, 0)[0], A(0, KEY_RAILS.balTop)[1]), 80, 0, COLORS.rail, 'balrail', sharpRails, SI);
   ext(rect(...A(KEY.backX - 30, 0), A(KEY.backX, 0)[0], railTop - 2), 80, 0, COLORS.rail, 'backrail', fixed, SI);
   ext(rect(A(KEY.backX - 30, 0)[0], railTop - 2, A(KEY.backX, 0)[0], railTop), 80, 0, COLORS.felt, 'backrail', fixed, SI);
   // rails: each face where the filmed model's is; their sections are stand-ins (upright-model.js). Brackets not drawn.
@@ -244,22 +263,47 @@ export function createUprightScene(canvas, overlay) {
 
     // key (stand-in), its group on the balance pin (where it rocks), with the capstan screwed into it; punchings and pins
     const kp = A(KEY.balX, KEY.bottomY), K = ([x, y]) => [x - kp[0], y - kp[1]];   // action frame -> the key's frame
+    // n.key turns on the key's own balance pin; keyIn holds its parts in the natural's key frame, shifted back with a
+    // sharp's pin (SHARP.balBack). Its body: a natural, the sharp, or a natural cut round a sharp on its bass or
+    // treble side (the exam's three: setKeys)
     const key = n.key = new THREE.Group(); key.position.set(...kp, 0); root.add(key);
+    const keyIn = n.keyIn = new THREE.Group(); key.add(keyIn);
     const [kx0, ky0] = K(A(0, KEY.bottomY)), kx1 = K(A(KEY.backX, 0))[0];
     // a stand-in too, but drawn nearly solid, it and its punchings, so its travel reads in the key-front inset
     const KS = { opacity: 0.85 };
-    ext(rect(kx0, ky0, kx1, ky0 + KEY.thick), WIDTH.key, 0, COLORS.keywood, 'key', key, KS);
-    ext(rect(kx0, ky0 + KEY.thick, kx0 + 150, ky0 + KEY.thick + 2.5), WIDTH.key + 0.4, 0, COLORS.keytop, 'key', key, KS);
+    const body = n.body = { natural: new THREE.Group() };
+    ext(rect(kx0, ky0, kx1, ky0 + KEY.thick), WIDTH.key, 0, COLORS.keywood, 'key', body.natural, KS);
+    ext(rect(kx0, ky0 + KEY.thick, kx0 + 150, ky0 + KEY.thick + 2.5), WIDTH.key + 0.4, 0, COLORS.keytop, 'key', body.natural, KS);
+    {
+      // the sharp: a stick a semitone wide, its ebony SHARP.height over the naturals' tops (their 2.5 mm caps drawn
+      // over the model's key top, so the ebony is too); stand-in sizes, as the grand's
+      const g = body.sharp = new THREE.Group(), x0 = kx0 + SHARP.base, x1 = x0 + SHARP.len, t0 = SHARP_KEY.front, t1 = t0 + SHARP.topLen;
+      const w = SHARP.w / 2, wt = SHARP.wTop / 2, y0 = ky0 + KEY.thick, y1 = ky0 + SHARP_KEY.top + 2.5;
+      ext(rect(x0, ky0, kx1, ky0 + KEY.thick), 11, 0, COLORS.keywood, 'key', g, KS);
+      block([[x0, y0, -w], [x1, y0, -w], [x1, y0, w], [x0, y0, w], [t0, y1, -wt], [t1, y1, -wt], [t1, y1, wt], [t0, y1, wt]], COLORS.sharp, 'key', g, KS);
+      // a natural beside the sharp (dir: +1 the sharp on its +z side): its head full width in front of the sharp, its
+      // tail cut back 1 mm clear of it, the stick behind them a semitone wide on its own action
+      const cut = dir => {
+        const c = new THREE.Group(), span = (u0, u1) => { const a = dir * (SEMITONE - u0), b = dir * (SEMITONE - u1); return [Math.min(a, b), Math.max(a, b)]; };
+        const piece = (xa, xb, ya, yb, [za, zb], color) => ext(rect(xa, ya, xb, yb), zb - za, (za + zb) / 2, color, 'key', c, KS);
+        const head = span(0.75, 22.75), tail = span(SHARP.w / 2 + 1, 22.75), back = [-6.6, 6.6], hx = kx0 + SHARP.base - 1, top = ky0 + KEY.thick;
+        piece(kx0, hx, ky0, top, head, COLORS.keywood); piece(hx, kx0 + 150, ky0, top, tail, COLORS.keywood); piece(kx0 + 150, kx1, ky0, top, back, COLORS.keywood);
+        piece(kx0, hx, top, top + 2.5, [head[0] - 0.2, head[1] + 0.2], COLORS.keytop); piece(hx, kx0 + 150, top, top + 2.5, [tail[0] - 0.2, tail[1] + 0.2], COLORS.keytop);
+        return c;
+      };
+      body.cutTreble = cut(-BASS); body.cutBass = cut(BASS);
+    }
+    for (const [kind, g] of Object.entries(body)) { g.visible = kind === 'natural'; keyIn.add(g); }
     // the punchings: 1 mm discs stacked to the knob's thickness on their rails (update() sets the stacks)
     const punch = (x, top, part) => { const m = cyl(6, 1, 'y', [x, 0, 0], COLORS.felt, part, root, KS); m.geometry.translate(0, 0.5, 0); m.position.y = top; return m; };
     n.balPunch = punch(kp[0], A(0, KEY_RAILS.balTop)[1], 'balrail');
     n.frontPunch = punch(A(FX, 0)[0], A(0, KEY_RAILS.frontTop)[1], 'frontrail');
-    cyl(1.5, 30, 'y', [kp[0], railTop + 10, 0], COLORS.steel, 'balrail', root, { ...SI, metal: true, noPick: true });
+    n.balPin = cyl(1.5, 30, 'y', [kp[0], railTop + 10, 0], COLORS.steel, 'balrail', root, { ...SI, metal: true, noPick: true });
     // the capstan: a wooden dowel turned on a wire screwed into the key [e]
     const cx = K([CAPSTAN.x, 0])[0], cy = y => K([0, y])[1];
-    rodBetween([cx, cy(CAPSTAN.keyTop)], [cx, cy(CAPSTAN.dowelBottom + 3)], CAPSTAN.wireR, COLORS.steel, 'capstan', key);
+    rodBetween([cx, cy(CAPSTAN.keyTop)], [cx, cy(CAPSTAN.dowelBottom + 3)], CAPSTAN.wireR, COLORS.steel, 'capstan', keyIn);
     // the dowel turns up or down its wire (the capstan knob); the hole for the capstan tool through it
-    const dowel = n.capDowel = new THREE.Group(); key.add(dowel);
+    const dowel = n.capDowel = new THREE.Group(); keyIn.add(dowel);
     cyl(CAPSTAN.r, CAPSTAN.top - CAPSTAN.dowelBottom, 'y', [cx, cy((CAPSTAN.top + CAPSTAN.dowelBottom) / 2), 0], COLORS.wood, 'capstan', dowel);
     cyl(0.9, 2 * CAPSTAN.r + 0.4, 'z', [cx, cy(CAPSTAN.dowelBottom + 7), 0], COLORS.dark, 'capstan', dowel);
 
@@ -421,7 +465,10 @@ export function createUprightScene(canvas, overlay) {
   const leg = (pts, move) => pts.map((p, i) => lerp(p, move(p), i / (pts.length - 1)));
   function update(a, p, slot = 0) {
     const n = notes[slot];
-    n.key.position.y = A(0, p.bal)[1]; n.key.rotation.z = p.th;
+    // a sharp turns on its own balance pin, behind the naturals' (upright-model.js SHARP); its punchings and pin with it
+    const ks = p.s ?? 0, K = leverOf(a);
+    n.key.position.x = A(KEY.balX + ks, 0)[0]; n.key.position.y = A(0, p.bal)[1]; n.key.rotation.z = p.th; n.keyIn.position.x = -ks;
+    n.balPunch.position.x = n.balPin.position.x = A(KEY.balX + K.s, 0)[0]; n.frontPunch.position.x = A(K.pinX, 0)[0];
     n.balPunch.scale.y = Math.max(0.01, a.balPunch); n.frontPunch.scale.y = Math.max(0.01, a.frontPunch);
     n.capDowel.position.y = a.capstan;
     n.wippen.rotation.z = -p.phi;
@@ -520,6 +567,14 @@ export function createUprightScene(canvas, overlay) {
   // the neighbor slots show in the views across the keyboard; present: which of them there are (the exam's end notes
   // have one neighbor, not two)
   let present = [true, true], nbOn = false;
+  // each slot's kind of key ('natural', 'sharp', 'cutBass', 'cutTreble': a natural with the sharp on that side), and the
+  // three a semitone apart once there is a sharp among them (the exam)
+  function setKeys(kinds = ['natural', 'natural', 'natural']) {
+    const semi = kinds.includes('sharp');
+    notes.forEach((n, i) => { n.root.position.z = (semi ? NOTE_Z_SHARP : NOTE_Z)[i]; for (const [k, g] of Object.entries(n.body)) g.visible = k === kinds[i]; });
+    sharpRails.visible = semi;
+  }
+  const noteZ = i => notes[i].root.position.z;
   function setNeighbors(on) { nbOn = on; notes.slice(1).forEach((n, i) => { n.root.visible = on && present[i]; }); }
   function setPresent(p) { present = p; setNeighbors(nbOn); }
   // a clipped view keeps only the slice of the action between two x (action frame); cut parts show their insides
@@ -725,6 +780,6 @@ export function createUprightScene(canvas, overlay) {
   }
   return { render, update, setView, setNeighbors, setLabels, setBackground, pick, screenOf, setCallout, clearCallouts, zoomBy, slideBy, resetView, highlight,
     showTool: tools.show, hideTool: tools.hide,
-    setInset, setInsetText, insetEl: insetBox, setPresent,
+    setInset, setInsetText, insetEl: insetBox, setPresent, setKeys, noteZ,
     dispose, controls, camera, scene, notes, VIEWS, PART_NAMES, partMeshes };
 }

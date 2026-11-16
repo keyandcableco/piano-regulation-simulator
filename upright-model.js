@@ -343,6 +343,9 @@ export const SPEC = {
 };
 // a spec's pass band, [lo, hi]
 export const band = s => s.lo !== undefined ? [s.lo, s.hi] : [s.target - s.tol, s.target + s.tol];
+// a sharp's dip, read in place of a natural's (grade()): held down, its top above the naturals' by Steinway's 1/32 in up
+// to the sim's own 3 mm (Steinway also says a penny's thickness, about 1.5 mm)
+export const SHARP_DIP = { lo: IN / 32, hi: 3, target: 1.5, src: 'Steinway, vertical: set by backchecking with the naturals; down, about 1/32 in (a penny) above its natural' };
 // the room (mm) the jack needs between its top and the cushion to get back under the butt at rest: below it a slow
 // release leaves the jack hanging on the butt leather [T: the sim's own figure, set just under what Steinway's 1/64 in
 // of rail follow leaves at the jack here (0.047 mm): "less means the jack may hang" [S1]]
@@ -359,34 +362,58 @@ export const KEY_RAILS = {
   frontTop: KEY.bottomY - KEY.dip - 1,                           // front rail top: 1 mm of punchings gives the 0.400 in dip
 };
 const CAP_LOCAL = [H[0] + CAPSTAN.x - KEY.balX, KEY.thick];       // the capstan wire's foot, key frame
+// The sharp (black key): the exam's middle note, as on the 3-key action models on Greg's bench (Greg, 2026-11-16; the
+// grand's model.js SHARP has the same). Sourced: its top 1/2 in above the naturals; its dip set by matching the
+// naturals' checking (equal capstan rise: Steinway's vertical guide, Spurlock, who calls measuring the sharp's own
+// travel "useless"), and held down its top about a penny above its natural (Steinway: "approximately 1/32 in", and
+// "the approximate thickness of a penny"). Its lever is a stand-in [T] like the natural's: its front edge 55 mm behind
+// the naturals' front; its front rail pin 52 mm behind theirs; its balance pin balBack behind theirs, solved
+// (tests/sharp-lever-upright.mjs) so a factory sharp with the naturals' capstan rise bottoms a penny above them.
+export const SHARP = { height: IN / 2, bottom: 1.5, front: 55, balBack: 32.1, frontPin: 52,
+  base: 51, len: 95, topLen: 85, w: 11, wTop: 9 };   // the ebony [T], as the grand's
+// A key's lever, in the natural's key frame (from the naturals' balance pin): s, its own balance pin; front, its top's
+// front edge; top, that top over the key's underside; pinX, its front rail pin (sim x).
+const lever = (s, front, top, pinX) => ({ s, front, top, pinX, arm: s - front });
+export const NATURAL = lever(0, -KEY.balX, KEY.thick, KEY_RAILS.pinX);
+const sharpTilt = s => {
+  const bal = KEY_RAILS.balTop + 1.5, x = -KEY.balX + SHARP.front;
+  const tN = Math.atan2(KEY_RAILS.back.y - bal, KEY_RAILS.back.x - KEY.balX), tS = Math.atan2(KEY_RAILS.back.y - bal, KEY_RAILS.back.x - KEY.balX - s);
+  return rot([x - s, KEY.thick], tS)[1] - rot([x, KEY.thick], tN)[1];
+};
+export const SHARP_KEY = lever(SHARP.balBack, -KEY.balX + SHARP.front, KEY.thick + SHARP.height - sharpTilt(SHARP.balBack), KEY_RAILS.pinX + SHARP.frontPin);
+export const leverOf = a => (a.sharp ? SHARP_KEY : NATURAL);
+// (tests/sharp-lever-upright.mjs moves the stand-in balance pin to solve it)
+export function setSharpBalBack(s) { Object.assign(SHARP_KEY, { s, arm: s - SHARP_KEY.front, top: KEY.thick + SHARP.height - sharpTilt(s) }); }
 export function keyRest(a) {
-  const bal = KEY_RAILS.balTop + a.balPunch;
-  const th0 = Math.atan2(KEY_RAILS.back.y - bal, KEY_RAILS.back.x - KEY.balX);   // back end down on its rail: front up if bal is high
-  return { bal, th0 };
+  const K = leverOf(a), bal = KEY_RAILS.balTop + a.balPunch;
+  const th0 = Math.atan2(KEY_RAILS.back.y - bal, KEY_RAILS.back.x - KEY.balX - K.s);   // back end down on its rail: front up if bal is high
+  return { bal, th0, s: K.s, K };
 }
-// a key-frame point in the sim frame, key at angle th
-export const keyPt = (bal, th, p) => add([KEY.balX, bal], rot(p, th));
-const frontTop = (bal, th) => keyPt(bal, th, [-KEY.balX, KEY.thick])[1];
+// a point on the key, given in the natural's key frame, in the sim frame, the key at angle th on its own balance pin s
+export const keyPt = (bal, th, p, s = 0) => add([KEY.balX + s, bal], rot([p[0] - s, p[1]], th));
+const frontTop = (bal, th, K = NATURAL) => keyPt(bal, th, [K.front, K.top], K.s)[1];
 // key angle for a front depth d (mm the key front's top has gone down from rest)
 export function keyAngle(a, d) {
-  const { bal, th0 } = keyRest(a), y0 = frontTop(bal, th0);
-  return { bal, th: solve(t => y0 - frontTop(bal, t), d, th0 - 0.05, th0 + 0.2) };
+  const { bal, th0, s, K } = keyRest(a), y0 = frontTop(bal, th0, K);
+  return { bal, th: solve(t => y0 - frontTop(bal, t, K), d, th0 - 0.05, th0 + 0.2), s, K };
 }
 // dip: the key front's travel until it lands on the front rail punching
 export function dipOf(a) {
-  const { bal, th0 } = keyRest(a), punch = KEY_RAILS.frontTop + a.frontPunch;
-  const th = solve(t => keyPt(bal, t, [KEY_RAILS.pinX - KEY.balX, 0])[1], punch, th0, th0 + 0.2);
-  return frontTop(bal, th0) - frontTop(bal, th);
+  const { bal, th0, s, K } = keyRest(a), punch = KEY_RAILS.frontTop + a.frontPunch;
+  const th = solve(t => keyPt(bal, t, [K.pinX - KEY.balX, 0], s)[1], punch, th0, th0 + 0.2);
+  return frontTop(bal, th0, K) - frontTop(bal, th, K);
 }
-export const keyHeightOf = a => { const { bal, th0 } = keyRest(a); return frontTop(bal, th0); };
+export const keyHeightOf = a => { const { bal, th0, K } = keyRest(a); return frontTop(bal, th0, K); };
 // the neighbouring keys' height: they stay at the factory's 1.5 mm of balance punchings
 export const NEIGHBOR_H = keyHeightOf({ balPunch: 1.5 });
-export const keyFrontTop = (a, d) => { const k = keyAngle(a, d); return keyPt(k.bal, k.th, [-KEY.balX, KEY.thick]); };
+// the naturals' tops at the sharp's front edge, at rest: what its height and depth are read against
+export const natTopAtSharp = () => { const k = keyRest({ balPunch: 1.5 }); return keyPt(k.bal, k.th0, [SHARP_KEY.front, KEY.thick])[1]; };
+export const keyFrontTop = (a, d) => { const k = keyAngle(a, d); return keyPt(k.bal, k.th, [k.K.front, k.K.top], k.s); };
 
 // ---------- the wippen on the capstan ----------
 // the capstan dowel's flat top (action frame): its centre, and the two ends of its rim in the side view
 export function capstanTop(a, k, dx = 0) {
-  return sub(keyPt(k.bal, k.th, [CAP_LOCAL[0] + dx, CAP_LOCAL[1] + CAPSTAN.top - CAPSTAN.keyTop + a.capstan]), H);
+  return sub(keyPt(k.bal, k.th, [CAP_LOCAL[0] + dx, CAP_LOCAL[1] + CAPSTAN.top - CAPSTAN.keyTop + a.capstan], k.s), H);
 }
 // The cushion's flat underside, wippen-local: the dowel's top lifts it at the top's centre. As the key and wippen tilt
 // apart a rigid cushion would ride on the dowel's string-side rim: that turns the wippen 11.2 degrees over the filmed
@@ -609,7 +636,7 @@ export function pose(a, d, { soft = false, held = false } = {}) {
       if (pe > psi && !jammed) { psi = pe; rests = true; }
     }
   }
-  return { d, th: k.th, bal: k.bal, phi, psi, g, dl: damperAngle(a, phi), on, jammed, blocked, check, soft, gRail: gr, rests,
+  return { d, th: k.th, bal: k.bal, s: k.s, phi, psi, g, dl: damperAngle(a, phi), on, jammed, blocked, check, soft, gRail: gr, rests,
     slack: strapSlack(a, phi, g) };
 }
 
@@ -641,7 +668,9 @@ export function measure(a0) {
   const bottom = sp.blockAt !== null ? pose(a, sp.blockAt) : pose(a, sp.dip, { held: true });
   const blow = stringGap(rest.g), lostMotion = jackGap(rest.phi, 0, rest.gRail);
   return {
-    keyHeight: keyHeightOf(a) - NEIGHBOR_H, dip: sp.dip, blow,   // key height: mm above its neighbours
+    // key height: mm above its neighbours; a sharp's, mm off 1/2 in above the naturals
+    keyHeight: a.sharp ? keyHeightOf(a) - natTopAtSharp() - SHARP.height : keyHeightOf(a) - NEIGHBOR_H, dip: sp.dip, blow,
+    sharp: !!a.sharp, sharpBottom: a.sharp ? keyHeightOf(a) - sp.dip - natTopAtSharp() : null,   // a sharp down: its top over the naturals'
     lostMotion,                                            // jack top to butt cushion at rest, mm (S3's jack gap)
     lostMotionKey: sp.moveAt,                              // key travel before the hammer moves, mm
     jackReturns: lostMotion > JACK_CLEAR,                  // gets back under the butt on a slow release [S2's test]
@@ -680,12 +709,18 @@ export function regulate(a0 = {}) {
   }
   return { a, m, missed };
 }
+// the capstan's rise from rest to the bottom of the dip, mm: what a sharp's dip is matched by (its checking)
+export const capstanRise = a => capstanTop(a, keyAngle(a, dipOf(a)))[1] - capstanTop(a, keyAngle(a, 0))[1];
+// a0.sharp: a sharp (SHARP), its balance punching set for 1/2 in above the naturals and its front punching for the
+// naturals' capstan rise (FACTORY's), so it checks with them
 export function factory(a0 = {}) {
   const a = { balPunch: 1.5, frontPunch: 1, railShim: 0, capstan: 0, letoff: 0, backcheck: 0, spoon: 0, bridle: 0, softFelt: 10, ...a0 };
+  const rise = a.sharp ? capstanRise(FACTORY) : null;
   for (let pass = 0; pass < 2; pass++) {
+    if (a.sharp) a.balPunch = solve(v => keyHeightOf({ ...a, balPunch: v }) - natTopAtSharp() - SHARP.height, 0, 0, 4);
     a.railShim = solve(v => stringGap(gRail({ ...a, railShim: v })), SPEC.blow.target, -3, 6);
     a.capstan = capstanFor(a);
-    a.frontPunch = solve(v => dipOf({ ...a, frontPunch: v }), SPEC.dip.target, 4, 0);
+    a.frontPunch = a.sharp ? solve(v => capstanRise({ ...a, frontPunch: v }), rise, 4, 0) : solve(v => dipOf({ ...a, frontPunch: v }), SPEC.dip.target, 4, 0);
     // a button too high never trips the jack: count that as letting off at the strings, so the search keeps one direction
     a.letoff = solve(v => slowPress({ ...a, letoff: v }, 0.05).letoffGap ?? -1, SPEC.letoff.target, -4, 4, 30);
     a.backcheck = solve(v => { const p = pose({ ...a, backcheck: v }, dipOf(a), { held: true }); return p.on === 'backcheck' ? stringGap(p.g) : 99; },
@@ -695,7 +730,7 @@ export function factory(a0 = {}) {
     // the bridle wire last: just enough slack that the soft pedal doesn't lift the wippen (Ellis's setting [S14])
     a.bridle = solve(v => { const b = { ...a, bridle: v }, p = pose(b, 0, { soft: true }); return strapSlack(b, p.phi, p.g); }, BRIDLE_SOFT_SLACK, 8, -8);
   }
-  for (const k of Object.keys(a)) a[k] = +a[k].toFixed(4);
+  for (const k of Object.keys(a)) if (typeof a[k] === 'number') a[k] = +a[k].toFixed(4);
   return a;
 }
 
@@ -775,6 +810,12 @@ export function grade(id, m, k = 1) {
   if (id === 'lostMotion' && v <= 0) return { ok: false, v, note: 'none: the jack holds the hammer off its rail' };
   if (id === 'lostMotion' && !m.jackReturns) return { ok: false, v, note: 'too little: the jack can\'t get back under the butt on a slow release' };
   if (id === 'escapement' && v <= 0.05) return { ok: false, v, note: 'the jack rests against the butt leather: it gets in the way of the checking' };
+  // a sharp's dip is matched by its checking, not measured: graded on its top, held down, staying above the naturals'
+  if (id === 'dip' && m.sharp) {
+    const c = (SHARP_DIP.lo + SHARP_DIP.hi) / 2, h = (SHARP_DIP.hi - SHARP_DIP.lo) / 2 * Math.max(1, k), w = m.sharpBottom;
+    return w < c - h - 1e-9 ? { ok: false, v, bottom: w, note: w < 0 ? 'buried: down, its top is below the naturals\'' : 'buries: down, its top is nearly down to the naturals\'' }
+      : w > c + h + 1e-9 ? { ok: false, v, bottom: w, note: 'shallow: down, it still stands well above the naturals' } : { ok: true, v, bottom: w, note: '' };
+  }
   let [lo, hi] = band(s);
   if (s.lo === undefined) { lo = s.target - s.tol * k; hi = s.target + s.tol * k; }
   else if (k > 1) { const c = (lo + hi) / 2, h = (hi - lo) / 2 * k; [lo, hi] = id === 'lostMotion' ? [lo, s.target + (hi - s.target) * k] : [c - h, c + h]; }
@@ -820,6 +861,17 @@ export function crownAt(g) {
 // (Until 2026-11-09 let-off was counted from where the jack stood clear of the cushion with the hammer in check, 0.34 mm
 // of key later than where the hammer drops off the jack: aftertouch then read 1.04 and 0.44. See pose().)
 export const FACTORY = {"balPunch":1.5,"frontPunch":1.5522,"railShim":0.5587,"capstan":0.7933,"letoff":0.0314,"backcheck":0.0805,"spoon":-1.6704,"bridle":0.9719,"softFelt":9.7695};
+// the sharp at factory regulation (SHARP), solved offline (node tests/sharp-lever-upright.mjs): 1/2 in above the
+// naturals, checking with them, the rail and soft pedal the three share as FACTORY's
+export const FACTORY_SHARP = {"balPunch":1.5,"frontPunch":0.4927,"railShim":0.5587,"capstan":0.7933,"letoff":0.0337,"backcheck":0.4457,"spoon":-1.6622,"bridle":0.9719,"softFelt":9.7695};
+export const sharpFactory = () => ({ ...FACTORY_SHARP, sharp: true });
+// a key's knobs moved onto the other kind of key (natural to sharp or back), keeping how far each is off its factory
+export function asKey(a, sharp) {
+  const from = a.sharp ? FACTORY_SHARP : FACTORY, to = sharp ? FACTORY_SHARP : FACTORY, out = { ...a, sharp };
+  for (const k of Object.keys(FACTORY)) if (typeof a[k] === 'number') out[k] = a[k] + to[k] - from[k];
+  if (!sharp) delete out.sharp;
+  return out;
+}
 
 // =====================================================================================================================
 // Dynamics (C3): one note stepped in time.
@@ -1071,7 +1123,7 @@ export class Sim {
   run(seconds, dt = 0.0001) { for (let t = 0; t < seconds - 1e-12; t += dt) this.step(dt); }
   // where everything is now, as pose() gives it (for the drawing), but soft is the pedal's share of its travel (0-1)
   pose() {
-    return { d: this.d, th: keyAngle(this.a, this.d).th, bal: keyRest(this.a).bal, phi: this.phi, psi: this.psi, g: this.g, dl: this.dl,
+    return { d: this.d, th: keyAngle(this.a, this.d).th, bal: keyRest(this.a).bal, s: keyRest(this.a).s, phi: this.phi, psi: this.psi, g: this.g, dl: this.dl,
       soft: this.soft, slack:this.strapLen - Math.hypot(...sub(...strapEnds(this.a, this.phi, this.g))), on: this.jack, blocked: this.blocked };
   }
 }
